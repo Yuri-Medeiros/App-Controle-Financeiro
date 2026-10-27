@@ -30,7 +30,7 @@ Snapshot do release com ícone aprovado: SHA-256 `53d9ee4e09e91d83cd34e25d65837f
 ## Estado da entrega e validações pendentes
 
 1. Concluído: cofrinho aprovado explicitamente pelo usuário e incorporado ao ícone adaptativo. Proposta MF rejeitada e não utilizada.
-2. Configurar a senha pessoal real na execução de assinatura e disponibilizar o keystore protegido. Concluir o mecanismo de gravação e recuperação no Google Drive com conta pessoal e custo zero, sem substituir o requisito por arquivo apenas no workspace.
+2. Configurar a senha pessoal real na execução de assinatura e disponibilizar o keystore protegido. O conector Drive já respondeu e passou por envio/recuperação de arquivo temporário sem dados sensíveis, conferido byte a byte e removido ao final. Ainda falta criar e testar a recuperação da chave real, sem substituir o requisito por arquivo apenas no workspace.
 3. Criar a identidade definitiva, registrar seu certificado público e conferir assinatura. Nenhum APK desta versão pode ser distribuído como instalação de uso real antes disso.
 4. Instalar no Galaxy S23/Android 16 e testar biometria, PIN/senha, cancelamento, ausência de credencial, retorno em 59/60 segundos, recriação de Activity, morte do processo e alteração do bloqueio do aparelho. Compilar teste Android não comprova executá-lo.
 5. Executar a Instrumentation de armazenamento cifrado: senha correta preserva registro; senha incorreta é rejeitada; cabeçalho não é SQLite em texto claro; SQLCipher ativo. O ambiente atual não dispõe de Android em execução e tem a limitação de ADB registrada em CODEX_CLOUD.md.

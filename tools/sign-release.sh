@@ -9,7 +9,8 @@ if [[ -z "${MEU_FINANCEIRO_SIGNING_PASSWORD:-}" ]]; then
   echo 'Signing blocked: personal variable MEU_FINANCEIRO_SIGNING_PASSWORD is missing.' >&2
   exit 2
 fi
-if [[ -z "${MEU_FINANCEIRO_SIGNING_KEYSTORE:-}" || ! -f "$MEU_FINANCEIRO_SIGNING_KEYSTORE" ]]; then
+release_keystore="${MEU_FINANCEIRO_SIGNING_KEYSTORE:-$FINANCE_CLOUD_ROOT/signing/meu-financeiro-release.p12}"
+if [[ ! -f "$release_keystore" ]]; then
   echo 'Signing blocked: MEU_FINANCEIRO_SIGNING_KEYSTORE must identify the protected release keystore.' >&2
   exit 2
 fi
@@ -22,7 +23,7 @@ unsigned="$project_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
 test -f "$unsigned" || { echo 'Build the release APK first.' >&2; exit 2; }
 signing_tmp="$(mktemp -d "$FINANCE_CLOUD_ROOT/signing-run.XXXXXX")"
 trap 'rm -rf -- "$signing_tmp"' EXIT
-keytool -exportcert -keystore "$MEU_FINANCEIRO_SIGNING_KEYSTORE" \
+keytool -exportcert -keystore "$release_keystore" \
   -alias meu-financeiro -storepass:env MEU_FINANCEIRO_SIGNING_PASSWORD \
   -file "$signing_tmp/certificate.der" >/dev/null 2>&1
 python - "$certificate_pin" "$signing_tmp/certificate.der" <<'PY'
@@ -36,7 +37,7 @@ if not hmac.compare_digest(expected,actual):
  raise SystemExit('Signing blocked: certificate does not match the approved release identity.')
 PY
 zipalign -P 16 -f 4 "$unsigned" "$signing_tmp/aligned.apk"
-apksigner sign --ks "$MEU_FINANCEIRO_SIGNING_KEYSTORE" --ks-key-alias meu-financeiro \
+apksigner sign --ks "$release_keystore" --ks-key-alias meu-financeiro \
   --ks-pass env:MEU_FINANCEIRO_SIGNING_PASSWORD --key-pass env:MEU_FINANCEIRO_SIGNING_PASSWORD \
   --out "$signing_tmp/signed.apk" "$signing_tmp/aligned.apk"
 apksigner verify --verbose --print-certs "$signing_tmp/signed.apk"

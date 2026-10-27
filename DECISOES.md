@@ -19,6 +19,8 @@
 
 ## Plataforma e colaboração
 
+- Identificador técnico aprovado: `br.com.yurimedeiros.meufinanceiro`, estável para o aplicativo Android e a configuração OAuth. Não exige contratação de domínio, CNPJ ou pagamento. Configuração ainda não implementada.
+- Paleta aprovada: verde-petróleo como destaque, fundos neutros e vermelho reservado a déficits e atrasos, nos temas claro e escuro. Direção visual moderna, amigável e minimalista preservada.
 - Nome aprovado: **Meu Financeiro**, exibido no celular e na autorização Google. Identificador técnico do pacote permanece pendente.
 - Direção visual exigida: moderna, amigável e minimalista, usando a base Material 3 já aprovada. Apresentar detalhes de interface para aprovação antes de implementar; não presumir paleta ou ícone aprovados.
 - Base visual aprovada: Material 3 em Jetpack Compose, com componentes padrão do Android e tema claro/escuro seguindo a configuração do aparelho, sem custo de biblioteca. Nome, ícone, paleta e detalhes de cada tela ainda não definidos.

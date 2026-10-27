@@ -12,9 +12,14 @@
 - Assinatura real dos dois APKs: passou em `apksigner` com esquema v3, com identidades distintas e correspondentes aos pins. A identidade definitiva anterior foi preservada.
 - `zipalign -c -P 16 4` e alinhamento ELF de todas as bibliotecas nativas: passaram nos dois APKs assinados.
 - Certificado propositalmente incorreto: assinatura bloqueada sem criar o APK de saída.
+- APK de Instrumentation recompilado com pacote `.instrumentation`, distinto do candidato `.test`; manifesto empacotado conferido.
 - Script local de assinatura: usa a versão centralizada, sem nome de arquivo fixo em 0.1.0.
 
 Os APKs desta verificação estão em `build/pipeline-validation`; não constituem uma Release aprovada/publicada nem teste de instalação no Android.
+
+## CI real no GitHub
+
+A execução [Verificar PR #3](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/actions/runs/40570268095), no commit `ccd63fe5e9bed93fbcdd66cb6924a0b6559f67dd`, concluiu com sucesso os testes Python e todos os alvos Gradle do workflow. A primeira execução revelou `sdkmanager` fora do PATH; o setup foi corrigido para usar os componentes já instalados e a execução passou. O ajuste posterior do pacote de Instrumentation foi recompilado e conferido localmente.
 
 ## Pendências de ativação e aceitação
 

@@ -23,6 +23,8 @@ android {
         targetSdk = 36
         versionCode = distributionCode
         versionName = releaseVersion
+        // Keep Instrumentation installable alongside the .test candidate app.
+        testApplicationId = "br.com.yurimedeiros.meufinanceiro.instrumentation"
         testInstrumentationRunner = "br.com.yurimedeiros.meufinanceiro.SecurityInstrumentation"
         javaCompileOptions {
             annotationProcessorOptions {

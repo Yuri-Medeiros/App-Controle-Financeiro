@@ -19,6 +19,7 @@
 
 ## Plataforma e colaboração
 
+- Horizonte do indicador “disponível até o próximo salário” aprovado: do momento atual até imediatamente antes do próximo recebimento salarial. O salário futuro aparece no planejamento do próximo ciclo e não aumenta o disponível atual. A fórmula completa, os exemplos de dupla contagem e o tratamento de déficit ainda precisam de aprovação específica. O ciclo salarial e o ajuste de data por dias úteis seguem os requisitos originais.
 - Arredondamento de divisões aprovado: distribuir centavos restantes pelos maiores restos decimais; em empate, usar ordem fixa de participantes registrada na compra. Exemplo: R$ 100 divididos igualmente entre três participantes → R$ 33,34 + R$ 33,33 + R$ 33,33, preservando o total. Não resolve automaticamente a distribuição das diferenças entre várias parcelas, que ainda deve ser validada.
 - Valores monetários em reais: armazenar como centavos inteiros (ex.: R$ 123,45 → 12345), evitando ponto flutuante para os valores financeiros persistidos. Arredondamento de divisões, percentuais, rendimentos e conversões ainda exige regras próprias; não foi aprovado implicitamente. Precisão de Bitcoin também permanece pendente.
 - Arquitetura aprovada: MVVM com separação entre interface, regras financeiras e acesso aos dados. Objetivo: permitir testes independentes de cálculos e importações com a stack gratuita aprovada. Não implica aprovação automática de bibliotecas adicionais ou de regras financeiras ainda pendentes. Desenvolvimento permanece pausado.

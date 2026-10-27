@@ -25,3 +25,7 @@ As consultas por `gh api` a Secrets (somente nomes), rulesets e Releases retorna
 O usuário informou ter baixado a versão 0.1.1 e dois candidatos. Download não confirma instalação, testes ou aprovação vinculada a tag/SHA. Maior versionCode instalado ainda não foi confirmado; a referência de distribuição não foi alterada por suposição.
 
 A variável de senha de assinatura foi reportada pronta pelo ambiente, sem leitura do valor. Identidades, certificados e workflows foram preservados. Não houve assinatura, candidato ou publicação nesta etapa. Preparar candidato exige CI e o workflow existente; não entregar APK por caminho alternativo diante do bloqueio da API. Backup financeiro, OAuth, importadores e testes no aparelho não foram declarados concluídos.
+
+## Avanço concorrente preservado
+
+Ao abrir a PR #4, `work` havia avançado para 1d34662 (PR #3): remoção da frase final do README e versão 0.1.2. O merge preserva a remoção e a nova seção de continuidade; a versão da feature permanece 0.2.0, superior a 0.1.2 e conforme incremento minor. Nenhum código de produto remoto foi substituído.

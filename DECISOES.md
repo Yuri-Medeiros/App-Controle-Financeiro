@@ -7,6 +7,7 @@
 
 ## Segurança aprovada
 
+- Bloqueio aprovado: exigir biometria ou PIN/senha do Android ao abrir o aplicativo e novamente após permanecer 1 minuto em segundo plano; retornos antes desse intervalo não exigem novo desbloqueio por esse motivo. Detalhes de implementação e testes de segurança permanecem pendentes. Desenvolvimento continua pausado.
 - Criar e usar chave de assinatura definitiva, com custo zero, para preservar a identidade do aplicativo nas atualizações.
 - Guardar a chave de assinatura em arquivo criptografado no Google Drive do usuário, com senha de recuperação conhecida por ele; não guardar a chave no GitHub. O fluxo de acesso para assinatura pelo Codex Cloud ainda precisa de validação e detalhamento, sem dependência do computador do usuário.
 - Criptografar o banco local, além do bloqueio de abertura.

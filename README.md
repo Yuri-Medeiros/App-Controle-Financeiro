@@ -13,6 +13,12 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 
 Google, importação, planejamento financeiro, backup/recuperação e patrimônio serão implementados em etapas posteriores. Esta versão não deve receber dados financeiros reais antes de validar recuperação e atualização no Android.
 
+## Atualizar pelo PC ou pelo celular
+
+O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.
+
+A versão é centralizada em `version.properties`; a variante `candidate` usa pacote `.test`, ícone laranja com T e dados isolados. O identificador e a assinatura do aplicativo principal são preservados.
+
 ## Compilar na nuvem
 
 Na pasta deste repositório:
@@ -30,7 +36,7 @@ Para preparar o ambiente publicado, associar `bash tools/setup-cloud.sh` ao scri
 
 ## Assinatura
 
-O script [tools/sign-release.sh](tools/sign-release.sh) só executa quando encontra a senha pessoal, o keystore e a impressão digital pública da identidade aprovada. Ver [signing/README.md](signing/README.md). Nenhuma chave definitiva foi gerada ou copiada para o Google Drive nesta etapa: faltam acesso e valores configurados no ambiente.
+O script [tools/sign-release.sh](tools/sign-release.sh) só executa quando encontra a senha pessoal, o keystore e a impressão digital pública da identidade aprovada. Ver [signing/README.md](signing/README.md). A identidade definitiva foi criada em PKCS12 protegido e salva no Google Drive. A cópia recuperada foi comparada byte a byte e aberta com a senha pessoal; seu certificado corresponde ao SHA-256 público fixado no repositório. Preserve essa identidade em todas as atualizações.
 
 ## Verificação
 

@@ -13,3 +13,8 @@ local.properties
 *.aab
 .kotlin/
 
+
+__pycache__/
+*.pyc
+plan.json
+/distribution/

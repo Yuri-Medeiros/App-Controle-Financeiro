@@ -21,27 +21,22 @@ if [[ ! -f "$certificate_pin" ]]; then
 fi
 unsigned="$project_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
 test -f "$unsigned" || { echo 'Build the release APK first.' >&2; exit 2; }
-signing_tmp="$(mktemp -d "$FINANCE_CLOUD_ROOT/signing-run.XXXXXX")"
-trap 'rm -rf -- "$signing_tmp"' EXIT
-keytool -exportcert -keystore "$release_keystore" \
-  -alias meu-financeiro -storepass:env MEU_FINANCEIRO_SIGNING_PASSWORD \
-  -file "$signing_tmp/certificate.der" >/dev/null 2>&1
-python - "$certificate_pin" "$signing_tmp/certificate.der" <<'PY'
-import hashlib,hmac,re,sys
+version="$(python3 - "$project_dir/version.properties" <<'PYVERSION'
 from pathlib import Path
-expected=Path(sys.argv[1]).read_text().strip().lower().replace(':','')
-if not re.fullmatch('[0-9a-f]{64}',expected):
- raise SystemExit('Invalid public certificate fingerprint.')
-actual=hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()
-if not hmac.compare_digest(expected,actual):
- raise SystemExit('Signing blocked: certificate does not match the approved release identity.')
-PY
-zipalign -P 16 -f 4 "$unsigned" "$signing_tmp/aligned.apk"
-apksigner sign --ks "$release_keystore" --ks-key-alias meu-financeiro \
-  --ks-pass env:MEU_FINANCEIRO_SIGNING_PASSWORD --key-pass env:MEU_FINANCEIRO_SIGNING_PASSWORD \
-  --out "$signing_tmp/signed.apk" "$signing_tmp/aligned.apk"
-apksigner verify --verbose --print-certs "$signing_tmp/signed.apk"
-zipalign -c -P 16 4 "$signing_tmp/signed.apk"
-mkdir -p "$project_dir/build/distributions"
-cp "$signing_tmp/signed.apk" "$project_dir/build/distributions/Meu-Financeiro-0.1.0.apk"
-sha256sum "$project_dir/build/distributions/Meu-Financeiro-0.1.0.apk"
+import re,sys
+s=Path(sys.argv[1]).read_text()
+m=re.fullmatch(r'versionName=([0-9]+\.[0-9]+\.[0-9]+)\s*', s)
+if not m: raise SystemExit('Invalid version.properties')
+print(m[1])
+PYVERSION
+)"
+export KEYSTORE_B64="$(base64 -w0 "$release_keystore")"
+export SIGNING_PASSWORD="$MEU_FINANCEIRO_SIGNING_PASSWORD"
+export SIGNING_ALIAS=meu-financeiro
+export APK_PACKAGE=br.com.yurimedeiros.meufinanceiro
+export APK_VERSION="$version"
+export APK_CODE="${MEU_FINANCEIRO_VERSION_CODE:-1}"
+output="$project_dir/build/distributions/Meu-Financeiro-$version.apk"
+bash "$project_dir/tools/sign-apk.sh" "$unsigned" "$output" "$certificate_pin"
+unset KEYSTORE_B64 SIGNING_PASSWORD
+sha256sum "$output"

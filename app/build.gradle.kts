@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val releaseVersion = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}.getProperty("versionName")
+require(Regex("[0-9]+\\.[0-9]+\\.[0-9]+").matches(releaseVersion))
+val distributionCode = providers.gradleProperty("distributionVersionCode").orElse("1").get().toInt()
+require(distributionCode in 1..2100000000)
 
 android {
     namespace = "br.com.yurimedeiros.meufinanceiro"
@@ -12,8 +21,10 @@ android {
         applicationId = "br.com.yurimedeiros.meufinanceiro"
         minSdk = 35
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = distributionCode
+        versionName = releaseVersion
+        // Keep Instrumentation installable alongside the .test candidate app.
+        testApplicationId = "br.com.yurimedeiros.meufinanceiro.instrumentation"
         testInstrumentationRunner = "br.com.yurimedeiros.meufinanceiro.SecurityInstrumentation"
         javaCompileOptions {
             annotationProcessorOptions {
@@ -25,6 +36,14 @@ android {
         // Signing is exclusively an explicit post-build cloud operation.
         debug { signingConfig = null }
         release { isMinifyEnabled = false }
+        create("candidate") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test.$distributionCode"
+            resValue("string", "app_name", "Meu Financeiro Teste")
+            signingConfig = null
+        }
     }
     buildFeatures { compose = true }
     compileOptions {

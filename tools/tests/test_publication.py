@@ -23,9 +23,12 @@ class API:
         self.history = []
         self.corrupt_readback = False
         self.releases = []
+        self.tag_sha = 'a' * 40
 
     def request(self, path, method='GET', data=None, raw=False):
         self.history.append((method, path))
+        if path.startswith('/git/ref/tags/'):
+            return {'object': {'type': 'commit', 'sha': self.tag_sha}}
         if path == '/releases/5' and method == 'GET':
             return self.release
         if path == '/releases/5' and method == 'PATCH':
@@ -93,6 +96,12 @@ class Publication(unittest.TestCase):
         with patch.object(p, 'resolve', side_effect=[dict(self.plan), changed]):
             with self.assertRaises(p.Blocked):
                 p.publish(self.api, self.plan, 5, self.output)
+        self.assertTrue(self.api.release['draft'])
+
+    def test_existing_tag_cannot_point_to_other_code(self):
+        self.api.tag_sha = 'b' * 40
+        with self.assertRaises(p.Blocked):
+            self.publish()
         self.assertTrue(self.api.release['draft'])
 
     def test_stage_is_private_and_hashes_transferred_bytes(self):

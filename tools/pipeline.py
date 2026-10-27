@@ -16,6 +16,12 @@ class Blocked(RuntimeError):
     pass
 
 
+class APIError(Blocked):
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+
+
 def require(condition, message):
     if not condition:
         raise Blocked(message)
@@ -53,7 +59,7 @@ class GitHub:
                 result = response.read()
             return result if raw else (json.loads(result) if result else None)
         except urllib.error.HTTPError as error:
-            raise Blocked(f'GitHub HTTP {error.code}: {method} {urllib.parse.urlsplit(url).path}') from None
+            raise APIError(error.code, f'GitHub HTTP {error.code}: {method} {urllib.parse.urlsplit(url).path}') from None
 
     def pages(self, path):
         results = []
@@ -187,8 +193,20 @@ def resolve(api, mode, pr_number):
             'change_title': pr.get('title', f'PR #{pr_number}')}
 
 
+def ensure_tag(api, plan, create=False):
+    try:
+        ref = api.request('/git/ref/tags/' + plan['tag'])
+    except APIError as error:
+        if error.status != 404 or not create:
+            raise
+        ref = api.request('/git/refs', 'POST', {'ref': 'refs/tags/' + plan['tag'], 'sha': plan['source_sha']})
+    require(ref['object']['type'] == 'commit' and ref['object']['sha'] == plan['source_sha'],
+            'Tag points to different code; never move an existing release tag')
+
+
 def stage(api, plan, unsigned):
     digest = hashlib.sha256(unsigned.read_bytes()).hexdigest()
+    ensure_tag(api, plan, create=True)
     # A retry may replace only its own unpublished transport draft.
     existing = [r for r in api.pages('/releases') if r['tag_name'] == plan['tag']]
     for old in existing:
@@ -231,6 +249,7 @@ def publish(api, plan, release_id, output):
         notes += f'Candidato aprovado: `{plan["candidate_tag"]}` (APK SHA-256 `{plan["candidate_apk_sha256"]}`). Instale sobre o aplicativo principal, sem desinstalar.\n'
     notes += f'\nMudanças e roteiro específico: https://github.com/{api.repo}/pull/{plan["pr"]}\n'
     require(resolve(api, plan['mode'], plan['pr']) == current, 'Evidence changed before publication')
+    ensure_tag(api, plan)
     result = api.request(f'/releases/{release_id}', 'PATCH', {'body': notes, 'draft': False,
         'make_latest': 'false' if plan['mode'] == 'test' else 'true'})
     require(not result['draft'], 'Release did not publish')

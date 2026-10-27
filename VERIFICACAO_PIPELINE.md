@@ -2,7 +2,7 @@
 
 ## Concluído no ambiente de implementação
 
-- 30 testes Python dos controles de distribuição: passaram. Incluem autorização, aprovação vinculada ao commit/candidato, checks pendentes/falhos, alteração do tree no merge, commit antigo, integridade do candidato, versão, paginação, rascunho privado, falha no readback e mudança de evidência antes da publicação.
+- 31 testes Python dos controles de distribuição: passaram. Incluem autorização, aprovação vinculada ao commit/candidato, checks pendentes/falhos, alteração do tree no merge, commit antigo, integridade do candidato, versão, paginação, rascunho privado, falha no readback e mudança de evidência antes da publicação.
 - `actionlint` 1.7.7: workflows sem erros. Sintaxe Bash e `git diff --check`: passaram.
 - Gradle: `assembleRelease`, `assembleCandidate`, `testReleaseUnitTest`, `testCandidateUnitTest`, `lintRelease`, `lintCandidate` e `assembleDebugAndroidTest`, com código de validação 1001: passaram.
 - Testes JVM: 13 em release e 13 em candidate; zero falhas, erros ou ignorados.

@@ -19,6 +19,7 @@
 
 ## Plataforma e colaboração
 
+- Valores monetários em reais: armazenar como centavos inteiros (ex.: R$ 123,45 → 12345), evitando ponto flutuante para os valores financeiros persistidos. Arredondamento de divisões, percentuais, rendimentos e conversões ainda exige regras próprias; não foi aprovado implicitamente. Precisão de Bitcoin também permanece pendente.
 - Arquitetura aprovada: MVVM com separação entre interface, regras financeiras e acesso aos dados. Objetivo: permitir testes independentes de cálculos e importações com a stack gratuita aprovada. Não implica aprovação automática de bibliotecas adicionais ou de regras financeiras ainda pendentes. Desenvolvimento permanece pausado.
 - Biblioteca de autorização Google aprovada: Google Identity Services, `AuthorizationClient` para Android, em modalidade gratuita, com autorização no aparelho, sem armazenar senha Google nem exigir servidor próprio. Versão e integração ainda não implementadas; validar concessão, renovação de acesso, revogação e recuperação com Gmail/Drive na conta real.
 - Usuário rejeitou iniciar OAuth em modo Testing. Diretriz: distribuição e uso de produção sem custos, em conta pessoal, sem CNPJ. Publicação OAuth em produção para uso exclusivamente pessoal é o caminho documental a validar; não implica Play Store, hospedagem ou abertura ao público. Aviso de app não verificado e teste real ainda precisam ser tratados. Nenhum projeto ou publicação foi executado.

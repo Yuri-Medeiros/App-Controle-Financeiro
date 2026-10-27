@@ -30,7 +30,7 @@ Para preparar o ambiente publicado, associar `bash tools/setup-cloud.sh` ao scri
 
 ## Assinatura
 
-O script [tools/sign-release.sh](tools/sign-release.sh) só executa quando encontra a senha pessoal, o keystore e a impressão digital pública da identidade aprovada. Ver [signing/README.md](signing/README.md). Nenhuma chave definitiva foi gerada ou copiada para o Google Drive nesta etapa: faltam acesso e valores configurados no ambiente.
+O script [tools/sign-release.sh](tools/sign-release.sh) só executa quando encontra a senha pessoal, o keystore e a impressão digital pública da identidade aprovada. Ver [signing/README.md](signing/README.md). A identidade definitiva foi criada em PKCS12 protegido e salva no Google Drive. A cópia recuperada foi comparada byte a byte e aberta com a senha pessoal; seu certificado corresponde ao SHA-256 público fixado no repositório. Preserve essa identidade em todas as atualizações.
 
 ## Verificação
 

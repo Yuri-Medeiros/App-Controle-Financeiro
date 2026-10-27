@@ -1,0 +1,8 @@
+.cloud-android/
+local.properties
+.gradle/
+**/build/
+*.jks
+*.keystore
+.env
+

@@ -1,5 +1,7 @@
 # Decisões confirmadas
 
+- Aparelho principal informado: Samsung Galaxy S23 com Android 16.
+- Compatibilidade aprovada: Android 15 (API 35) como versão mínima do aplicativo. Android 16 deve ser contemplado nos testes no aparelho principal. A API mínima 26 do APK técnico não se aplica ao produto.
 - 27/10/2026: aprofundar o teste da Parallelum gratuita. Não significa aprovação de plano pago ou garantia de continuidade.
 - 27/10/2026: desenvolvimento e compilação exclusivamente via Codex Cloud, sem dependência do computador do usuário. Preparação de ferramentas Android gratuitas e verificação de acesso autorizadas; não habilitar cobrança.
 - Uma decisão por mensagem. Consultar antes de decisões importantes. Solicitar XLSX/CSV/PDF quando necessários à próxima validação, sem bloquear outras decisões por antecedência.

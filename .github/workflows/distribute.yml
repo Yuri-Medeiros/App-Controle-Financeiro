@@ -1,0 +1,127 @@
+name: Gerar APK de teste ou Publicar versão
+run-name: APK ${{ inputs.mode }} · PR ${{ inputs.pr }} · por ${{ github.actor }}
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'test = Gerar APK de teste; release = Publicar versão aprovada'
+        type: choice
+        options: [test, release]
+        required: true
+      pr:
+        description: 'Número do PR (sem #)'
+        type: string
+        required: true
+permissions:
+  contents: read
+# One workflow counter for both modes. Do not rename this file or reset numbering.
+concurrency:
+  group: finance-distribution
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/work'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    outputs:
+      plan: ${{ steps.resolve.outputs.plan }}
+      release_id: ${{ steps.stage.outputs.release_id }}
+      sha256: ${{ steps.stage.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - name: Resolver código e autorização
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          PR: ${{ inputs.pr }}
+        run: python3 control/tools/pipeline.py resolve --mode "$MODE" --pr "$PR"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.resolve.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - run: bash control/tools/setup-actions.sh
+      - name: Testar o código selecionado sem chaves de assinatura
+        env:
+          MODE: ${{ inputs.mode }}
+        working-directory: source
+        run: |
+          code=$(python3 -c 'import json; print(json.load(open("../plan.json"))["version_code"])')
+          python3 -m unittest discover -s tools/tests -v
+          bash gradlew --no-daemon -PdistributionVersionCode="$code" \
+            :app:assembleRelease :app:testReleaseUnitTest :app:lintRelease \
+            :app:assembleCandidate :app:testCandidateUnitTest :app:lintCandidate :app:assembleDebugAndroidTest
+          if [[ "$MODE" == test ]]; then
+            cp app/build/outputs/apk/candidate/app-candidate-unsigned.apk ../unsigned.apk
+          else
+            cp app/build/outputs/apk/release/app-release-unsigned.apk ../unsigned.apk
+          fi
+      - name: Transferir APK sem assinatura por rascunho privado de Release
+        id: stage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 control/tools/pipeline.py stage
+  sign-publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    steps:
+      # Clean runner: never checks out or executes the PR's build scripts.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Restaurar plano e conferir transferência
+        env:
+          PLAN: ${{ needs.build.outputs.plan }}
+          RELEASE_ID: ${{ needs.build.outputs.release_id }}
+          UNSIGNED_SHA: ${{ needs.build.outputs.sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c 'import os; from pathlib import Path; Path("plan.json").write_text(os.environ["PLAN"])'
+          python3 tools/pipeline.py download --release-id "$RELEASE_ID" --sha256 "$UNSIGNED_SHA"
+          python3 - <<'PY'
+          import json,os
+          p=json.load(open('plan.json'))
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('APK_CODE='+str(p['version_code'])+'\n')
+              f.write('APK_VERSION='+p['version_name']+('-test.'+str(p['version_code']) if p['mode']=='test' else '')+'\n')
+          PY
+      - run: bash tools/setup-actions.sh
+      - name: Assinar candidato com identidade de teste estável
+        if: inputs.mode == 'test'
+        env:
+          KEYSTORE_B64: ${{ secrets.MEU_FINANCEIRO_TEST_KEYSTORE_B64 }}
+          SIGNING_PASSWORD: ${{ secrets.MEU_FINANCEIRO_TEST_PASSWORD }}
+          SIGNING_ALIAS: meu-financeiro-test
+          APK_PACKAGE: br.com.yurimedeiros.meufinanceiro.test
+        run: bash tools/sign-apk.sh unsigned.apk distribution/Meu-Financeiro.apk signing/test-certificate.sha256
+      - name: Assinar versão definitiva com identidade preservada
+        if: inputs.mode == 'release'
+        env:
+          KEYSTORE_B64: ${{ secrets.MEU_FINANCEIRO_RELEASE_KEYSTORE_B64 }}
+          SIGNING_PASSWORD: ${{ secrets.MEU_FINANCEIRO_SIGNING_PASSWORD }}
+          SIGNING_ALIAS: meu-financeiro
+          APK_PACKAGE: br.com.yurimedeiros.meufinanceiro
+        run: bash tools/sign-apk.sh unsigned.apk distribution/Meu-Financeiro.apk signing/release-certificate.sha256
+      - name: Publicar arquivos verificados e limpar candidatos antigos
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.build.outputs.release_id }}
+        run: python3 tools/pipeline.py publish --release-id "$RELEASE_ID"
+      - name: Remover arquivos temporários
+        if: always()
+        run: rm -rf unsigned.apk distribution plan.json

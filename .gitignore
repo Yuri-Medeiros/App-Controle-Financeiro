@@ -5,4 +5,16 @@ local.properties
 *.jks
 *.keystore
 .env
+*.p12
+*.pfx
+*.pem
+*.key
+*.apk
+*.aab
+.kotlin/
 
+
+__pycache__/
+*.pyc
+plan.json
+/distribution/

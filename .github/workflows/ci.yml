@@ -1,0 +1,28 @@
+name: Verificar PR
+on:
+  pull_request:
+    branches: [work]
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    name: Testes, lint e compilação
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - run: bash tools/setup-actions.sh
+      - name: Testar controles de distribuição
+        run: python3 -m unittest discover -s tools/tests -v
+      - name: Compilar e verificar
+        run: >-
+          bash gradlew --no-daemon :app:assembleRelease :app:testReleaseUnitTest
+          :app:lintRelease :app:assembleCandidate :app:testCandidateUnitTest
+          :app:lintCandidate :app:assembleDebugAndroidTest

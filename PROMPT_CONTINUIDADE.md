@@ -1,0 +1,17 @@
+Continue o projeto Meu Financeiro no repositório Yuri-Medeiros/App-Controle-Financeiro, inteiramente pelo Codex Cloud. Esta tarefa autoriza continuar a implementação das funcionalidades já decididas no planejamento, em etapas, preservando a base existente e consultando-me sobre pendências antes de executar escolhas novas. Não recomece do zero.
+
+Primeiro sincronize com segurança a branch feat/primeiro-apk e inspecione o PR #1: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/1. Se ele já tiver sido atualizado ou integrado, identifique o estado real antes de escolher a branch. Preserve alterações existentes; não use reset/clean ou force push para resolver divergências.
+
+Leia PLANEJAMENTO.md, DECISOES.md e REQUISITOS_ORIGINAIS.md integralmente. Depois leia README.md, VERIFICACAO_PRIMEIRO_APK.md e signing/README.md. Consulte CODEX_CLOUD.md, SINCRONIZACAO_CLOUD.md e VALIDACAO.md conforme necessário. O pedido original completo e as decisões da entrevista são obrigatórios; decisões posteriores substituem propostas ou pausas antigas já resolvidas. Esta mensagem autoriza avançar além da antiga pausa e do escopo inicial, somente no que já estiver decidido.
+
+Comece concluindo o primeiro APK: verifique apenas a presença não vazia de MEU_FINANCEIRO_SIGNING_PASSWORD, sem imprimir seu valor. A variável pessoal já foi cadastrada e o ambiente foi publicado; a execução antiga não a recebeu. Não solicite senha pelo chat. Se faltar nesta execução, diagnostique a configuração antes de pedir recriação. O Google Drive do assistente está conectado e upload/download de arquivo temporário foi validado; isso não é prova de recuperação da chave real nem OAuth no APK.
+
+Preserve ou recupere a identidade de assinatura existente, caso haja. Crie chave protegida somente se ainda não existir e após conferir as condições aprovadas. Grave a cópia protegida no Drive, recupere-a e confira integridade/identidade antes de assinar e verificar o APK. Não use chave debug/descartável como substituta. Confira o certificado público e preserve a identidade nas atualizações. Não afirme que há APK instalável ou testes no S23 sem evidência.
+
+Em seguida avance pelas etapas originais, resolvendo pendências na ordem em que bloquearem a implementação. Solicite XLSX, CSVs e PDF reais somente quando necessários; não invente formatos, lançamentos, saldos, taxas, categorias ou regras de conciliação. Não implemente critérios de reconhecimento/deduplicação, metodologia FGTS, fontes externas ou regras financeiras ainda não aprovadas sem me consultar.
+
+Respeite: custo de operação R$ 0, conta pessoal sem CNPJ, nenhum faturamento habilitado, nenhuma dependência do meu computador. Stack e interface já aprovadas devem ser preservadas. Não contratar serviços, alterar requisitos ou escolher alternativas importantes de produto, arquitetura, bibliotecas, integrações, dados, segurança, interface ou prioridades sem consulta.
+
+Mantenha a dinâmica de uma decisão por mensagem: apresente contexto, opções e recomendação e aguarde. Não reconfirme o que já foi aprovado. Continue o trabalho independente já autorizado enquanto aguarda. Documente decisões, implementação, evidências e impedimentos no repositório; atualize o PR correspondente e os documentos ao concluir cada etapa.
+
+Na primeira resposta, informe brevemente o estado real encontrado, a primeira pendência que será resolvida e o que pode executar sem nova decisão. Prossiga com as inspeções e ações já autorizadas, em vez de apenas apresentar um plano.

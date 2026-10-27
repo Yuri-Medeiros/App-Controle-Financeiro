@@ -51,5 +51,3 @@ O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos e
 Captura de tela e prévia com conteúdo na lista de aplicativos recentes são bloqueadas por `FLAG_SECURE`. Nenhuma permissão de internet é solicitada nesta base; integrações futuras terão configuração própria.
 
 As licenças de SQLCipher são incluídas nos assets do APK. Dependências gratuitas: AndroidX/Compose/Room sob Apache 2.0 e SQLCipher Community sob licença BSD. Não há configuração de faturamento ou serviço pago.
-
-O pipeline permite testar e publicar atualizações pelo GitHub, sem depender do Codex.

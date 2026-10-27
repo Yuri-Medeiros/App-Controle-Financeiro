@@ -7,6 +7,7 @@
 - A branch padrão remota é `work`. Ela contém commits e DECISOES.md. O HEAD remoto antes desta correção era `0ef33273c426b60a8f4c3ad8599cce95c0484219`.
 - A cópia deste chat tinha referências antigas e um commit local equivalente a uma atualização feita pelo conector GitHub. A reconciliação preservou o commit anterior na branch local `backup/before-cloud-sync-20261027` e as alterações em stash. Foi comprovado que o DECISOES.md salvo no stash era idêntico ao remoto; o conflito de merge foi resolvido mantendo esse conteúdo integral.
 - Não foi possível executar comandos dentro do ambiente do outro chat. Portanto, a falha de proxy relatada lá não foi reproduzida nem declarada corrigida por estes testes. É preciso repetir a sincronização naquela execução.
+- Validação prática do script: repositório temporário criado sem commits, com branch work ainda não nascida e origin apontando ao GitHub real; sincronização concluída e DECISOES.md recuperado. Após alteração local de teste, uma nova execução interrompeu com código 2 e preservou o conteúdo, conferido por SHA-256. A sincronização da cópia deste chat também passou. Nenhum aplicativo foi desenvolvido nesses testes.
 
 ## Procedimento seguro
 

@@ -1,5 +1,11 @@
 # Decisões confirmadas
 
+## Situação atual
+
+- Desenvolvimento explicitamente autorizado pelo usuário para o primeiro APK: instalação, desbloqueio por biometria/PIN, Room criptografado com SQLCipher e preparação da assinatura conforme as decisões aprovadas. As referências anteriores à pausa são históricas e foram substituídas por esta autorização, limitada a esse escopo.
+- Nenhuma autorização de implementação das demais funções financeiras é presumida. A assinatura definitiva, sua recuperação no Drive e os testes em Android real continuam sendo condições de entrega a validar.
+- Ícone com monograma MF foi proposto e rejeitado pelo usuário; aguardar outra direção visual antes de desenhar o ícone definitivo.
+
 ## Escopo e pausa
 
 - Primeiro APK aprovado: instalação, desbloqueio por biometria ou PIN/senha do Android e armazenamento local com Room.

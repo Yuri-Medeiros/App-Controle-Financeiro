@@ -1,5 +1,9 @@
 # Compilação no Codex Cloud
 
+## Atualização: primeiro aplicativo
+
+Após autorização explícita do usuário, a branch de implementação passa a conter o app Kotlin/Compose, banco Room/SQLCipher e bloqueio com Android Keystore e BiometricPrompt. Ver README.md para comandos e limites atuais. A prova de infraestrutura descrita abaixo permanece como histórico; o aplicativo de produto usa Android mínimo 15 (API 35).
+
 ## Estado verificado em 27/10/2026
 
 Preparação exclusivamente no executor Linux x86_64, sem instalação de ferramentas no computador do usuário e sem habilitar serviços pagos.

@@ -2,14 +2,14 @@
 
 ## Situação atual
 
-- Desenvolvimento explicitamente autorizado pelo usuário para o primeiro APK: instalação, desbloqueio por biometria/PIN, Room criptografado com SQLCipher e preparação da assinatura conforme as decisões aprovadas. As referências anteriores à pausa são históricas e foram substituídas por esta autorização, limitada a esse escopo.
-- Nenhuma autorização de implementação das demais funções financeiras é presumida. Assinatura definitiva e recuperação da chave real no Drive foram concluídas em outra execução e documentadas em signing/README.md; testes em Android real continuam pendentes.
+- Autorização inicial para o primeiro APK: instalação, desbloqueio por biometria/PIN, Room criptografado com SQLCipher e preparação da assinatura conforme as decisões aprovadas. As referências anteriores à pausa são históricas e foram substituídas por esta autorização, limitada a esse escopo.
+- Em 27/10/2026, o usuário autorizou nesta continuação implementar em etapas as funcionalidades já decididas. Novas escolhas importantes continuam exigindo consulta, uma por mensagem. Assinatura definitiva e recuperação da chave real no Drive foram concluídas em outra execução e documentadas em signing/README.md; testes em Android real continuam pendentes.
 - Ícone com monograma MF foi proposto e rejeitado. O usuário pediu um visual amigável, minimalista e ligado à economia, e aprovou a proposta exibida de cofrinho com moeda sobre fundo verde-petróleo. Esse desenho aprovado é usado no ícone adaptativo do aplicativo.
 
 ## Escopo inicial e histórico de autorização
 
 - Primeiro APK aprovado: instalação, desbloqueio por biometria ou PIN/senha do Android e armazenamento local com Room.
-- A instrução inicial de não desenvolver foi revogada pelo usuário ao autorizar explicitamente o primeiro APK. Essa base foi implementada. A autorização vigente neste chat permanece limitada ao escopo inicial e à sua assinatura; nova tarefa pode ampliar o escopo mediante instrução explícita do usuário.
+- A instrução inicial de não desenvolver foi revogada pelo usuário ao autorizar explicitamente o primeiro APK. Essa base foi implementada. A tarefa inicial limitava a autorização à base e à assinatura; a instrução atual ampliou o escopo às funcionalidades já decididas, em etapas.
 
 ## Segurança aprovada
 
@@ -67,3 +67,10 @@ Os scripts em tools preparam infraestrutura e assinatura. A prova técnica inici
 - O usuário informou a criação e publicação da variável pessoal `MEU_FINANCEIRO_SIGNING_PASSWORD`. A execução antiga continuou na revisão 1, sem receber a variável. Conferir a disponibilidade na nova execução sem imprimir seu valor; não pedir novamente a senha no chat nem recriar variável automaticamente.
 
 - Continuidade remota incorporada em 27/10/2026: pipeline GitHub Actions, candidato separado, identidade de teste e controles de aprovação já existem. Leia AGENTS.md, PIPELINE.md e VERIFICACAO_PIPELINE.md; não os remova nem os contorne. O uso opcional de PC não cria dependência obrigatória local. A ativação de Secrets/ruleset e o ensaio real de publicação continuam pendentes.
+
+## Continuação de 27/10/2026
+
+- A autorização atual substitui a antiga limitação ao primeiro APK; não altera regras financeiras já aprovadas nem resolve pendências por inferência.
+- PR #1 integrada em `work`; a branch `feat/primeiro-apk` recebeu posteriormente os documentos de continuidade. Ambas as linhas foram preservadas por merge nesta execução.
+- O usuário informou ter baixado a versão 0.1.1 e dois candidatos. Não informou instalação, tags/SHA ou resultados de teste; não interpretar download como aprovação.
+- Primeira implementação independente nesta etapa: divisão de uma compra única por partes iguais ou percentuais exatos, com maiores restos e desempate pela ordem fixa. Distribuição entre várias parcelas continua pendente.

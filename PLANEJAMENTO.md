@@ -28,7 +28,7 @@ As demais regras detalhadas permanecem integralmente em REQUISITOS_ORIGINAIS.md:
 
 ## Estado real da implementação
 
-- Branch de trabalho: `feat/primeiro-apk`; PR: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/1, em rascunho, sem merge presumido.
+- Estado inspecionado em 27/10/2026: PR #1 integrada em `work` em 69b5d3a; `work` avançou até 98cbed1. A branch `feat/primeiro-apk` avançou até da6fc93 com documentos de continuidade e foi reconciliada por merge, preservando a atualização de README de `work`. A continuação exige nova PR.
 - Base Android implementada: acesso autenticado com operação criptográfica, chave protegida no Keystore, Room/SQLCipher, sessão com timeout, marcador persistente de inicialização, interface inicial e abas vazias. Não existe histórico financeiro fictício.
 - Release inicial compilado, assinado e verificado, com 13 testes JVM aprovados e lint sem erros. APK de Instrumentation apenas compilado. S23, biometria/PIN reais, instalação, atualização e restauração não testados.
 - Drive do assistente conectado e testado com arquivo temporário sem segredo: upload/download idênticos e temporário removido. OAuth Google dentro do app ainda não configurado.
@@ -65,3 +65,9 @@ Uma decisão por mensagem. Para decisão nova, explicar contexto, alternativas e
 ## Atualização de continuidade remota
 
 Ao consolidar este planejamento, o remoto já tinha avançado até b2768ff com assinatura e pipeline. Essas alterações foram incorporadas sem sobrescrever código. Os relatórios de assinatura/pipeline registram as evidências; não tratar as constatações anteriores de APK sem assinatura como estado atual. O pedido original e as decisões da entrevista foram preservados; detalhes do pipeline devem ser verificados nos documentos da outra tarefa, sem atribuir decisões novas a esta entrevista.
+
+## Etapa atual
+
+- Regra de divisão de compra única implementada na camada de domínio, sem interface nova, persistência ou mudança de schema. Ver VERIFICACAO_CONTINUIDADE.md.
+- Usuário relatou download de 0.1.1 e dois candidatos; instalação e resultados no S23 ainda não confirmados.
+- API pelo terminal retornou Forbidden ao consultar Secrets, rulesets e Releases; estado de ativação não verificável nesta execução. Não recriar chaves nem contornar o pipeline.

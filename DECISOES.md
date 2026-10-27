@@ -7,6 +7,9 @@
 
 ## Segurança aprovada
 
+- Fornecimento da senha de assinatura aprovado pela interface mostrada pelo usuário: variável de ambiente do tipo Pessoal, com chave `MEU_FINANCEIRO_SIGNING_PASSWORD`. Valor acessível aos processos da tarefa; não usar segredo de rede para descriptografia local. A interface confirma a modalidade Pessoal, mas não comprova proteção em repouso, mascaramento em logs ou custo. Validar primeiro com variável de teste sem segredo; nenhuma senha real ou chave de assinatura criada. Desenvolvimento permanece pausado.
+- Estratégia de assinatura em nuvem aprovada sob condição: senha da chave fornecida por recurso de segredos gratuito do ambiente Codex Cloud, nunca por código, GitHub ou chat; descriptografar a chave temporariamente durante a compilação e manter cópia de recuperação criptografada no Drive. Disponibilidade, custo zero, acesso ao arquivo do Drive e comportamento dos segredos no estágio de compilação precisam ser validados antes de criar chaves ou implementar o fluxo. Não presumir a condição satisfeita por esta aprovação.
+- Bloqueio aprovado: exigir biometria ou PIN/senha do Android ao abrir o aplicativo e novamente após permanecer 1 minuto em segundo plano; retornos antes desse intervalo não exigem novo desbloqueio por esse motivo. Detalhes de implementação e testes de segurança permanecem pendentes. Desenvolvimento continua pausado.
 - Criar e usar chave de assinatura definitiva, com custo zero, para preservar a identidade do aplicativo nas atualizações.
 - Guardar a chave de assinatura em arquivo criptografado no Google Drive do usuário, com senha de recuperação conhecida por ele; não guardar a chave no GitHub. O fluxo de acesso para assinatura pelo Codex Cloud ainda precisa de validação e detalhamento, sem dependência do computador do usuário.
 - Criptografar o banco local, além do bloqueio de abertura.
@@ -19,6 +22,8 @@
 
 ## Plataforma e colaboração
 
+- Identificador técnico aprovado: `br.com.yurimedeiros.meufinanceiro`, estável para o aplicativo Android e a configuração OAuth. Não exige contratação de domínio, CNPJ ou pagamento. Configuração ainda não implementada.
+- Paleta aprovada: verde-petróleo como destaque, fundos neutros e vermelho reservado a déficits e atrasos, nos temas claro e escuro. Direção visual moderna, amigável e minimalista preservada.
 - Nome aprovado: **Meu Financeiro**, exibido no celular e na autorização Google. Identificador técnico do pacote permanece pendente.
 - Direção visual exigida: moderna, amigável e minimalista, usando a base Material 3 já aprovada. Apresentar detalhes de interface para aprovação antes de implementar; não presumir paleta ou ícone aprovados.
 - Base visual aprovada: Material 3 em Jetpack Compose, com componentes padrão do Android e tema claro/escuro seguindo a configuração do aparelho, sem custo de biblioteca. Nome, ícone, paleta e detalhes de cada tela ainda não definidos.

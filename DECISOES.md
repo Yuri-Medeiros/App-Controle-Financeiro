@@ -19,6 +19,7 @@
 
 ## Plataforma e colaboração
 
+- Permissão Gmail aprovada: `https://www.googleapis.com/auth/gmail.readonly`, para leitura de e-mails e anexos, sem modificar ou excluir mensagens. Usuário informado de que os filtros financeiros do app não restringem o alcance da permissão, que permite leitura de toda a caixa. Concessão OAuth real e testes ainda pendentes.
 - Aparelho principal informado: Samsung Galaxy S23 com Android 16.
 - Compatibilidade aprovada: Android 15 (API 35) como versão mínima do aplicativo. Android 16 deve ser contemplado nos testes no aparelho principal. A API mínima 26 do APK técnico não se aplica ao produto.
 - 27/10/2026: aprofundar o teste da Parallelum gratuita. Não significa aprovação de plano pago ou garantia de continuidade.

@@ -19,6 +19,7 @@
 
 ## Plataforma e colaboração
 
+- Permissão de backup financeiro aprovada: `https://www.googleapis.com/auth/drive.appdata`, limitada à área privada do aplicativo no Drive. Não concede acesso aos demais arquivos. O arquivo criptografado de recuperação da chave de assinatura será tratado separadamente, pois precisa ser acessível fora do app. Concessão OAuth e testes ainda pendentes.
 - Permissão Gmail aprovada: `https://www.googleapis.com/auth/gmail.readonly`, para leitura de e-mails e anexos, sem modificar ou excluir mensagens. Usuário informado de que os filtros financeiros do app não restringem o alcance da permissão, que permite leitura de toda a caixa. Concessão OAuth real e testes ainda pendentes.
 - Aparelho principal informado: Samsung Galaxy S23 com Android 16.
 - Compatibilidade aprovada: Android 15 (API 35) como versão mínima do aplicativo. Android 16 deve ser contemplado nos testes no aparelho principal. A API mínima 26 do APK técnico não se aplica ao produto.

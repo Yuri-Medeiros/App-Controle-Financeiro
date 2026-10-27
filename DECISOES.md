@@ -3,7 +3,7 @@
 ## Situação atual
 
 - Desenvolvimento explicitamente autorizado pelo usuário para o primeiro APK: instalação, desbloqueio por biometria/PIN, Room criptografado com SQLCipher e preparação da assinatura conforme as decisões aprovadas. As referências anteriores à pausa são históricas e foram substituídas por esta autorização, limitada a esse escopo.
-- Nenhuma autorização de implementação das demais funções financeiras é presumida. A assinatura definitiva, sua recuperação no Drive e os testes em Android real continuam sendo condições de entrega a validar.
+- Nenhuma autorização de implementação das demais funções financeiras é presumida. Assinatura definitiva e recuperação da chave real no Drive foram concluídas em outra execução e documentadas em signing/README.md; testes em Android real continuam pendentes.
 - Ícone com monograma MF foi proposto e rejeitado. O usuário pediu um visual amigável, minimalista e ligado à economia, e aprovou a proposta exibida de cofrinho com moeda sobre fundo verde-petróleo. Esse desenho aprovado é usado no ícone adaptativo do aplicativo.
 
 ## Escopo inicial e histórico de autorização
@@ -13,7 +13,7 @@
 
 ## Segurança aprovada
 
-- Fornecimento da senha de assinatura aprovado pela interface mostrada pelo usuário: variável de ambiente do tipo Pessoal, com chave `MEU_FINANCEIRO_SIGNING_PASSWORD`. Valor acessível aos processos da tarefa; não usar segredo de rede para descriptografia local. A interface confirma a modalidade Pessoal, mas não comprova proteção em repouso, mascaramento em logs ou custo. Entrega de variável pessoal de teste validada em outra execução. O usuário informou ter cadastrado e publicado a variável real; ela ainda não foi observada nesta execução antiga. Nenhuma chave de assinatura definitiva foi criada.
+- Fornecimento da senha de assinatura aprovado pela interface mostrada pelo usuário: variável de ambiente do tipo Pessoal, com chave `MEU_FINANCEIRO_SIGNING_PASSWORD`. Valor acessível aos processos da tarefa; não usar segredo de rede para descriptografia local. A interface confirma a modalidade Pessoal, mas não comprova proteção em repouso, mascaramento em logs ou custo. Entrega de variável pessoal de teste validada em outra execução. O usuário informou ter cadastrado e publicado a variável real; ela ainda não foi observada nesta execução antiga. A identidade definitiva já existe; preservá-la e recuperá-la conforme signing/README.md, nunca regenerá-la.
 - Estratégia de assinatura em nuvem aprovada sob condição: senha da chave fornecida por recurso de segredos gratuito do ambiente Codex Cloud, nunca por código, GitHub ou chat; descriptografar a chave temporariamente durante a compilação e manter cópia de recuperação criptografada no Drive. Disponibilidade, custo zero, acesso ao arquivo do Drive e comportamento dos segredos no estágio de compilação precisam ser validados antes de criar chaves ou implementar o fluxo. Não presumir a condição satisfeita por esta aprovação.
 - Bloqueio aprovado: exigir biometria ou PIN/senha do Android ao abrir o aplicativo e novamente após permanecer 1 minuto em segundo plano; retornos antes desse intervalo não exigem novo desbloqueio por esse motivo. Regra implementada e testada em JVM; comportamento de lifecycle e autenticação real no Android ainda exige teste no aparelho.
 - Criar e usar chave de assinatura definitiva, com custo zero, para preservar a identidade do aplicativo nas atualizações.
@@ -24,7 +24,7 @@
 - Criptografar o backup financeiro no Drive com senha de recuperação definida pelo usuário, para permitir restauração após perda ou troca do celular. Não presumir que seja a mesma senha do arquivo da chave de assinatura: isso não foi decidido.
 - Frequência aprovada: backup automático após alterações enquanto o app estiver aberto e conectado, agrupando mudanças próximas para evitar envios excessivos. Não implica autorização ou exigência de execução em segundo plano. Intervalo de agrupamento ainda não definido.
 - Retenção aprovada: backup mais recente e uma versão por dia dos últimos 15 dias, conforme ajuste do usuário à proposta de 30 dias. Dias sem backup não geram versões artificiais. Remover versões antigas somente após confirmar novo envio, conforme proposta aceita com ajuste da janela.
-- Criptografia local, Keystore e BiometricPrompt foram implementados e compilados. Nenhuma chave de assinatura definitiva foi criada; backup financeiro e restauração ainda não foram implementados. Formato do backup financeiro e fluxo de recuperação continuam pendentes de decisão e testes.
+- Criptografia local, Keystore e BiometricPrompt foram implementados e compilados. A chave de assinatura definitiva já foi criada e recuperada do Drive; backup financeiro e restauração ainda não foram implementados. Formato do backup financeiro e fluxo de recuperação continuam pendentes de decisão e testes.
 
 ## Plataforma e colaboração
 
@@ -63,5 +63,7 @@ Os scripts em tools preparam infraestrutura e assinatura. A prova técnica inici
 - Fonte implementada na branch `feat/primeiro-apk`, PR #1. Não recomeçar do zero nem presumir que a branch padrão `work` já contém esse código.
 - Compilação de release e de Instrumentation passou; 13 testes JVM passaram; lint sem erros e com três avisos registrados em VERIFICACAO_PRIMEIRO_APK.md.
 - Conector Google Drive conectado: envio e recuperação de arquivo temporário sem dados sensíveis conferidos byte a byte; temporário removido. Isso não é prova de backup/recuperação da chave real ou de integração Drive no APK.
-- APK permanece sem assinatura e não instalável. Testes no Galaxy S23, instalação/atualização, assinatura definitiva e recuperação da chave real ainda pendentes.
+- Outra execução concluiu assinatura e recuperação da identidade definitiva, além de candidato com identidade separada. Ver signing/README.md, VERIFICACAO_PRIMEIRO_APK.md e VERIFICACAO_PIPELINE.md. Testes no Galaxy S23 e instalação/atualização permanecem pendentes; APK assinado não equivale a Release aprovada/publicada.
 - O usuário informou a criação e publicação da variável pessoal `MEU_FINANCEIRO_SIGNING_PASSWORD`. A execução antiga continuou na revisão 1, sem receber a variável. Conferir a disponibilidade na nova execução sem imprimir seu valor; não pedir novamente a senha no chat nem recriar variável automaticamente.
+
+- Continuidade remota incorporada em 27/10/2026: pipeline GitHub Actions, candidato separado, identidade de teste e controles de aprovação já existem. Leia AGENTS.md, PIPELINE.md e VERIFICACAO_PIPELINE.md; não os remova nem os contorne. O uso opcional de PC não cria dependência obrigatória local. A ativação de Secrets/ruleset e o ensaio real de publicação continuam pendentes.

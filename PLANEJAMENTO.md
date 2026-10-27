@@ -7,7 +7,7 @@ Atualizado em 27/10/2026. Este documento é o índice de continuidade; não subs
 1. Instruções atuais do usuário na nova tarefa prevalecem sobre limitações de escopo e pausas anteriores.
 2. `DECISOES.md`: decisões da entrevista; substituem propostas e pendências antigas expressamente resolvidas.
 3. `REQUISITOS_ORIGINAIS.md`: texto integral do pedido inicial, incluindo contas, migração, familiares, calendário, disponível, patrimônio e os critérios mínimos de teste. Continua obrigatório onde não houve alteração posterior aprovada.
-4. `README.md`, `VERIFICACAO_PRIMEIRO_APK.md`, `signing/README.md`, `CODEX_CLOUD.md` e `SINCRONIZACAO_CLOUD.md`: implementação e evidências, com limites dos testes. Parecer técnico não equivale a decisão de produto nem a autorização de mudar requisito.
+4. `AGENTS.md`, `README.md`, `PIPELINE.md`, `VERIFICACAO_PIPELINE.md`, `VERIFICACAO_PRIMEIRO_APK.md`, `signing/README.md`, `CODEX_CLOUD.md` e `SINCRONIZACAO_CLOUD.md`: implementação e evidências, com limites dos testes. Parecer técnico não equivale a decisão de produto nem a autorização de mudar requisito.
 5. `VALIDACAO.md`: relatório inicial histórico. Não tratar como ainda pendentes decisões posteriormente aprovadas; resultados de testes mais recentes prevalecem.
 
 ## Produto e decisões consolidadas
@@ -30,21 +30,22 @@ As demais regras detalhadas permanecem integralmente em REQUISITOS_ORIGINAIS.md:
 
 - Branch de trabalho: `feat/primeiro-apk`; PR: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/1, em rascunho, sem merge presumido.
 - Base Android implementada: acesso autenticado com operação criptográfica, chave protegida no Keystore, Room/SQLCipher, sessão com timeout, marcador persistente de inicialização, interface inicial e abas vazias. Não existe histórico financeiro fictício.
-- Release sem assinatura compilado, 13 testes JVM aprovados, lint sem erros. APK de Instrumentation apenas compilado. S23, biometria/PIN reais, instalação, atualização e restauração não testados.
+- Release inicial compilado, assinado e verificado, com 13 testes JVM aprovados e lint sem erros. APK de Instrumentation apenas compilado. S23, biometria/PIN reais, instalação, atualização e restauração não testados.
 - Drive do assistente conectado e testado com arquivo temporário sem segredo: upload/download idênticos e temporário removido. OAuth Google dentro do app ainda não configurado.
 - Usuário informou variável pessoal real criada e ambiente publicado; execução antiga não a recebeu. Verificar nova execução sem expor valor.
-- Nenhuma chave definitiva criada; nenhum backup de chave real; nenhum APK instalável entregue. Scripts de criação/assinatura interrompem quando falta configuração; não usar chave debug para contornar isso.
+- Identidade definitiva já criada, protegida e recuperada do Drive; pin público em signing/release-certificate.sha256. APK inicial assinado/verificado. Não criar outra identidade. Backup de assinatura não é backup do banco financeiro.
+- Pipeline GitHub Actions já implementado para CI, candidato com pacote/identidade separados e publicação vinculada à aprovação de candidato/tag/SHA pelo usuário. 31 testes Python, 13 JVM por variante e alvos Gradle passaram na execução remota. CI real registrada; Secrets, ruleset e ensaio de publicação/instalação continuam pendentes. Não presumir aprovação de instalação ou publicação a partir desses checks. Preservar o fluxo existente, que também funciona com GitHub sem depender de Codex ou PC.
 - Importação, contas financeiras, cartão, pessoas, dívidas, planejamento, patrimônio, meta, compartilhamento e backup financeiro ainda não implementados.
 
 ## Continuidade proposta, sem alterar prioridades aprovadas
 
-1. Concluir primeira base: usar a variável pessoal na execução correta; preservar ou recuperar identidade existente; concluir chave protegida, backup/recuperação no Drive, assinatura e verificação. Instalar e validar no S23. Definir os detalhes restantes com o usuário se a execução exigir uma escolha importante.
+1. Não repetir assinatura já concluída. Recuperar a mesma identidade somente se necessário. Conferir ativação pendente do pipeline e validar instalação/atualização no S23 seguindo AGENTS.md e PIPELINE.md. Toda aprovação de candidato exige OK explícito para a tag e SHA corretos; não publicar por outro caminho para contornar bloqueios.
 2. Avançar pelo escopo original das etapas 2–4 somente conforme autorização da nova tarefa: importação/revisão, contas/categorias/cartão, responsáveis/divisões, dívidas/pagamentos; depois calendário/previsões/orçamento/reservas/disponível; depois patrimônio/meta/compartilhamento e recuperação. Backup deve ser arquitetado desde o início e testado antes de dados reais.
 3. Consultar uma decisão por mensagem quando houver pendência. Continuar trabalhos independentes já autorizados sem inventar critérios financeiros ou substituir requisitos diante de falhas.
 
 ## Pendências que não podem ser presumidas resolvidas
 
-- Assinatura definitiva e recuperação da chave real; formato/fluxo detalhado de backup financeiro, intervalo de agrupamento, recuperação e guarda da senha; testar cancelamento e retomada de autorização Google.
+- Preservação das identidades existentes e ativação de Secrets/ruleset do pipeline, ensaio de publicação e testes no Android; formato/fluxo detalhado de backup financeiro, intervalo de agrupamento, recuperação e guarda da senha; testar cancelamento e retomada de autorização Google.
 - OAuth real Gmail/Drive e políticas da conta pessoal: a exceção documental não comprova concessão. Verificar custo e quotas efetivos sem habilitar faturamento.
 - XLSX antigo e CSVs/PDF reais ainda ausentes. Pedir quando necessários à validação/importação. Validar campos, sinais, datas, IDs, estornos, parcelamento, PDF textual/imagem/proteção e formatos Nubank/Flash. Não inventar parser com exemplos irreais.
 - Deduplicação exata versus operações iguais legítimas, sobreposição, aprendizado de categorias, conciliação de manuais/previsões e reconhecimento de pagamentos familiares. Confirmar critérios antes de implementar.
@@ -60,3 +61,7 @@ As demais regras detalhadas permanecem integralmente em REQUISITOS_ORIGINAIS.md:
 ## Regra de colaboração
 
 Uma decisão por mensagem. Para decisão nova, explicar contexto, alternativas e recomendação, e aguardar. Não reconfirmar decisões já tomadas; executar o autorizado e informar andamento. Não pedir senhas no chat, expor variáveis, substituir proxies, sobrescrever chaves, habilitar cobranças, enviar mensagens ou contratar serviços.
+
+## Atualização de continuidade remota
+
+Ao consolidar este planejamento, o remoto já tinha avançado até b2768ff com assinatura e pipeline. Essas alterações foram incorporadas sem sobrescrever código. Os relatórios de assinatura/pipeline registram as evidências; não tratar as constatações anteriores de APK sem assinatura como estado atual. O pedido original e as decisões da entrevista foram preservados; detalhes do pipeline devem ser verificados nos documentos da outra tarefa, sem atribuir decisões novas a esta entrevista.

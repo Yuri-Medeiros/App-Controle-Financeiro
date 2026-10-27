@@ -19,6 +19,7 @@
 
 ## Plataforma e colaboração
 
+- Base visual aprovada: Material 3 em Jetpack Compose, com componentes padrão do Android e tema claro/escuro seguindo a configuração do aparelho, sem custo de biblioteca. Nome, ícone, paleta e detalhes de cada tela ainda não definidos.
 - Navegação aprovada: cinco abas principais — Início (disponível, orçamento e valores de familiares), Movimentações (contas, faturas, parcelas e pendências de importação), Pessoas (compras compartilhadas, dívidas e pagamentos), Planejamento (orçamentos, previsões e reservas) e Patrimônio (investimentos, Bitcoin, FGTS, veículos e meta). Botão de configurações para Google, backup e recuperação. Aprovação da organização não implica aprovação de identidade visual ou de detalhes das telas.
 - Reservas cumulativas aprovadas: somar o valor reservado em cada ciclo ao montante existente até utilização ou liberação manual. Exemplo: R$ 1.000 existentes + R$ 300 no novo ciclo = R$ 1.300 reservados. Distinguir a parcela mantida na conta daquela em investimentos para não descontar investimentos novamente do saldo bancário. Não presumir transferência bancária ou aporte efetivo pela simples criação da reserva.
 - Virada do ciclo salarial: renovar os limites configurados das categorias sem acumular automaticamente orçamento não usado. Exemplo aprovado: limite R$ 500, gasto R$ 400 → próximo ciclo começa com orçamento R$ 500. Os R$ 100 não gastos permanecem no saldo bancário; a regra não cria movimentação de dinheiro nem modifica reservas.

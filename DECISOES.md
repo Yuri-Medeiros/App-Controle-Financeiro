@@ -13,7 +13,8 @@
 - Usar SQLCipher com Room, sob modalidade gratuita. Integração, versão e licença efetiva serão verificadas antes de implementar.
 - Usar Android Keystore para proteger a chave do banco local e vincular seu uso à autenticação do aparelho. A chave protegida pelo dispositivo não é transferível; recuperação em outro aparelho depende do backup restaurável.
 - Criptografar o backup financeiro no Drive com senha de recuperação definida pelo usuário, para permitir restauração após perda ou troca do celular. Não presumir que seja a mesma senha do arquivo da chave de assinatura: isso não foi decidido.
-- Nenhuma chave, senha, criptografia ou integração foi criada ou implementada. Frequência, retenção, formato do backup e fluxo de recuperação ainda precisam de decisão e testes.
+- Frequência aprovada: backup automático após alterações enquanto o app estiver aberto e conectado, agrupando mudanças próximas para evitar envios excessivos. Não implica autorização ou exigência de execução em segundo plano. Intervalo de agrupamento e retenção ainda não definidos.
+- Nenhuma chave, senha, criptografia ou integração foi criada ou implementada. Retenção, formato do backup e fluxo de recuperação ainda precisam de decisão e testes.
 
 ## Plataforma e colaboração
 

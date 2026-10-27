@@ -72,5 +72,5 @@ Os scripts em tools preparam infraestrutura e assinatura. A prova técnica inici
 
 - A autorização atual substitui a antiga limitação ao primeiro APK; não altera regras financeiras já aprovadas nem resolve pendências por inferência.
 - PR #1 integrada em `work`; a branch `feat/primeiro-apk` recebeu posteriormente os documentos de continuidade. Ambas as linhas foram preservadas por merge nesta execução.
-- O usuário informou ter baixado a versão 0.1.1 e dois candidatos. Não informou instalação, tags/SHA ou resultados de teste; não interpretar download como aprovação.
+- O usuário informou ter baixado a versão 0.1.1 e dois candidatos. Em resposta posterior confirmou instalação e desbloqueio no S23, sem identificar qual APK. Tags/SHA e os demais testes continuam sem confirmação; não interpretar como aprovação de publicação.
 - Primeira implementação independente nesta etapa: divisão de uma compra única por partes iguais ou percentuais exatos, com maiores restos e desempate pela ordem fixa. Distribuição entre várias parcelas continua pendente.

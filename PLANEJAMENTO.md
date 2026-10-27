@@ -69,5 +69,5 @@ Ao consolidar este planejamento, o remoto já tinha avançado até b2768ff com a
 ## Etapa atual
 
 - Regra de divisão de compra única implementada na camada de domínio, sem interface nova, persistência ou mudança de schema. Ver VERIFICACAO_CONTINUIDADE.md.
-- Usuário relatou download de 0.1.1 e dois candidatos; instalação e resultados no S23 ainda não confirmados.
+- Usuário relatou download de 0.1.1 e dois candidatos e confirmou instalação/desbloqueio no S23. APK exato, timeout, atualização e recuperação ainda não confirmados.
 - API pelo terminal retornou Forbidden ao consultar Secrets, rulesets e Releases; estado de ativação não verificável nesta execução. Não recriar chaves nem contornar o pipeline.

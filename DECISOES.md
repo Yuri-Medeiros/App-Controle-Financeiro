@@ -4,7 +4,7 @@
 
 - Desenvolvimento explicitamente autorizado pelo usuário para o primeiro APK: instalação, desbloqueio por biometria/PIN, Room criptografado com SQLCipher e preparação da assinatura conforme as decisões aprovadas. As referências anteriores à pausa são históricas e foram substituídas por esta autorização, limitada a esse escopo.
 - Nenhuma autorização de implementação das demais funções financeiras é presumida. A assinatura definitiva, sua recuperação no Drive e os testes em Android real continuam sendo condições de entrega a validar.
-- Ícone com monograma MF foi proposto e rejeitado pelo usuário; aguardar outra direção visual antes de desenhar o ícone definitivo.
+- Ícone com monograma MF foi proposto e rejeitado. O usuário pediu um visual amigável, minimalista e ligado à economia, e aprovou a proposta exibida de cofrinho com moeda sobre fundo verde-petróleo. Esse desenho aprovado é usado no ícone adaptativo do aplicativo.
 
 ## Escopo e pausa
 

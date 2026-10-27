@@ -19,3 +19,9 @@ bash tools/sign-release.sh
 O script verifica o certificado, alinha páginas nativas de 16 KiB, assina e verifica o APK. Apenas então publica o arquivo instalável em `build/distributions`. O release sem assinatura não é instalável e não deve ser apresentado como entrega de uso real.
 
 O bootstrap em nuvem usa valores pessoais acessíveis aos processos da tarefa. Não imprimir variáveis, habilitar shell tracing, guardar a senha em `.env` no repositório ou persistir chave privada descriptografada no workspace publicado. Não adicionar billing, outro serviço de assinatura ou mudar para chave descartável para contornar falta de acesso.
+
+## GitHub Actions
+
+A distribuição usa `tools/sign-apk.sh` em um runner limpo, separado do build e com certificado fixado. O script local `tools/sign-release.sh` reutiliza a mesma verificação e lê a versão de `version.properties`. Para builds locais com código diferente de 1, forneça `MEU_FINANCEIRO_VERSION_CODE` com o mesmo código usado no Gradle.
+
+A identidade de teste é distinta, alias `meu-financeiro-test`, fixada por `test-certificate.sha256`. Chaves e senhas são fornecidas por GitHub Secrets; o workflow nunca cria identidades. Consulte PIPELINE.md para configuração, guarda e aprovação.

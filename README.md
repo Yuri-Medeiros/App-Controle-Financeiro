@@ -13,6 +13,12 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 
 Google, importação, planejamento financeiro, backup/recuperação e patrimônio serão implementados em etapas posteriores. Esta versão não deve receber dados financeiros reais antes de validar recuperação e atualização no Android.
 
+## Atualizar pelo PC ou pelo celular
+
+O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.
+
+A versão é centralizada em `version.properties`; a variante `candidate` usa pacote `.test`, ícone laranja com T e dados isolados. O identificador e a assinatura do aplicativo principal são preservados.
+
 ## Compilar na nuvem
 
 Na pasta deste repositório:

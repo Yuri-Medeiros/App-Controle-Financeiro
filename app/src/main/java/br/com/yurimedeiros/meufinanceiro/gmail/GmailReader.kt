@@ -10,7 +10,7 @@ import org.json.JSONObject
 internal data class MailDocument(val source: String, val filename: String, val kind: DocumentKind, val bytes: ByteArray)
 
 /** Token and attachments exist only in memory; no message bodies or credentials are logged. */
-internal class GmailReader(private val token: String) {
+internal class GmailReader(private val token: String, private val shouldContinue: () -> Boolean = { true }) {
     fun read(consume: (MailDocument) -> Unit): Int {
         val account = get("profile").getString("emailAddress")
         var page = ""
@@ -56,6 +56,7 @@ internal class GmailReader(private val token: String) {
     }
 
     private fun get(path: String): JSONObject {
+        check(shouldContinue()) { "Sessão encerrada." }
         val connection = URI("https://gmail.googleapis.com/gmail/v1/users/me/$path").toURL().openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 20000

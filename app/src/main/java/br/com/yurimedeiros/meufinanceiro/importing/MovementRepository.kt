@@ -8,11 +8,11 @@ import java.time.LocalDate
 import java.time.LocalTime
 import org.json.JSONObject
 
-internal data class ReviewMovement(val id: Long, val row: ImportedRow, val origin: String, val status: String, val category: String, val friendlyName: String, val confirmedAt: Long)
+internal data class ReviewMovement(val id: Long, val row: ImportedRow, val origin: String, val status: String, val category: String, val friendlyName: String, val confirmedAt: Long, val pairedMovementId: Long)
 internal data class StatementReview(val source: MailDocument, val document: ParsedDocument)
 
 internal class MovementRepository(private val db: FinanceDatabase) {
-    fun all(): List<ReviewMovement> = db.movements().all().map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt) }
+    fun all(): List<ReviewMovement> = db.movements().all().map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
 
     fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? {
         var review: StatementReview? = null
@@ -35,9 +35,23 @@ internal class MovementRepository(private val db: FinanceDatabase) {
                 }
                 dao.insert(movement)
             }
+            reconcilePayments()
             dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = confirmed?.toString().orEmpty() })
         }
         return review
+    }
+
+    private fun reconcilePayments() {
+        val dao = db.movements()
+        val payments = dao.all().filter { it.status != "CONFLICT" }.map { it to decode(it.payload) }
+            .filter { PaymentMatching.isPayment(it.second) }
+        val pairs = PaymentMatching.pairs(payments.map { (item, row) -> PaymentCandidate(item.id, item.origin.substringBefore(" · "), row) })
+        payments.forEach { (item, _) ->
+            item.status = if (item.id in pairs) "PAYMENT" else "PAYMENT_PENDING"
+            item.category = ""
+            item.pairedMovementId = pairs[item.id] ?: 0
+            dao.update(item)
+        }
     }
 
     fun confirm(ids: Set<Long>, category: String, friendlyName: String) {

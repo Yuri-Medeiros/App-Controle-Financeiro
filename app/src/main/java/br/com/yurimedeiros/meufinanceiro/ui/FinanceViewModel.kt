@@ -79,13 +79,16 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    private fun refresh(){
+    private fun refresh() {
         val attempt = generation
         viewModelScope.launch {
-            val rows = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
-                session?.let { MovementRepository(it.database).all() }.orEmpty()
-            } }
-            if (attempt == generation) mutableState.value = mutableState.value.copy(movements = rows)
+            try {
+                val rows = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    session?.let { MovementRepository(it.database).all() }.orEmpty()
+                } }
+                if (attempt == generation) mutableState.value = mutableState.value.copy(movements = rows)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (attempt == generation) showError("Não foi possível ler as movimentações. Seus arquivos foram preservados.") }
         }
     }
 
@@ -97,7 +100,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             val reviews = mutableListOf<StatementReview>()
             try {
                 val skipped = withContext(Dispatchers.IO) {
-                    GmailReader(token).read { document ->
+                    GmailReader(token) { attempt == generation }.read { document ->
                         check(attempt == generation) { "Sessão encerrada. Atualize após desbloquear." }
                         synchronized(databaseGuard) {
                             check(attempt == generation)
@@ -135,7 +138,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                 if (attempt == generation) mutableState.value = mutableState.value.copy(statements = state.value.statements.drop(1))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Não foi possível confirmar esta fatura. Os dados foram preservados.") }
-            finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh()} }
+            finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
         }
     }
 
@@ -154,7 +157,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                 } }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Escolha uma categoria. Conflitos e pagamentos/estornos ainda não podem ser confirmados nesta etapa.") }
-            finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh()} }
+            finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
         }
     }
 
@@ -186,11 +189,12 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         session = null
         mutableState.value = FinanceUiState(visible = mutableState.value.visible)
         // Close now: a canceled ViewModel scope must not drop a queued cleanup.
-        // This first version performs no ongoing queries after initialization.
+        // Serialize closure with any document transaction already in progress.
         synchronized(databaseGuard) { previous?.close() }
     }
 
     override fun onCleared() {
+        generation++
         // No independent coroutine survives the ViewModel to retain the database secret.
         synchronized(databaseGuard) { session?.close(); session = null }
         super.onCleared()

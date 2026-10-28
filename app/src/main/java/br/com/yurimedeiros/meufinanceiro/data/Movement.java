@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 public class Movement {
     @PrimaryKey(autoGenerate = true) public long id;
     public long confirmedAt;
+    public long pairedMovementId;
     @NonNull public String payload = "";
     @NonNull public String origin = "";
     @NonNull public String status = "PENDING";

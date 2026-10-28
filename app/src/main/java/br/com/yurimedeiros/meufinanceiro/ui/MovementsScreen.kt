@@ -36,7 +36,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
         }
         Button(onClick = { model.confirmBatch(selected.toMap()) }, enabled = !state.syncing) { Text("Confirmar selecionados") }
     }
-    Text("${state.movements.count { it.status == "CONFIRMED" }} confirmadas · ${state.movements.count { it.status != "CONFIRMED" }} pendentes")
+    Text("${state.movements.count { it.status in setOf("CONFIRMED", "PAYMENT") }} confirmadas · ${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
     if (state.movements.isEmpty()) Text("Toque em Atualizar para buscar seus extratos. PDF de investimentos ainda não é suportado.")
     // Render a bounded page, keeping financial data out of savedInstanceState.
     var page by remember { mutableIntStateOf(0) }
@@ -59,7 +59,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
 private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, selected: Boolean, onSelect: (Pair<String, String>?) -> Unit) {
     val suggestion = CounterpartySuggestion.identify(movement.row)
     val previous = state.movements.sortedBy { it.confirmedAt }.lastOrNull { it.status == "CONFIRMED" && it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") && suggestion.learningKey != null && CounterpartySuggestion.identify(it.row).learningKey == suggestion.learningKey }
-    var category by remember { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
+    var category by remember(movement.category, previous?.category) { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
     var friendly by remember { mutableStateOf(movement.friendlyName) }
     var details by remember { mutableStateOf(false) }
     LaunchedEffect(category, friendly) { if (selected) onSelect(if (category.isBlank()) null else category to friendly) }
@@ -68,7 +68,12 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
             Text("${movement.row.date} · ${movement.row.kind.name.replace('_', ' ')}")
             Text(movement.friendlyName.ifBlank { suggestion.displayName })
             Text(NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(BigDecimal.valueOf(movement.row.cents, 2)))
-            Text(if (movement.status == "CONFIRMED") "Confirmada · ${movement.category}" else "Aguardando revisão")
+            Text(when (movement.status) {
+                "CONFIRMED" -> "Confirmada · ${movement.category}"
+                "PAYMENT" -> "Pagamento de fatura conciliado · vínculo ${movement.pairedMovementId}"
+                "PAYMENT_PENDING" -> "Pagamento de fatura · conciliação pendente"
+                else -> "Aguardando revisão"
+            })
             TextButton(onClick = { details = !details }) { Text(if (details) "Fechar detalhes" else "Revisar / editar") }
             if (details) {
                 Text(movement.row.description)

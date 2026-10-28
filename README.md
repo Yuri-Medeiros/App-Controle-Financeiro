@@ -51,3 +51,7 @@ O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos e
 Captura de tela e prévia com conteúdo na lista de aplicativos recentes são bloqueadas por `FLAG_SECURE`. Nenhuma permissão de internet é solicitada nesta base; integrações futuras terão configuração própria.
 
 As licenças de SQLCipher são incluídas nos assets do APK. Dependências gratuitas: AndroidX/Compose/Room sob Apache 2.0 e SQLCipher Community sob licença BSD. Não há configuração de faturamento ou serviço pago.
+
+## Continuidade financeira
+
+A camada de domínio já calcula a divisão de uma compra única por partes iguais ou percentuais decimais exatos, preservando centavos pela regra aprovada de maiores restos e ordem fixa. Ainda não está conectada às telas ou ao banco; não representa cadastro de compras nem divisão de diferenças entre parcelas. Evidências e impedimentos em [VERIFICACAO_CONTINUIDADE.md](VERIFICACAO_CONTINUIDADE.md).

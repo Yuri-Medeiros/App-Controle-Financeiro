@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Política de Privacidade do Meu Financeiro: armazenamento local, autorização Gmail e limites da versão em desenvolvimento.">
+<title>Política de Privacidade — Meu Financeiro</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+<header><a class="brand" href="./">Meu Financeiro</a><nav aria-label="Navegação principal"><a href="./">Início</a><a href="privacidade.html" aria-current="page">Privacidade</a></nav></header>
+<main id="conteudo">
+<p class="eyebrow">Transparência e controle</p>
+<h1>Política de Privacidade</h1>
+<p>Atualizada em 28 de outubro de 2026.</p>
+<p>Esta política descreve o aplicativo Android <strong>Meu Financeiro</strong> e a variante <strong>Meu Financeiro Teste</strong>, projeto de uso pessoal mantido por <a href="https://github.com/Yuri-Medeiros">Yuri-Medeiros</a>. Cada variante mantém seus próprios dados no aparelho.</p>
+<div class="notice">A integração com o Gmail e o backup financeiro estão em desenvolvimento. As seções sobre essas integrações descrevem o funcionamento previsto, não uma comprovação de que já estão disponíveis ou validadas. A versão atual oferece a base de acesso protegido e armazenamento local cifrado.</div>
+<h2>1. Dados e finalidade</h2>
+<p>Na versão atual, o aplicativo mantém um registro local de inicialização para conferir a persistência do banco. A autenticação é realizada pelo Android com biometria ou credencial do aparelho. O aplicativo não recebe sua impressão digital nem sua senha de desbloqueio.</p>
+<p>Quando a importação estiver disponível e for autorizada, o aplicativo acessará mensagens e anexos financeiros para extrair datas, descrições, valores, identificadores, informações de estabelecimentos e pessoas e outros campos presentes nos documentos. Esses dados serão usados para apresentar movimentações, revisar categorias, evitar duplicidades e realizar a conciliação financeira aprovada pelo usuário.</p>
+<h2>2. Autorização e dados do Google</h2>
+<p>A integração prevista utiliza a autorização oficial do Google com o escopo <code>gmail.readonly</code>. Essa permissão permite ler mensagens e anexos da caixa de e-mail; os filtros de remetente e assunto do aplicativo não restringem a permissão concedida pelo Google. A busca funcional será direcionada aos documentos financeiros selecionados pelo aplicativo. O app não solicitará sua senha Google nem usará essa permissão para enviar, modificar ou excluir mensagens.</p>
+<p>O acesso será usado para fornecer as funções de importação e organização financeira solicitadas pelo próprio usuário. Dados do Google não serão vendidos, usados para publicidade, avaliação de crédito ou treinamento de modelos de inteligência artificial de uso geral.</p>
+<p>O uso e a transferência de informações recebidas das APIs do Google observarão a <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de Uso Limitado (Limited Use).</p>
+<h2>3. Armazenamento e proteção</h2>
+<p>Os registros financeiros serão processados no aparelho e armazenados no banco local cifrado. A chave local é protegida pelo Android Keystore; seu uso exige autenticação conforme as regras do aplicativo. A sessão é bloqueada após um minuto em segundo plano. Cópias automáticas e transferência de dados pelo mecanismo padrão do Android estão desabilitadas.</p>
+<p>O projeto não utiliza servidor próprio para receber e-mails, anexos ou registros financeiros. O código e os APKs são distribuídos pelo GitHub; isso não constitui envio do banco financeiro ao GitHub. O aplicativo não possui anúncios nem serviço de análise de uso integrado na base atual.</p>
+<h2>4. Backup financeiro planejado</h2>
+<p>O backup e a restauração do banco ainda não estão implementados. Quando forem disponibilizados, a proposta aprovada é guardar backups cifrados na área privada do aplicativo no Google Drive, com autorização separada <code>drive.appdata</code> e senha de recuperação definida pelo usuário. O acesso a essa área não concede acesso geral aos demais arquivos do Drive. O fluxo detalhado de recuperação será documentado e validado antes do uso.</p>
+<p>A cópia protegida da identidade de assinatura do APK é independente do banco: não é backup dos dados financeiros e não permite recuperá-los.</p>
+<h2>5. Compartilhamento e acesso humano</h2>
+<p>O fluxo planejado não envia os dados financeiros a terceiros para publicidade, revenda ou treinamento de IA. Comunicações com o Google ocorrerão para autorização, obtenção dos documentos e, futuramente, backup autorizado. Nenhum envio automático de demonstrativos a outras pessoas está previsto; uma futura função de compartilhamento dependerá de prévia e ação do usuário.</p>
+<p>A manutenção do projeto não concede ao desenvolvedor acesso automático ao Gmail ou ao banco do usuário. Não envie dados financeiros em relatos públicos de problemas. Caso o usuário compartilhe voluntariamente um arquivo para suporte, esse envio é separado da importação pelo app e deve limitar-se ao necessário para a solicitação.</p>
+<h2>6. Retenção, revogação e exclusão</h2>
+<p>O histórico importado deverá permanecer no aplicativo mesmo se o usuário apagar o e-mail original. Não está prevista exclusão automática do histórico por idade. A remoção de acesso ao Google interrompe futuras consultas autorizadas, mas não apaga automaticamente os registros locais já importados.</p>
+<p>A autorização pode ser revogada em <a href="https://myaccount.google.com/connections">Conexões da Conta Google</a>. O usuário também pode remover os dados locais pelo comando Limpar armazenamento nas configurações Android ou desinstalando o aplicativo. Isso pode causar perda definitiva de dados: a versão atual não oferece backup financeiro restaurável. Este texto não promete uma função de exclusão individual ainda inexistente.</p>
+<h2>7. Privacidade deste site</h2>
+<p>Estas páginas são estáticas, sem formulários, scripts de análise, cookies definidos pelo projeto ou fontes e imagens de terceiros. Elas não acessam Gmail e não recebem extratos. A hospedagem é fornecida pelo GitHub Pages, que pode tratar informações técnicas de acesso conforme a <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">Política de Privacidade do GitHub</a>.</p>
+<h2>8. Atualizações e contato</h2>
+<p>Esta política será atualizada para refletir alterações do aplicativo e suas integrações. A data da revisão aparece no início da página.</p>
+<p>Responsável pelo projeto: <a href="https://github.com/Yuri-Medeiros">Yuri-Medeiros</a>. Dúvidas e solicitações de privacidade podem ser encaminhadas pelo <a href="https://github.com/Yuri-Medeiros/App-Controle-Financeiro/issues/new">canal de solicitações do repositório</a>. Ele é público: informe apenas a dúvida, sem dados financeiros, documentos de terceiros, credenciais ou tokens.</p>
+</main>
+<footer><a href="./">Voltar à página inicial</a> · Meu Financeiro</footer>
+</body></html>

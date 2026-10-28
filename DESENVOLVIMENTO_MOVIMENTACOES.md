@@ -21,7 +21,10 @@ Não há nova interface, OAuth no APK ou persistência financeira concluídos ne
 - 31 testes Python do pipeline passaram nesta execução.
 - Testes JVM adicionados para CSVs com aspas/quebras de linha, sinais, centavos, valores zero, UTF-8 inválido, overflow, documentos truncados, referência não confirmada, IDs repetidos, conflitos, estornos, parcelas e multiplicidade; reconhecimento de pessoas/estabelecimentos/direção também coberto.
 - 19 testes novos passaram em execução JVM direta usando o compilador Kotlin 2.0.21 e JUnit 4.13.2 distribuídos com Gradle 8.14.3. Isso verifica a lógica sem Android; a CI usa o Kotlin 2.2.21 fixado pelo projeto e os sete alvos completos.
-- Gradle/CI: execução em andamento; resultado será registrado após conclusão.
+- Gradle local: os sete alvos obrigatórios passaram com BUILD SUCCESSFUL (assembleRelease, testReleaseUnitTest, lintRelease, assembleCandidate, testCandidateUnitTest, lintCandidate, assembleDebugAndroidTest).
+- Relatórios XML locais: 39 testes em release e 39 em candidate, zero falhas/erros/ignorados. Lint: zero erros, três avisos release e cinco candidate, sem alteração dos avisos conhecidos de dependência/ícones. Instrumentation somente compilada, não executada.
+- CI real: [Verificar PR #16](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/actions/runs/40698997426), commit d835c1dbe52fc4ff40aecadc5eed675b23f15e44, concluída com sucesso. Os commits seguintes alteram somente documentação; não presumir aprovação de candidato a partir da CI.
+- A primeira execução completa local preparou dependências e levou 12m22s. Os 19 testes de domínio também foram executados diretamente; não há teste de OAuth, interface ou dispositivo nessa contagem.
 - Os testes versionados usam exemplos sintéticos anonimizados com estrutura baseada nas amostras reais. Nenhum CSV real ou informação bancária/pessoal foi enviado ao repositório.
 
 ## Próximas integrações já autorizadas
@@ -37,3 +40,7 @@ A etapa 1 não é uma entrega instalável de Movimentações. PDF de investiment
 ## Disponibilidade das amostras originais
 
 Tentativa de executar os importadores com os cinco CSVs previamente enviados não pôde iniciar: os caminhos temporários /tmp/codex-remote-attachments não existem mais nesta execução, e a busca em /workspace e /tmp não localizou os arquivos. Não foram substituídos por dados inventados nem copiados do histórico de mensagens para fingir revalidação. As contagens e estruturas da análise anterior continuam registradas na especificação; executar os arquivos completos contra o código novo requer recuperar/reanexar as amostras. Isso não bloqueia o desenvolvimento independente e os testes anonimizados, mas impede declarar o teste dos arquivos reais concluído.
+
+## Estado ao concluir a etapa 1
+
+PR de desenvolvimento: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/6 , em rascunho. Código dos importadores e comparação validado; integração com Gmail/tela/persistência ainda pendente. Nenhum candidato de Movimentações foi publicado. Não usar um APK sem assinatura ou outra rota para substituir o pipeline existente. As dependências/ações do pipeline, assinaturas e schema 1 foram preservados nesta etapa.

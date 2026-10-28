@@ -23,3 +23,10 @@ Endereços esperados, sujeitos a implantação bem-sucedida:
 - https://yuri-medeiros.github.io/App-Controle-Financeiro/privacidade.html
 
 Só colar no Google depois de confirmar que abrem publicamente sem login. A aceitação desses URLs e eventuais requisitos de domínio do Google ainda devem ser verificados no Console; não foi comprovada publicação OAuth ou dispensa de verificação. O nome/contato de suporte no Console deve ser preenchido pelo titular. Não enviar logotipo enquanto a exigência de verificação exibida pelo Google não estiver resolvida.
+
+## Evidência desta execução
+
+- Repositório confirmado como público pelo conector GitHub, com Issues habilitadas e has_pages=false antes da ativação.
+- Consulta GET e tentativa POST de configuração de Pages pelo terminal retornaram Forbidden. Nenhuma ativação foi confirmada; é necessária a configuração pelo painel do titular.
+- PR de documentação: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/5 . Arquivos enviados na branch docs/google-pages.
+- HTML de ambas as páginas analisado com HTMLParser; referências locais verificadas; ausência de script, iframe e formulário conferida. git diff --check passou. Nenhum teste Android executado porque esta alteração não afeta o aplicativo.

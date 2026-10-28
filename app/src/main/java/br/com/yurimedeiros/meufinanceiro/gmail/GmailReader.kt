@@ -11,7 +11,7 @@ internal data class MailDocument(val source: String, val filename: String, val k
 
 /** Token and attachments exist only in memory; no message bodies or credentials are logged. */
 internal class GmailReader(private val token: String, private val shouldContinue: () -> Boolean = { true }) {
-    fun read(consume: (MailDocument) -> Unit): Int {
+    fun read(shouldRead: (String) -> Boolean = { true }, consume: (MailDocument) -> Unit): Int {
         val account = get("profile").getString("emailAddress")
         var page = ""
         var skipped = 0
@@ -39,11 +39,13 @@ internal class GmailReader(private val token: String, private val shouldContinue
                     val filename = part.optString("filename")
                     if (filename.isNotEmpty()) {
                         if (!filename.endsWith(".csv", true)) { skipped++; return }
+                        val sourceKey = "$account:$id:$path"
+                        if (!shouldRead(sourceKey)) return
                         val body = part.getJSONObject("body")
                         require(body.optLong("size") <= 10 * 1024 * 1024) { "Anexo acima do limite de 10 MB." }
                         val attachment = body.optString("attachmentId")
                         val encoded = if (attachment.isNotEmpty()) get("messages/$id/attachments/${encode(attachment)}").getString("data") else body.optString("data")
-                        consume(MailDocument("$account:$id:$path", filename, kind, Base64.decode(encoded, Base64.URL_SAFE)))
+                        consume(MailDocument(sourceKey, filename, kind, Base64.decode(encoded, Base64.URL_SAFE)))
                     }
                     val parts = part.optJSONArray("parts")
                     for (j in 0 until (parts?.length() ?: 0)) visit(parts!!.getJSONObject(j), "$path.$j")

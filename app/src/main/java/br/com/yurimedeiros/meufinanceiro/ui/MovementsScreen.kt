@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.importing.*
 import java.math.BigDecimal
+import java.time.format.DateTimeFormatter
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -65,12 +66,17 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     LaunchedEffect(category, friendly) { if (selected) onSelect(if (category.isBlank()) null else category to friendly) }
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${movement.row.date} · ${movement.row.kind.name.replace('_', ' ')}")
+            val originLabel = when (movement.row.kind) {
+                DocumentKind.NUBANK_ACCOUNT -> "Conta Nubank"
+                DocumentKind.NUBANK_CARD -> "Fatura Nubank"
+                DocumentKind.FLASH -> "Flash"
+            }
+            Text("${movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu"))} · $originLabel")
             Text(movement.friendlyName.ifBlank { suggestion.displayName })
             Text(NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(BigDecimal.valueOf(movement.row.cents, 2)))
             Text(when (movement.status) {
                 "CONFIRMED" -> "Confirmada · ${movement.category}"
-                "PAYMENT" -> "Pagamento de fatura conciliado · vínculo ${movement.pairedMovementId}"
+                "PAYMENT" -> "Pagamento de fatura conciliado"
                 "PAYMENT_PENDING" -> "Pagamento de fatura · conciliação pendente"
                 else -> "Aguardando revisão"
             })

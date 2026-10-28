@@ -30,28 +30,34 @@ class MainActivity : ComponentActivity() {
     private var operation: UnlockOperation? = null
     private var cancellation: CancellationSignal? = null
     private var autoPrompt = true
+    private var authorizingGoogle = false
     private var deviceSecure by mutableStateOf(false)
 
     private val googleAuthorization = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        authorizingGoogle = false
         if (result.resultCode != RESULT_OK) {
             model.showError("Autorização Google cancelada. Seus registros foram preservados.")
         } else try {
-            val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(result.data)
+            val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(checkNotNull(result.data))
             authorization.accessToken?.let(model::syncGmail) ?: model.showError("O Google não concedeu acesso de leitura ao Gmail.")
         } catch (_: Exception) { model.showError("Não foi possível autorizar o Gmail. Tente novamente.") }
     }
 
     private fun authorizeGmail() {
-        if (!model.state.value.unlocked || model.state.value.syncing) return
+        if (!model.state.value.unlocked || model.state.value.syncing || authorizingGoogle) return
+        authorizingGoogle = true
         val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/gmail.readonly"))).build()
         Identity.getAuthorizationClient(this).authorize(request)
             .addOnSuccessListener { result ->
-                if (!model.state.value.unlocked) return@addOnSuccessListener
+                if (!model.state.value.unlocked) { authorizingGoogle = false; return@addOnSuccessListener }
                 if (result.hasResolution()) {
                     result.pendingIntent?.let { googleAuthorization.launch(IntentSenderRequest.Builder(it).build()) }
-                } else result.accessToken?.let(model::syncGmail)
+                } else {
+                    authorizingGoogle = false
+                    result.accessToken?.let(model::syncGmail) ?: model.showError("O Google não concedeu acesso de leitura ao Gmail.")
+                }
             }
-            .addOnFailureListener { model.showError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
+            .addOnFailureListener { authorizingGoogle = false; model.showError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

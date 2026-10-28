@@ -58,6 +58,10 @@ class SecurityInstrumentation : Instrumentation() {
             check(repo.all().single().category == "Alimentação")
             repo.import(source("conflict", csv.replace("-10.00", "-9.00")))
             check(repo.all().count { it.status == "CONFLICT" } == 1)
+            val conflict = repo.all().single { it.status == "CONFLICT" }
+            val failedBatch = runCatching { repo.confirmBatch(linkedMapOf(item.id to ("Transporte" to ""), conflict.id to ("Transporte" to ""))) }
+            check(failedBatch.isFailure)
+            check(repo.all().single { it.id == item.id }.category == "Alimentação")
             val before = repo.all().size
             runCatching { repo.import(source("invalid", csv + "linha inválida")) }
             check(repo.all().size == before)

@@ -100,7 +100,12 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             val reviews = mutableListOf<StatementReview>()
             try {
                 val skipped = withContext(Dispatchers.IO) {
-                    GmailReader(token) { attempt == generation }.read { document ->
+                    GmailReader(token) { attempt == generation }.read(shouldRead = { source ->
+                        synchronized(databaseGuard) {
+                            check(attempt == generation)
+                            checkNotNull(session).database.movements().document(source) == null
+                        }
+                    }) { document ->
                         check(attempt == generation) { "Sessão encerrada. Atualize após desbloquear." }
                         synchronized(databaseGuard) {
                             check(attempt == generation)

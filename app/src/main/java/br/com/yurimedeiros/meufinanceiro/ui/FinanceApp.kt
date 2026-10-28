@@ -110,7 +110,7 @@ internal fun FinanceApp(
                             }
                             ScreenTitle("Configurações", "Um espaço só seu.")
                             SecurityCard(state.createdAtMillis)
-                            InfoCard("Google e recuperação", "A conexão com o Google e os backups serão disponibilizados em uma próxima etapa. Nesta versão, os dados ficam somente neste aparelho.")
+                            InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
                             OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
                                 Text("Bloquear agora")
                             }
@@ -133,7 +133,7 @@ internal fun FinanceApp(
                                     }
                                 }
                                 SecurityCard(state.createdAtMillis)
-                                InfoCard("Seu próximo passo", "Esta primeira versão valida o acesso protegido e a preservação dos dados no aparelho. A importação financeira será adicionada na próxima etapa.")
+                                InfoCard("Seu próximo passo", "Abra Movimentações para atualizar seus extratos pelo Gmail, revisar categorias e confirmar os registros.")
                             } else if (selected == 1) {
                                 MovementsScreen(state, model, onRefresh)
                             } else {
@@ -212,7 +212,7 @@ private fun EmptySection(section: Section) {
         Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Icon(section.icon, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
             Text("Cada coisa no seu lugar", style = MaterialTheme.typography.titleLarge)
-            Text("Esta área será preenchida nas próximas etapas. Nenhum dado financeiro foi importado nesta versão.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+            Text("Esta área será preenchida nas próximas etapas. Consulte seus registros importados em Movimentações.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

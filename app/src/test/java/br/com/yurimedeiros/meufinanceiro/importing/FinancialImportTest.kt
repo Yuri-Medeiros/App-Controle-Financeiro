@@ -46,6 +46,7 @@ class FinancialImportTest {
     @Test fun unknownCardFilenameDoesNotInventAReference() {
         val doc = parse("date,title,amount\n2026-09-01,Loja,\"10,00\"", DocumentKind.NUBANK_CARD)
         assertNull(doc.proposedStatement)
+        assertNull(parse("date,title,amount\n2026-09-01,Loja,\"10,00\"", DocumentKind.NUBANK_CARD, "Nubank_2026-02-31.csv").proposedStatement)
         assertThrows(IllegalArgumentException::class.java) { ImportComparison.compare(doc.rows, emptyList()) }
     }
 

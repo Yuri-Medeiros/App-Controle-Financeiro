@@ -20,7 +20,8 @@ Não há nova interface, OAuth no APK ou persistência financeira concluídos ne
 
 - 31 testes Python do pipeline passaram nesta execução.
 - Testes JVM adicionados para CSVs com aspas/quebras de linha, sinais, centavos, valores zero, UTF-8 inválido, overflow, documentos truncados, referência não confirmada, IDs repetidos, conflitos, estornos, parcelas e multiplicidade; reconhecimento de pessoas/estabelecimentos/direção também coberto.
-- Gradle: execução em andamento; resultado será registrado após conclusão.
+- 19 testes novos passaram em execução JVM direta usando o compilador Kotlin 2.0.21 e JUnit 4.13.2 distribuídos com Gradle 8.14.3. Isso verifica a lógica sem Android; a CI usa o Kotlin 2.2.21 fixado pelo projeto e os sete alvos completos.
+- Gradle/CI: execução em andamento; resultado será registrado após conclusão.
 - Os testes versionados usam exemplos sintéticos anonimizados com estrutura baseada nas amostras reais. Nenhum CSV real ou informação bancária/pessoal foi enviado ao repositório.
 
 ## Próximas integrações já autorizadas
@@ -32,3 +33,7 @@ Não há nova interface, OAuth no APK ou persistência financeira concluídos ne
 5. Checks completos, candidato pelo pipeline existente e teste real no S23. Publicação definitiva exige aprovação do candidato e SHA.
 
 A etapa 1 não é uma entrega instalável de Movimentações. PDF de investimentos e backup financeiro/restauração permanecem pendentes.
+
+## Disponibilidade das amostras originais
+
+Tentativa de executar os importadores com os cinco CSVs previamente enviados não pôde iniciar: os caminhos temporários /tmp/codex-remote-attachments não existem mais nesta execução, e a busca em /workspace e /tmp não localizou os arquivos. Não foram substituídos por dados inventados nem copiados do histórico de mensagens para fingir revalidação. As contagens e estruturas da análise anterior continuam registradas na especificação; executar os arquivos completos contra o código novo requer recuperar/reanexar as amostras. Isso não bloqueia o desenvolvimento independente e os testes anonimizados, mas impede declarar o teste dos arquivos reais concluído.

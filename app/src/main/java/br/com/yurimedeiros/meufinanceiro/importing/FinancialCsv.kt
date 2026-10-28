@@ -51,7 +51,7 @@ internal object FinancialCsv {
         }
         require(records.isNotEmpty() && records.first() == expected) { "Cabeçalho incompatível com o documento selecionado." }
         val reference = if (kind == DocumentKind.NUBANK_CARD) {
-            Regex("Nubank_(\\d{4}-\\d{2}-\\d{2})\\.csv").matchEntire(filename)?.groupValues?.get(1)?.let(LocalDate::parse)
+            Regex("Nubank_(\\d{4}-\\d{2}-\\d{2})\\.csv").matchEntire(filename)?.groupValues?.get(1)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         } else null
         val rows = records.drop(1).mapIndexed { index, fields ->
             try {

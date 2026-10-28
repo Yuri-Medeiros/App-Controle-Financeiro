@@ -1,8 +1,8 @@
 <resources>
-    <style name="Theme.MeuFinanceiro" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">true</item>
+    <style name="Theme.MeuFinanceiro" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">#F6F8F7</item>
+        <item name="android:windowBackground">#0D0D20</item>
         <item name="android:fontFamily">sans</item>
     </style>
 </resources>

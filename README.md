@@ -8,7 +8,7 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 - Chave AES do Android Keystore com autorização por operação para proteger a chave aleatória do banco. Nenhuma senha Google é solicitada.
 - Room 2 com SQLCipher, sem criação de banco em texto claro ou migração destrutiva.
 - Fechamento da sessão e do banco após 1 minuto em segundo plano; retorno curto preserva a sessão. Após encerramento do processo, exige nova autenticação.
-- Tema claro/escuro do sistema, paleta verde-petróleo e navegação aprovada. Áreas financeiras são estados vazios, não funções financeiras implementadas.
+- Tema escuro com paleta roxa, cartões em degradê e destaques em ciano e navegação aprovada. Áreas financeiras são estados vazios, não funções financeiras implementadas.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 
 Google, importação, planejamento financeiro, backup/recuperação e patrimônio serão implementados em etapas posteriores. Esta versão não deve receber dados financeiros reais antes de validar recuperação e atualização no Android.

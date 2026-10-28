@@ -1,5 +1,6 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,7 +64,7 @@ private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V1
 private val LockIcon = symbol("Proteção", "M6,10V7A6,6 0,0 1,18,7V10H20V22H4V10ZM8,10H16V7A4,4 0,0 0,8,7ZM11,14V18H13V14Z")
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")
 private val Sections = listOf(
-    Section("Início", "Início", "Seu dinheiro, com clareza.", HomeIcon),
+    Section("Resumo", "Resumo", "Seu dinheiro, com clareza.", HomeIcon),
     Section("Movimentações", "Movimentos", "Contas, faturas e parcelas em um só lugar.", ListIcon),
     Section("Pessoas", "Pessoas", "Mais clareza nas contas compartilhadas.", PeopleIcon),
     Section("Planejamento", "Planejar", "Espaço para seus planos e prioridades.", PlanIcon),
@@ -85,23 +87,28 @@ internal fun FinanceApp(
                 !state.visible -> Box(Modifier.fillMaxSize())
                 !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
                 else -> Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF21153D), Color(0xFF0D0D20), Color(0xFF151329)))),
+                    containerColor = Color.Transparent,
                     bottomBar = {
-                        if (!settings) NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        if (!settings) NavigationBar(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.outlineVariant).padding(top = 1.dp),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            tonalElevation = 0.dp,
+                        ) {
                             Sections.forEachIndexed { index, section ->
                                 NavigationBarItem(
                                     selected = selected == index,
                                     onClick = { selected = index },
-                                    icon = { Icon(section.icon, contentDescription = section.title) },
-                                    label = { Text(section.navigation, maxLines = 1) },
+                                    icon = { Icon(section.icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                                    label = { Text(section.navigation, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
                                 )
                             }
                         }
                     },
                 ) { insets ->
                     Column(
-                        Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
                         if (settings) {
                             TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
@@ -113,7 +120,7 @@ internal fun FinanceApp(
                             OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
                                 Text("Bloquear agora")
                             }
-                            Text("Meu Financeiro · 0.1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Meu Financeiro · 0.3.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("MEU FINANCEIRO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -122,10 +129,10 @@ internal fun FinanceApp(
                                 }
                             }
                             val section = Sections[selected]
-                            ScreenTitle(if (selected == 0) "Tudo começa\ncom clareza." else section.title, section.description)
+                            ScreenTitle(section.title, section.description)
                             if (selected == 0) {
-                                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(28.dp)) {
-                                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Card(colors = CardDefaults.cardColors(containerColor = Color.Transparent), border = BorderStroke(1.dp, Color(0xFF9B80DC)), shape = RoundedCornerShape(20.dp)) {
+                                    Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF343366), Color(0xFF603BB4), Color(0xFF34246E)))).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                         Icon(LockIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
                                         Text("Seu espaço está protegido", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                         Text("A base do seu controle financeiro está pronta. Seus saldos e orçamentos aparecerão aqui quando as próximas funções estiverem disponíveis.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyLarge)
@@ -147,7 +154,7 @@ internal fun FinanceApp(
 
 @Composable
 private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock: () -> Unit, onSecuritySettings: () -> Unit) {
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { insets ->
+    Scaffold(modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF261942), Color(0xFF0D0D20)))), containerColor = Color.Transparent) { insets ->
         Column(
             Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
@@ -164,7 +171,11 @@ private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock:
                 CircularProgressIndicator(Modifier.size(32.dp))
                 Text("Abrindo seu espaço…", style = MaterialTheme.typography.bodyMedium)
             } else {
-                Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp)) {
+                Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFF130E30)),
+                    contentPadding = PaddingValues(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp).background(Brush.horizontalGradient(listOf(Color(0xFF9B8AFF), Color(0xFF59D6F3))), RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp)) {
                     Text(if (deviceSecure) "Desbloquear" else "Configurar bloqueio do Android")
                 }
             }
@@ -174,16 +185,16 @@ private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock:
 
 @Composable
 private fun ScreenTitle(title: String, subtitle: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun SecurityCard(createdAtMillis: Long?) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), shape = RoundedCornerShape(24.dp)) {
-        Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF262540), Color(0xFF19192D)))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Cuidado com seus dados", style = MaterialTheme.typography.titleMedium)
             Text("Acesso por biometria ou credencial do Android", style = MaterialTheme.typography.bodyMedium)
             Text("Armazenamento criptografado neste aparelho", style = MaterialTheme.typography.bodyMedium)
@@ -205,9 +216,11 @@ private fun InfoCard(title: String, description: String) {
 
 @Composable
 private fun EmptySection(section: Section) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), shape = RoundedCornerShape(24.dp)) {
-        Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Icon(section.icon, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF292742), Color(0xFF18182C)))).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Box(Modifier.size(56.dp).background(Brush.linearGradient(listOf(Color(0xFF6454BF), Color(0xFF303572))), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(section.icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.secondary)
+            }
             Text("Cada coisa no seu lugar", style = MaterialTheme.typography.titleLarge)
             Text("Esta área será preenchida nas próximas etapas. Nenhum dado financeiro foi importado nesta versão.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
         }

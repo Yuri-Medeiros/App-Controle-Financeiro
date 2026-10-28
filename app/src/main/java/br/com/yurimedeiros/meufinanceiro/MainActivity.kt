@@ -130,8 +130,8 @@ class MainActivity : ComponentActivity() {
                                 val cipher = checkNotNull(result.cryptoObject?.cipher)
                                 model.openWith(prepared.finish(cipher))
                             }
-                        } catch (_: Exception) {
-                            if (!isDestroyed) model.showError("Não foi possível desbloquear seus dados. Tente novamente.")
+                        } catch (error: Exception) {
+                            if (!isDestroyed) model.showError("Não foi possível desbloquear seus dados (código ${prepared.failureCode(error)}). Seus arquivos foram preservados. Tente novamente.")
                         } finally {
                             release(prepared)
                         }

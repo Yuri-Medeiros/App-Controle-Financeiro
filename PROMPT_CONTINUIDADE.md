@@ -19,3 +19,5 @@ Mantenha a dinâmica de uma decisão por mensagem: apresente contexto, opções 
 Na primeira resposta, informe brevemente o estado real encontrado, a primeira pendência que será resolvida e o que pode executar sem nova decisão. Prossiga com as inspeções e ações já autorizadas, em vez de apenas apresentar um plano.
 
 28/10/2026: PRs #5 e #4 integradas por solicitação do usuário; continuar na #6. Gmail/tela/persistência schema 2 implementados nesta etapa incremental; conferir DESENVOLVIMENTO_MOVIMENTACOES.md para validação e limites atuais. Conciliação de pagamentos/estornos e resolução de conflitos continuam pendentes, sem classificação de consumo. Não retomar importação manual cancelada. Sem publicação definitiva/aprovação de candidato presumida.
+
+28/10/2026, teste S23: candidato teste-pr6-r6 falha após autenticação tanto por digital quanto por padrão; não aprovado. Correção em desenvolvimento: enviar AAD ao Keystore somente após sucesso do BiometricPrompt, preservando chave/envelope/banco. Ver seção de desbloqueio em DESENVOLVIMENTO_MOVIMENTACOES.md. Exigir novo candidato e reteste, sem apagar dados.

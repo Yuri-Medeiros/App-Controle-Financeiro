@@ -56,3 +56,13 @@ Limites desta entrega incremental: pagamentos/estornos e conflitos são preserva
 Teste de Instrumentation ampliado para criar banco cifrado schema 1, migrar para 2, conferir preservação, importação, reimportação, conflito, rejeição atômica e persistência da confirmação. Exige execução em aparelho; compilação não representa execução. OAuth e importação com conta real ainda exigem teste no S23. Nenhum arquivo financeiro real foi versionado.
 
 Conciliação inicial adicionada nesta etapa: pagamento recebido na fatura e saída de pagamento de fatura na conta são vinculados automaticamente apenas para correspondência única de mesma conta Google, data e valor. Ambiguidade em qualquer lado ou data diferente permanece pendente. Esses registros têm natureza de pagamento e nenhuma categoria de consumo. Estornos e resolução manual de conflitos continuam pendentes. Testes JVM cobrem correspondência única, ambiguidades, datas/valores/contas diferentes e créditos que não são pagamento.
+
+## Correção de desbloqueio reportada no S23 — 28/10/2026
+
+O usuário gravou duas tentativas: o prompt aceita a autenticação e a interface volta a "Não foi possível desbloquear seus dados". Confirmou a mesma falha com digital e padrão. O erro está no callback de sucesso, anterior à abertura do Room, e não demonstra falha na tela Gmail/Movimentações.
+
+Defeito encontrado: prepareUnlock chamava Cipher.updateAAD antes da autorização por operação do Android Keystore. O provedor Android pode guardar internamente a exceção dessa chamada e só lançá-la no doFinal, mesmo após o prompt aceitar a autenticação (AndroidKeyStoreCipherSpiBase.engineUpdateAAD/engineDoFinal). A preparação agora apenas inicializa o cipher; a mesma AAD é enviada em finish, após o callback autorizar exatamente esse cipher. Alias, conteúdo da AAD, formato database-key.v1, banco e assinaturas são preservados. Nenhum reset ou fallback sem autenticação foi adicionado. Versão planejada 0.3.1.
+
+Testes de regressão usam AES-GCM real com um provedor de teste que reproduz o cache de erro pré-autenticação do Android. Cobrem criação e leitura com autorização, compatibilidade do envelope e reprodução da falha anterior. Não equivalem a teste no S23. Mensagens de falha passam a incluir somente código fixo de etapa/tipo, sem mensagens do provedor, caminhos, senhas ou chaves, para permitir diagnóstico caso outra causa permaneça.
+
+Referência do comportamento do provedor: https://github.com/aosp-mirror/platform_frameworks_base/blob/android15-release/keystore/java/android/security/keystore2/AndroidKeyStoreCipherSpiBase.java . O candidato teste-pr6-r6 não está aprovado; uma nova compilação e validação no S23 são necessárias.

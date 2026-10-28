@@ -52,14 +52,7 @@ internal class KeyVault(private val context: Context) {
             }
         }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        if (existing != null) {
-            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, existing.iv))
-        } else {
-            cipher.init(Cipher.ENCRYPT_MODE, key)
-        }
-        cipher.updateAAD(AAD)
-        val freshPassword = if (existing == null) ByteArray(32).also(SecureRandom()::nextBytes) else null
-        return UnlockOperation(cipher, freshPassword, existing) { envelope ->
+        return UnlockOperation.prepare(cipher, key, existing, AAD) { envelope ->
             val output = envelopeFile.startWrite()
             try {
                 output.write(envelope.encode())
@@ -81,25 +74,67 @@ internal class UnlockOperation(
     val cipher: Cipher,
     private var freshPassword: ByteArray?,
     private val existing: KeyEnvelope?,
+    private val additionalAuthenticatedData: ByteArray,
     private val persist: (KeyEnvelope) -> Unit,
 ) : Closeable {
     private var completed = false
+    private var stage = "U1"
+
+    /** Fixed identifiers only: never expose provider messages, paths or key material. */
+    fun failureCode(error: Exception): String {
+        val names = generateSequence<Throwable>(error) { it.cause }.take(8).map { it.javaClass.simpleName }.toSet()
+        val reason = when {
+            "UserNotAuthenticatedException" in names -> "AUTH"
+            "AEADBadTagException" in names -> "TAG"
+            "KeyPermanentlyInvalidatedException" in names -> "KEY"
+            "IOException" in names -> "IO"
+            else -> "OTHER"
+        }
+        return "$stage-$reason"
+    }
 
     /** Use only the exact cipher authorized by the system callback. */
     fun finish(authorizedCipher: Cipher): ByteArray {
         check(!completed && authorizedCipher === cipher)
         completed = true
         try {
+            // Keystore updateAAD is a key operation too. Before BiometricPrompt succeeds,
+            // Android may cache a UserNotAuthenticated failure until doFinal, even when
+            // the prompt subsequently succeeds. Keep preparation free of key updates.
+            stage = "U2"
+            authorizedCipher.updateAAD(additionalAuthenticatedData)
+            stage = "U3"
             if (existing != null) return authorizedCipher.doFinal(existing.ciphertext).also {
                 check(it.size == 32)
             }
             val password = checkNotNull(freshPassword)
             val ciphertext = authorizedCipher.doFinal(password)
-            persist(KeyEnvelope(authorizedCipher.iv, ciphertext))
+            val envelope = KeyEnvelope(authorizedCipher.iv, ciphertext)
+            stage = "U4"
+            persist(envelope)
             return password.copyOf()
         } finally {
             freshPassword?.fill(0)
             freshPassword = null
+        }
+    }
+
+    companion object {
+        /** Prepare an operation handle, without sending AAD or plaintext before authorization. */
+        fun prepare(
+            cipher: Cipher,
+            key: SecretKey,
+            existing: KeyEnvelope?,
+            additionalAuthenticatedData: ByteArray,
+            persist: (KeyEnvelope) -> Unit,
+        ): UnlockOperation {
+            if (existing != null) {
+                cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, existing.iv))
+            } else {
+                cipher.init(Cipher.ENCRYPT_MODE, key)
+            }
+            val freshPassword = if (existing == null) ByteArray(32).also(SecureRandom()::nextBytes) else null
+            return UnlockOperation(cipher, freshPassword, existing, additionalAuthenticatedData, persist)
         }
     }
 

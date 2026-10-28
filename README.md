@@ -55,3 +55,7 @@ As licenças de SQLCipher são incluídas nos assets do APK. Dependências gratu
 ## Continuidade financeira
 
 A camada de domínio já calcula a divisão de uma compra única por partes iguais ou percentuais decimais exatos, preservando centavos pela regra aprovada de maiores restos e ordem fixa. Ainda não está conectada às telas ou ao banco; não representa cadastro de compras nem divisão de diferenças entre parcelas. Evidências e impedimentos em [VERIFICACAO_CONTINUIDADE.md](VERIFICACAO_CONTINUIDADE.md).
+
+## Desenvolvimento de Movimentações
+
+O fluxo Gmail/importação foi autorizado e começou pela leitura e comparação dos CSVs reais, ainda sem ligação com a tela ou banco financeiro. Regras aprovadas em [ESPECIFICACAO_IMPORTACAO.md](ESPECIFICACAO_IMPORTACAO.md), configuração OAuth em [CONFIGURACAO_GOOGLE.md](CONFIGURACAO_GOOGLE.md), etapas e evidências em [DESENVOLVIMENTO_MOVIMENTACOES.md](DESENVOLVIMENTO_MOVIMENTACOES.md). A base instalada continua com as limitações descritas acima.

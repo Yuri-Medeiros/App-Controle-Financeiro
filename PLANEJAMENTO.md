@@ -71,3 +71,7 @@ Ao consolidar este planejamento, o remoto já tinha avançado até b2768ff com a
 - Regra de divisão de compra única implementada na camada de domínio, sem interface nova, persistência ou mudança de schema. Ver VERIFICACAO_CONTINUIDADE.md.
 - Usuário relatou download de 0.1.1 e dois candidatos e confirmou instalação/desbloqueio no S23. APK exato, timeout, atualização e recuperação ainda não confirmados.
 - API pelo terminal retornou Forbidden ao consultar Secrets, rulesets e Releases; estado de ativação não verificável nesta execução. Não recriar chaves nem contornar o pipeline.
+
+## Desenvolvimento autorizado em 28/10/2026
+
+A tela Movimentações será o primeiro fluxo funcional com Gmail/importação. Regras detalhadas da entrevista em ESPECIFICACAO_IMPORTACAO.md; configuração Google em CONFIGURACAO_GOOGLE.md; progresso e testes em DESENVOLVIMENTO_MOVIMENTACOES.md. O trabalho manual cancelado permanece preservado no worktree antigo e não foi enviado. O desenvolvimento ativo usa feat/movimentacoes-gmail, preservando a continuidade de work e feat/primeiro-apk.

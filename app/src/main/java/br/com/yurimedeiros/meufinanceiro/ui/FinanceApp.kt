@@ -73,6 +73,7 @@ private val Sections = listOf(
 internal fun FinanceApp(
     model: FinanceViewModel,
     onUnlock: () -> Unit,
+    onRefresh: () -> Unit,
     onSecuritySettings: () -> Unit,
     deviceSecure: Boolean,
 ) {
@@ -113,7 +114,7 @@ internal fun FinanceApp(
                             OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
                                 Text("Bloquear agora")
                             }
-                            Text("Meu Financeiro · 0.1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("MEU FINANCEIRO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -133,6 +134,8 @@ internal fun FinanceApp(
                                 }
                                 SecurityCard(state.createdAtMillis)
                                 InfoCard("Seu próximo passo", "Esta primeira versão valida o acesso protegido e a preservação dos dados no aparelho. A importação financeira será adicionada na próxima etapa.")
+                            } else if (selected == 1) {
+                                MovementsScreen(state, model, onRefresh)
                             } else {
                                 EmptySection(section)
                             }

@@ -17,3 +17,5 @@ Respeite: custo de operação R$ 0, conta pessoal sem CNPJ, nenhum faturamento h
 Mantenha a dinâmica de uma decisão por mensagem: apresente contexto, opções e recomendação e aguarde. Não reconfirme o que já foi aprovado. Continue o trabalho independente já autorizado enquanto aguarda. Documente decisões, implementação, evidências e impedimentos no repositório; atualize o PR correspondente e os documentos ao concluir cada etapa.
 
 Na primeira resposta, informe brevemente o estado real encontrado, a primeira pendência que será resolvida e o que pode executar sem nova decisão. Prossiga com as inspeções e ações já autorizadas, em vez de apenas apresentar um plano.
+
+28/10/2026: PRs #5 e #4 integradas por solicitação do usuário; continuar na #6. Gmail/tela/persistência schema 2 implementados nesta etapa incremental; conferir DESENVOLVIMENTO_MOVIMENTACOES.md para validação e limites atuais. Conciliação de pagamentos/estornos e resolução de conflitos continuam pendentes, sem classificação de consumo. Não retomar importação manual cancelada. Sem publicação definitiva/aprovação de candidato presumida.

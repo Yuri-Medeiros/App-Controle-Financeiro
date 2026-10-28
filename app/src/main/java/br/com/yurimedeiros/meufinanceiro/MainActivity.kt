@@ -1,6 +1,11 @@
 package br.com.yurimedeiros.meufinanceiro
 
 import android.app.KeyguardManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.common.api.Scope
 import android.content.Intent
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
@@ -27,6 +32,28 @@ class MainActivity : ComponentActivity() {
     private var autoPrompt = true
     private var deviceSecure by mutableStateOf(false)
 
+    private val googleAuthorization = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode != RESULT_OK) {
+            model.showError("Autorização Google cancelada. Seus registros foram preservados.")
+        } else try {
+            val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(result.data)
+            authorization.accessToken?.let(model::syncGmail) ?: model.showError("O Google não concedeu acesso de leitura ao Gmail.")
+        } catch (_: Exception) { model.showError("Não foi possível autorizar o Gmail. Tente novamente.") }
+    }
+
+    private fun authorizeGmail() {
+        if (!model.state.value.unlocked || model.state.value.syncing) return
+        val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/gmail.readonly"))).build()
+        Identity.getAuthorizationClient(this).authorize(request)
+            .addOnSuccessListener { result ->
+                if (!model.state.value.unlocked) return@addOnSuccessListener
+                if (result.hasResolution()) {
+                    result.pendingIntent?.let { googleAuthorization.launch(IntentSenderRequest.Builder(it).build()) }
+                } else result.accessToken?.let(model::syncGmail)
+            }
+            .addOnFailureListener { model.showError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -36,6 +63,7 @@ class MainActivity : ComponentActivity() {
             FinanceApp(
                 model = model,
                 onUnlock = ::authenticate,
+                onRefresh = ::authorizeGmail,
                 onSecuritySettings = { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) },
                 deviceSecure = deviceSecure,
             )

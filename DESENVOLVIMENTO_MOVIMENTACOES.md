@@ -44,3 +44,13 @@ Tentativa de executar os importadores com os cinco CSVs previamente enviados nã
 ## Estado ao concluir a etapa 1
 
 PR de desenvolvimento: https://github.com/Yuri-Medeiros/App-Controle-Financeiro/pull/6 , em rascunho. Código dos importadores e comparação validado; integração com Gmail/tela/persistência ainda pendente. Nenhum candidato de Movimentações foi publicado. Não usar um APK sem assinatura ou outra rota para substituir o pipeline existente. As dependências/ações do pipeline, assinaturas e schema 1 foram preservados nesta etapa.
+
+## Integração Gmail e revisão — 28/10/2026
+
+Nesta continuação foram integradas as PRs #5 (páginas) e #4 (divisão de compra) em work, sem publicação Android definitiva nem aprovação de candidato. A #6 incorpora a base atualizada.
+
+Implementação adicional: AuthorizationClient com gmail.readonly; busca paginada de mensagens e anexos CSV sob demanda, validação do endereço/assunto, limite de tamanho, token somente em memória; identificação local da conta Google para separar deduplicação entre contas. Tela de Movimentações com referência de fatura explicitamente confirmada, listagem paginada, descrição original e origem, categoria sugerida pela última confirmação, descrição amigável, edição individual e confirmação em lote com categorias exibidas. Dados pendentes e confirmados são mantidos no Room/SQLCipher; schema 2 com migração aditiva preservando local_state. Cada documento é transacional; reimportações não apagam histórico. No máximo 20 faturas ficam simultaneamente aguardando referência em memória; após confirmar, Atualizar retoma a busca. Ao bloquear/encerrar o processo essas propostas são descartadas e podem ser buscadas novamente, sem confirmação presumida.
+
+Limites desta entrega incremental: pagamentos/estornos e conflitos são preservados como pendentes e bloqueados para classificação de consumo, aguardando a próxima integração de conciliação. Não há saldo consolidado, PDF, backup financeiro/restauração ou fluxo completo de pessoas/parcelas. O vínculo de referência é reutilizado para o mesmo anexo já processado; novo anexo de fatura exige confirmação. Não é entrega final de toda a especificação.
+
+Teste de Instrumentation ampliado para criar banco cifrado schema 1, migrar para 2, conferir preservação, importação, reimportação, conflito, rejeição atômica e persistência da confirmação. Exige execução em aparelho; compilação não representa execução. OAuth e importação com conta real ainda exigem teste no S23. Nenhum arquivo financeiro real foi versionado.

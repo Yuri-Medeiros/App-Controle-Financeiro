@@ -229,15 +229,10 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 else -> "Aguardando revisão"
             })
             if (details) {
-                Text(movement.row.description)
-                Text("Origem: ${movement.origin}")
-                movement.row.statement?.let { Text("Referência da fatura: $it") }
-                movement.row.balanceCents?.let { Text("Saldo no extrato: ${BigDecimal.valueOf(it, 2)}") }
                 if (movement.status == "CONFLICT" || MovementRepository.needsSpecialReview(movement.row)) {
-                    Text("Pendente de conciliação de pagamento, estorno ou conflito. Preservado sem classificação automática.")
+                    Text("Requer conciliação antes de categorizar.", style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Text("Categorias: Moradia, Alimentação, Transporte, Saúde, Pessoal e lazer, Educação, Presentes e doações, Tarifas e impostos. Você também pode escrever uma categoria própria.")
-                    OutlinedTextField(category, { category = it }, label = { Text("Categoria (confirme a sugestão)") }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape)
+                    CategoryDropdown(category, { category = it }, enabled = !state.syncing)
                     if (movement.status != "CONFIRMED") Row {
                         Checkbox(checked = selected, onCheckedChange = { onSelect(if (it && category.isNotBlank()) category to friendly else null) }, enabled = category.isNotBlank() && !state.syncing)
                         Text("Incluir no lote · $category")
@@ -302,6 +297,91 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
 }
 
+
+private val CategoryOptions = listOf(
+    "Moradia", "Alimentação", "Transporte", "Saúde", "Pessoal e lazer",
+    "Educação", "Presentes e doações", "Tarifas e impostos",
+)
+
+@Composable
+private fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
+    var expanded by remember { mutableStateOf(false) }
+    var customOpen by remember { mutableStateOf(false) }
+    var custom by remember { mutableStateOf("") }
+    val options = (CategoryOptions + listOfNotNull(value.takeIf { it.isNotBlank() })).distinct()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { expanded = !expanded },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .clip(FinanceInputShape).glassSurface(highlighted = expanded),
+            shape = FinanceInputShape,
+            border = BorderStroke(1.dp, GlassBorder),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                Text("Categoria", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value.ifBlank { "Selecionar categoria" })
+            }
+            Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
+        }
+        DropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
+            shape = FinanceInputShape,
+            containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
+            tonalElevation = 0.dp, shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, GlassBorder),
+        ) {
+            options.forEach { option ->
+                val chosen = value == option
+                DropdownMenuItem(
+                    text = { Text(option, color = if (chosen) NeonPalette[0] else MaterialTheme.colorScheme.onSurface) },
+                    leadingIcon = {
+                        RadioButton(chosen, onClick = null,
+                            colors = RadioButtonDefaults.colors(selectedColor = NeonPalette[0]))
+                    },
+                    onClick = { onValueChange(option); expanded = false },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (chosen) NeonPalette[0].copy(alpha = 0.12f) else Color.Transparent),
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Outra categoria…", color = NeonPalette[0]) },
+                onClick = { expanded = false; custom = ""; customOpen = true },
+            )
+        }
+    }
+    if (customOpen) {
+        AlertDialog(
+            onDismissRequest = { customOpen = false },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = Color(0xFF080F24),
+            tonalElevation = 0.dp,
+            modifier = Modifier.border(BorderStroke(1.dp, GlassBorder), RoundedCornerShape(22.dp)),
+            title = { Text("Outra categoria") },
+            text = {
+                OutlinedTextField(
+                    custom, { custom = it }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nome da categoria") }, shape = FinanceInputShape, singleLine = true,
+                )
+            },
+            confirmButton = {
+                GlassButton(
+                    onClick = { onValueChange(custom.trim()); customOpen = false },
+                    enabled = enabled && custom.isNotBlank(),
+                ) { Text("Usar categoria") }
+            },
+            dismissButton = { TextButton(onClick = { customOpen = false }) { Text("Cancelar") } },
+        )
+    }
+}
 
 private val MovementPencilIcon = ImageVector.Builder(
     "Descrição amigável", 24.dp, 24.dp, 24f, 24f,

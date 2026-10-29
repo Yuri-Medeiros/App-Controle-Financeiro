@@ -5,7 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,9 +43,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import br.com.yurimedeiros.meufinanceiro.R
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -251,17 +254,14 @@ private fun LockBackground() {
         animationSpec = infiniteRepeatable(tween(18000), RepeatMode.Reverse),
         label = "Movimento suave",
     )
-    Canvas(Modifier.fillMaxSize().background(Color(0xFF0D0D20))) {
-        // Soft radial shapes keep the background light to render, without blur layers.
-        drawRect(Brush.radialGradient(
-            colors = listOf(Color(0xFF7053C1).copy(alpha = 0.35f), Color.Transparent),
-            center = Offset(size.width * (0.10f + drift * 0.25f), size.height * (0.20f + drift * 0.08f)),
-            radius = size.maxDimension * 0.65f,
-        ))
-        drawRect(Brush.radialGradient(
-            colors = listOf(Color(0xFF486EB8).copy(alpha = 0.24f), Color.Transparent),
-            center = Offset(size.width * (0.95f - drift * 0.20f), size.height * (0.75f - drift * 0.10f)),
-            radius = size.maxDimension * 0.55f,
-        ))
-    }
+    Image(
+        painter = painterResource(R.drawable.lock_background),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().graphicsLayer {
+            scaleX = 1.02f + drift * 0.02f
+            scaleY = scaleX
+        },
+    )
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
 }

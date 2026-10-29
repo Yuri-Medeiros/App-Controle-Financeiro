@@ -48,7 +48,7 @@ O teste Android usa Instrumentation do sistema e banco separado para conferir Ro
 
 O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos e transferência do Android estão desabilitados para evitar copiar banco sem a chave local não transferível. O backup criptografado no Drive aprovado ainda não está implementado. Não há botão que apague o banco ou regenere sua chave diante de falha de abertura.
 
-Captura de tela e prévia com conteúdo na lista de aplicativos recentes são bloqueadas por `FLAG_SECURE`. A permissão de internet permite consultar o Gmail mediante autorização explícita de leitura. O token fica em memória e os anexos são processados no aparelho.
+Capturas de tela são permitidas por solicitação do usuário; a prévia na lista de aplicativos recentes também pode exibir o conteúdo da tela. A permissão de internet permite consultar o Gmail mediante autorização explícita de leitura. O token fica em memória e os anexos são processados no aparelho.
 
 As licenças de SQLCipher são incluídas nos assets do APK. Dependências: AndroidX/Compose/Room sob Apache 2.0, SQLCipher Community sob licença BSD e Google Play services Auth para autorização Google. Não há configuração de faturamento ou serviço pago.
 

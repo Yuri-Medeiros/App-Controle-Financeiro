@@ -12,7 +12,6 @@ import android.hardware.biometrics.BiometricPrompt
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.provider.Settings
-import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -63,7 +62,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -144,7 +142,10 @@ class MainActivity : ComponentActivity() {
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                         release(prepared)
                         if (!isDestroyed) {
-                            model.showError("Seus dados continuam protegidos. Toque em Desbloquear para tentar novamente.")
+                            if (errorCode != BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED &&
+                                errorCode != BiometricPrompt.BIOMETRIC_ERROR_CANCELED) {
+                                model.showError("Não foi possível autenticar. Tente acessar novamente.")
+                            }
                         }
                     }
 

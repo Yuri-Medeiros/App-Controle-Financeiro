@@ -2,16 +2,16 @@
 
 Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android mínimo 15 (API 35), alvo Android 16 (API 36). Desenvolvimento e compilação no Codex Cloud; não exige Android Studio no computador do usuário.
 
-## Primeira entrega em construção
+## Estado do desenvolvimento
 
 - Acesso por BiometricPrompt, aceitando biometria forte ou credencial do Android.
 - Chave AES do Android Keystore com autorização por operação para proteger a chave aleatória do banco. Nenhuma senha Google é solicitada.
 - Room 2 com SQLCipher, sem criação de banco em texto claro ou migração destrutiva.
 - Fechamento da sessão e do banco após 1 minuto em segundo plano; retorno curto preserva a sessão. Após encerramento do processo, exige nova autenticação.
-- Tema escuro com paleta roxa, cartões em degradê e destaques em ciano e navegação aprovada. Áreas financeiras são estados vazios, não funções financeiras implementadas.
+- Tema escuro com paleta roxa, cartões em degradê e destaques em ciano. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 
-Google, importação, planejamento financeiro, backup/recuperação e patrimônio serão implementados em etapas posteriores. Esta versão não deve receber dados financeiros reais antes de validar recuperação e atualização no Android.
+Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Planejamento financeiro, backup/recuperação e patrimônio permanecem pendentes. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
 
 ## Atualizar pelo PC ou pelo celular
 
@@ -48,10 +48,14 @@ O teste Android usa Instrumentation do sistema e banco separado para conferir Ro
 
 O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos e transferência do Android estão desabilitados para evitar copiar banco sem a chave local não transferível. O backup criptografado no Drive aprovado ainda não está implementado. Não há botão que apague o banco ou regenere sua chave diante de falha de abertura.
 
-Captura de tela e prévia com conteúdo na lista de aplicativos recentes são bloqueadas por `FLAG_SECURE`. Nenhuma permissão de internet é solicitada nesta base; integrações futuras terão configuração própria.
+Captura de tela e prévia com conteúdo na lista de aplicativos recentes são bloqueadas por `FLAG_SECURE`. A permissão de internet permite consultar o Gmail mediante autorização explícita de leitura. O token fica em memória e os anexos são processados no aparelho.
 
-As licenças de SQLCipher são incluídas nos assets do APK. Dependências gratuitas: AndroidX/Compose/Room sob Apache 2.0 e SQLCipher Community sob licença BSD. Não há configuração de faturamento ou serviço pago.
+As licenças de SQLCipher são incluídas nos assets do APK. Dependências: AndroidX/Compose/Room sob Apache 2.0, SQLCipher Community sob licença BSD e Google Play services Auth para autorização Google. Não há configuração de faturamento ou serviço pago.
 
 ## Continuidade financeira
 
 A camada de domínio já calcula a divisão de uma compra única por partes iguais ou percentuais decimais exatos, preservando centavos pela regra aprovada de maiores restos e ordem fixa. Ainda não está conectada às telas ou ao banco; não representa cadastro de compras nem divisão de diferenças entre parcelas. Evidências e impedimentos em [VERIFICACAO_CONTINUIDADE.md](VERIFICACAO_CONTINUIDADE.md).
+
+## Desenvolvimento de Movimentações
+
+O fluxo Gmail/importação inclui busca paginada de anexos, validação dos CSVs, confirmação de referência de fatura, revisão individual/em lote, sugestões de categoria, persistência no Room/SQLCipher com migração aditiva e conciliação única de pagamentos de fatura. Estornos, resolução manual de conflitos e fluxos completos de pessoas/parcelas seguem pendentes. Regras aprovadas em [ESPECIFICACAO_IMPORTACAO.md](ESPECIFICACAO_IMPORTACAO.md), configuração OAuth em [CONFIGURACAO_GOOGLE.md](CONFIGURACAO_GOOGLE.md), etapas e evidências em [DESENVOLVIMENTO_MOVIMENTACOES.md](DESENVOLVIMENTO_MOVIMENTACOES.md). O APK anterior não contém automaticamente estas mudanças; candidato e teste no aparelho continuam necessários.

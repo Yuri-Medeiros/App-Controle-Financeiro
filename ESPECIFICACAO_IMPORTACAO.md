@@ -53,7 +53,7 @@ O código enviado à PR #4 ainda contém a base protegida e divisão isolada de 
 
 ## Dependências para entrega
 
-1. Implementar AuthorizationClient, busca paginada de mensagens/anexos e tratamento de cancelamento/revogação; configurar projeto Google exclusivo sem billing, OAuth Externo/Em produção por uso pessoal e clientes Android para as identidades pertinentes. A existência dessa configuração não foi comprovada.
+1. Implementar AuthorizationClient, busca paginada de mensagens/anexos e tratamento de cancelamento/revogação; configurar projeto Google exclusivo sem billing, OAuth Externo/Em produção por uso pessoal e clientes Android para as identidades pertinentes. Configuração concluída pelo usuário e descrita em CONFIGURACAO_GOOGLE.md; autorização no aparelho ainda precisa de teste.
 2. Implementar importadores validados com amostras, persistência de origem/ocorrências/revisão, migração e testes de preservação. Não inferir saldo inicial completo dos extratos parciais.
 3. Implementar a tela real, confirmação, aprendizado e tratamento explícito de pagamentos/estornos conforme esta especificação. Escopo de pessoas/parcelamentos necessário ao fluxo deve respeitar pendências anteriores, sem simular funções inexistentes.
 4. Executar testes de sobreposição, reimportação, multiplicidade, sinais, vínculo de pagamento, revisão e preservação, além dos checks existentes.
@@ -62,3 +62,11 @@ O código enviado à PR #4 ainda contém a base protegida e divisão isolada de 
 7. Backup financeiro/restauração ainda precisam de especificação e implementação; não habilitar uso financeiro definitivo sem validar recuperação.
 
 Já há decisões suficientes para iniciar o fluxo de CSVs de conta, Flash e fatura; não é necessário terminar todas as áreas do produto para começar. PDF de investimentos e regras financeiras pendentes não devem ser inventados ou anunciados como prontos.
+
+## Início do desenvolvimento autorizado — 28/10/2026
+
+O usuário confirmou que deseja iniciar o desenvolvimento do fluxo alinhado. A implementação foi iniciada na branch `feat/movimentacoes-gmail`, em worktree separado, baseada em `work` com incorporação da continuidade anterior. Não reativar a implementação manual cancelada por inferência.
+
+Primeira etapa de código: importadores CSV, validação integral de documentos, comparação de ocorrências e reconhecimento para sugestões. Essas funções são puras e ainda não representam integração Gmail, tela ou gravação financeira prontas. Propostas de referência de fatura exigem confirmação explícita antes da comparação. Linhas novas sempre retornam para revisão; nenhum módulo sobrescreve registros ou aplica categorias por conta própria.
+
+A referência operacional passa a ser DESENVOLVIMENTO_MOVIMENTACOES.md; testes e limitações devem ser atualizados conforme cada etapa conclua. Não reconfirmar as regras aprovadas nesta especificação.

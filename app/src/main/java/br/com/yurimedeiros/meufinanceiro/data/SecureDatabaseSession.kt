@@ -34,6 +34,7 @@ internal class SecureDatabaseSession private constructor(
                 System.loadLibrary("sqlcipher")
                 database = Room.databaseBuilder(context, FinanceDatabase::class.java, databaseName)
                     .openHelperFactory(SupportOpenHelperFactory(password))
+                    .addMigrations(FinanceMigrations.from1To2)
                     .build()
                 // Force key validation now, before presenting an unlocked screen.
                 database.openHelper.writableDatabase

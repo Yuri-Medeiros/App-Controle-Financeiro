@@ -1,6 +1,9 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,18 +28,62 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
     var account by remember { mutableStateOf<DocumentKind?>(null) }
     var reviewOnly by remember { mutableStateOf(false) }
     var accountsOpen by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { accountsOpen = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    val accountShape = RoundedCornerShape(16.dp)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { accountsOpen = !accountsOpen },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .clip(accountShape).glassSurface(highlighted = accountsOpen),
+            shape = accountShape,
+            border = BorderStroke(1.dp, GlassBorder),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+        ) {
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 Text("Conta", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(account?.let(::accountName) ?: "Todas as contas")
             }
-            Text("⌄")
+            Text(if (accountsOpen) "⌃" else "⌄", color = NeonPalette[0])
         }
-        DropdownMenu(expanded = accountsOpen, onDismissRequest = { accountsOpen = false }) {
-            DropdownMenuItem(text = { Text("Todas as contas") }, onClick = { account = null; accountsOpen = false })
-            DocumentKind.entries.forEach { kind ->
-                DropdownMenuItem(text = { Text(accountName(kind)) }, onClick = { account = kind; accountsOpen = false })
+        DropdownMenu(
+            expanded = accountsOpen,
+            onDismissRequest = { accountsOpen = false },
+            modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), accountShape),
+            shape = accountShape,
+            containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, GlassBorder),
+        ) {
+            AccountOptions.forEach { kind ->
+                val isSelected = account == kind
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            kind?.let(::accountName) ?: "Todas as contas",
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    leadingIcon = {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = null,
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = NeonPalette[0],
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        )
+                    },
+                    onClick = { account = kind; accountsOpen = false },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) NeonPalette[0].copy(alpha = 0.12f) else Color.Transparent),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                )
             }
         }
     }
@@ -160,8 +207,15 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
 }
 
 
+private val AccountOptions = listOf(
+    null,
+    DocumentKind.NUBANK_ACCOUNT,
+    DocumentKind.NUBANK_CARD,
+    DocumentKind.FLASH,
+)
+
 private fun accountName(kind: DocumentKind): String = when (kind) {
-    DocumentKind.NUBANK_ACCOUNT -> "Conta Nubank"
-    DocumentKind.NUBANK_CARD -> "Fatura Nubank"
+    DocumentKind.NUBANK_ACCOUNT -> "Nubank Conta"
+    DocumentKind.NUBANK_CARD -> "Nubank Fatura"
     DocumentKind.FLASH -> "Flash"
 }

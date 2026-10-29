@@ -74,3 +74,10 @@ Os scripts em tools preparam infraestrutura e assinatura. A prova técnica inici
 - PR #1 integrada em `work`; a branch `feat/primeiro-apk` recebeu posteriormente os documentos de continuidade. Ambas as linhas foram preservadas por merge nesta execução.
 - O usuário informou ter baixado a versão 0.1.1 e dois candidatos. Em resposta posterior confirmou instalação e desbloqueio no S23, sem identificar qual APK. Tags/SHA e os demais testes continuam sem confirmação; não interpretar como aprovação de publicação.
 - Primeira implementação independente nesta etapa: divisão de uma compra única por partes iguais ou percentuais exatos, com maiores restos e desempate pela ordem fixa. Distribuição entre várias parcelas continua pendente.
+
+## Início de Movimentações — 28/10/2026
+
+- Autorizado iniciar o desenvolvimento da primeira tela com Gmail/importação, conforme ESPECIFICACAO_IMPORTACAO.md. Essa especificação contém as decisões da entrevista sobre revisão, categorias, deduplicação, faturas, pagamentos e estornos.
+- Projeto Google `meu-financeiro-513012`: Gmail API ativada pelo usuário, escopo gmail.readonly configurado e status Em produção confirmado por print. Dois clientes Android informados nos JSONs recebidos; pacotes/certificados fornecidos ao usuário. Concessão real no S23 ainda pendente.
+- Páginas públicas preparadas na PR #5, Pages ativado pelo usuário e implantação confirmada pelo GitHub. Não declarar aceite ou verificação Google concluídos a partir desse fato.
+- Não usar dados financeiros reais no repositório público. Não alterar certificados, pipeline ou autorizar publicação definitiva por conta própria.

@@ -45,7 +45,7 @@ android {
             signingConfig = null
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -57,6 +57,7 @@ android {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")

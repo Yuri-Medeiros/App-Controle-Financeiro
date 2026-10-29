@@ -31,11 +31,16 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             }
             val rows = if (confirmed != null) ImportComparison.withStatement(document, confirmed) else document.rows
             val account = source.source.substringBefore(':')
-            val existing = all().filter { it.origin.startsWith("$account · ") }.map { it.row }
+            val accountMovements = all().filter { it.origin.startsWith("$account · ") }
+            val existing = accountMovements.map { it.row }
+            val friendlyNames = accountMovements.filter { it.friendlyName.isNotBlank() }
+                .sortedWith(compareBy<ReviewMovement> { it.confirmedAt }.thenBy { it.id })
+                .associate { FriendlyDescriptions.key(it.row) to it.friendlyName }
             ImportComparison.compare(rows, existing).filter { it.disposition != ImportDisposition.ALREADY_PRESENT }.forEach { compared ->
                 val movement = Movement().apply {
                     payload = encode(compared.row)
                     origin = "$account · ${source.filename}"
+                    friendlyName = friendlyNames[FriendlyDescriptions.key(compared.row)].orEmpty()
                     status = if (compared.disposition == ImportDisposition.CONFLICT_FOR_REVIEW) "CONFLICT" else "PENDING"
                 }
                 dao.insert(movement)
@@ -57,6 +62,25 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             item.category = ""
             item.pairedMovementId = pairs[item.id] ?: 0
             dao.update(item)
+        }
+    }
+
+    fun saveFriendlyName(id: Long, friendlyName: String) {
+        val name = friendlyName.trim()
+        require(name.isNotBlank() && name.length <= 120)
+        db.runInTransaction {
+            val dao = db.movements()
+            val rows = dao.all()
+            val target = rows.firstOrNull { it.id == id } ?: error("Movimentação não encontrada.")
+            val account = target.origin.substringBefore(" · ")
+            val identity = FriendlyDescriptions.key(decode(target.payload))
+            rows.filter {
+                it.origin.substringBefore(" · ") == account &&
+                    FriendlyDescriptions.key(decode(it.payload)) == identity
+            }.forEach {
+                it.friendlyName = name
+                dao.update(it)
+            }
         }
     }
 

@@ -179,6 +179,32 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    fun saveFriendlyName(id: Long, description: String) {
+        if (!state.value.unlocked || state.value.syncing) return
+        if (description.isBlank() || description.trim().length > 120) {
+            showError("Informe uma descrição de até 120 caracteres.")
+            return
+        }
+        val attempt = generation
+        mutableState.value = mutableState.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    MovementRepository(checkNotNull(session).database).saveFriendlyName(id, description)
+                } }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {
+                if (attempt == generation) showError("Não foi possível salvar a descrição amigável. Tente novamente.")
+            } finally {
+                if (attempt == generation) {
+                    mutableState.value = mutableState.value.copy(syncing = false)
+                    refresh()
+                }
+            }
+        }
+    }
+
     fun confirmMovement(ids: Set<Long>, category: String, friendlyName: String) =
         confirmBatch(ids.associateWith { category to friendlyName })
 

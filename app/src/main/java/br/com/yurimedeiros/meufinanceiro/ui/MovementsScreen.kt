@@ -192,7 +192,15 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     val suggestion = CounterpartySuggestion.identify(movement.row)
     val previous = state.movements.sortedBy { it.confirmedAt }.lastOrNull { it.status == "CONFIRMED" && it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") && suggestion.learningKey != null && CounterpartySuggestion.identify(it.row).learningKey == suggestion.learningKey }
     var category by remember(movement.category, previous?.category) { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
-    var friendly by remember { mutableStateOf(movement.friendlyName) }
+    val identity = FriendlyDescriptions.key(movement.row)
+    val linkedName = state.movements.filter {
+        it.friendlyName.isNotBlank() &&
+            it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") &&
+            FriendlyDescriptions.key(it.row) == identity
+    }.maxWithOrNull(compareBy<ReviewMovement> { it.confirmedAt }.thenBy { it.id })?.friendlyName.orEmpty()
+    val friendly = linkedName.ifBlank { movement.friendlyName }
+    var descriptionOpen by remember { mutableStateOf(false) }
+    var descriptionDraft by remember(friendly) { mutableStateOf(friendly) }
     var details by remember { mutableStateOf(false) }
     LaunchedEffect(category, friendly) { if (selected) onSelect(if (category.isBlank()) null else category to friendly) }
     GlassPanel {
@@ -204,11 +212,13 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     Text(if (expense) "↓" else "↑", color = amountColor, style = MaterialTheme.typography.titleLarge)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(movement.friendlyName.ifBlank { suggestion.displayName }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                    Text(friendly.ifBlank { suggestion.displayName }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                     Text(movement.category.ifBlank { accountName(movement.row.kind) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(BigDecimal.valueOf(movement.row.cents, 2)), color = amountColor, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text(movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu")),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     movement.row.time?.let { Text(it.toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
@@ -218,7 +228,6 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 "PAYMENT_PENDING" -> "Pagamento de fatura · conciliação pendente"
                 else -> "Aguardando revisão"
             })
-            TextButton(onClick = { details = !details }) { Text(if (details) "Fechar detalhes" else "Revisar / editar") }
             if (details) {
                 Text(movement.row.description)
                 Text("Origem: ${movement.origin}")
@@ -229,7 +238,6 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 } else {
                     Text("Categorias: Moradia, Alimentação, Transporte, Saúde, Pessoal e lazer, Educação, Presentes e doações, Tarifas e impostos. Você também pode escrever uma categoria própria.")
                     OutlinedTextField(category, { category = it }, label = { Text("Categoria (confirme a sugestão)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(friendly, { friendly = it }, label = { Text("Nome amigável (opcional)") }, modifier = Modifier.fillMaxWidth())
                     if (movement.status != "CONFIRMED") Row {
                         Checkbox(checked = selected, onCheckedChange = { onSelect(if (it && category.isNotBlank()) category to friendly else null) }, enabled = category.isNotBlank() && !state.syncing)
                         Text("Incluir no lote · $category")
@@ -237,10 +245,77 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Confirmar este registro") }
                 }
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                if (friendly.isBlank()) {
+                    IconButton(
+                        onClick = { descriptionDraft = ""; descriptionOpen = true },
+                        enabled = !state.syncing,
+                    ) {
+                        Icon(MovementPencilIcon, contentDescription = "Adicionar descrição amigável",
+                            tint = NeonPalette[0], modifier = Modifier.size(22.dp))
+                    }
+                }
+                IconButton(onClick = { details = !details }, enabled = !state.syncing) {
+                    Icon(MovementLabelIcon,
+                        contentDescription = if (details) "Fechar categoria" else "Informar categoria",
+                        tint = NeonPalette[0], modifier = Modifier.size(22.dp))
+                }
+            }
         }
+    }
+    if (descriptionOpen) {
+        AlertDialog(
+            onDismissRequest = { descriptionOpen = false },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = Color(0xFF080F24),
+            tonalElevation = 0.dp,
+            modifier = Modifier.border(BorderStroke(1.dp, GlassBorder), RoundedCornerShape(22.dp)),
+            title = { Text("Descrição amigável") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Use um nome para identificar esta pessoa, estabelecimento ou descrição nas próximas movimentações. O texto original do extrato será preservado.")
+                    OutlinedTextField(
+                        descriptionDraft, { descriptionDraft = it },
+                        label = { Text("Descrição amigável") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        isError = descriptionDraft.trim().length > 120,
+                        supportingText = { Text("Até 120 caracteres") },
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                GlassButton(
+                    onClick = {
+                        model.saveFriendlyName(movement.id, descriptionDraft)
+                        descriptionOpen = false
+                    },
+                    enabled = !state.syncing && descriptionDraft.isNotBlank() &&
+                        descriptionDraft.trim().length <= 120,
+                ) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { descriptionOpen = false }) { Text("Cancelar") }
+            },
+        )
     }
 }
 
+
+private val MovementPencilIcon = ImageVector.Builder(
+    "Descrição amigável", 24.dp, 24.dp, 24f, 24f,
+).addPath(
+    PathParser().parsePathString("M3,17.25V21H6.75L17.81,9.94L14.06,6.19ZM20.71,7.04C21.1,6.65 21.1,6.02 20.71,5.63L18.37,3.29C17.98,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87Z").toNodes(),
+    fill = SolidColor(Color.Black),
+).build()
+
+private val MovementLabelIcon = ImageVector.Builder(
+    "Categoria", 24.dp, 24.dp, 24f, 24f,
+).addPath(
+    PathParser().parsePathString("M21.41,11.58L12.41,2.58C12.04,2.21 11.53,2 11,2H4C2.9,2 2,2.9 2,4V11C2,11.53 2.21,12.04 2.59,12.41L11.59,21.41C12.37,22.19 13.63,22.19 14.41,21.41L21.41,14.41C22.19,13.63 22.19,12.37 21.41,11.58ZM5.5,7A1.5,1.5 0,1 1,5.5,4A1.5,1.5 0,1 1,5.5,7Z").toNodes(),
+    fill = SolidColor(Color.Black),
+).build()
 
 private val MovementFilterIcon = ImageVector.Builder(
     "Filtros", 24.dp, 24.dp, 24f, 24f,

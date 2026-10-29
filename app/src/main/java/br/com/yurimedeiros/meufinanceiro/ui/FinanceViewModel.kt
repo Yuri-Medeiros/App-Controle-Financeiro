@@ -208,7 +208,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     fun confirmMovement(ids: Set<Long>, category: String, friendlyName: String) =
         confirmBatch(ids.associateWith { category to friendlyName })
 
-    fun confirmBatch(choices: Map<Long, Pair<String, String>>) {
+    fun confirmBatch(choices: Map<Long, Pair<String, String>>, onConfirmed: () -> Unit = {}) {
         if (!state.value.unlocked || state.value.syncing) return
         val attempt = generation
         mutableState.value = mutableState.value.copy(syncing = true, error = null)
@@ -218,6 +218,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                     check(attempt == generation)
                     MovementRepository(checkNotNull(session).database).confirmBatch(choices)
                 } }
+                if (attempt == generation) onConfirmed()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Escolha uma categoria. Conflitos e pagamentos/estornos ainda não podem ser confirmados nesta etapa.") }
             finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }

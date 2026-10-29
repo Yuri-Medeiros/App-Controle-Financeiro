@@ -1,5 +1,6 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,6 +55,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import br.com.yurimedeiros.meufinanceiro.importing.MovementRepository
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -109,6 +113,25 @@ internal fun FinanceApp(
     val state by model.state.collectAsStateWithLifecycle()
     var selected by rememberSaveable { mutableIntStateOf(0) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
+    var batchCategoryOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(selected, settings, state.unlocked, state.visible) {
+        if (selected != 1 || settings || !state.unlocked || !state.visible) {
+            selectedMovementIds = emptySet()
+            batchCategoryOpen = false
+        }
+    }
+    BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen) {
+        selectedMovementIds = emptySet()
+    }
+    LaunchedEffect(state.movements) {
+        val eligibleIds = state.movements.filter {
+            it.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING") &&
+                !MovementRepository.needsSpecialReview(it.row)
+        }.map { it.id }.toSet()
+        selectedMovementIds = selectedMovementIds.intersect(eligibleIds)
+        if (selectedMovementIds.isEmpty()) batchCategoryOpen = false
+    }
     val contentScroll = remember(selected, settings) { ScrollState(0) }
     val backdrop = rememberGraphicsLayer()
     var contentPosition by remember { mutableStateOf(Offset.Zero) }
@@ -123,78 +146,91 @@ internal fun FinanceApp(
                     containerColor = Color.Transparent,
                     bottomBar = {
                         if (!settings) {
-                            val shape = RoundedCornerShape(28.dp)
-                            Box(
-                                Modifier.fillMaxWidth().navigationBarsPadding()
-                                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                            ) {
-                                Box(
-                                    Modifier.fillMaxWidth().height(76.dp)
-                                        .onGloballyPositioned { navigationPosition = it.positionInRoot() }
-                                        .clip(shape),
-                                ) {
-                                    // Only the captured background is blurred; controls stay sharp.
-                                    Box(
-                                        Modifier.matchParentSize()
-                                            .graphicsLayer {
-                                                renderEffect = BlurEffect(20.dp.toPx(), 20.dp.toPx(), TileMode.Clamp)
-                                            }
-                                            .drawWithContent {
-                                                val offset = contentPosition - navigationPosition
-                                                translate(offset.x, offset.y) { drawLayer(backdrop) }
-                                            },
-                                    )
-                                    Row(
-                                        Modifier.matchParentSize().selectableGroup()
-                                            .background(Color(0xFF071124).copy(alpha = 0.55f))
-                                            .background(neonGradient(0.16f))
-                                            .background(Brush.verticalGradient(listOf(
-                                                Color.White.copy(alpha = 0.16f),
-                                                Color.White.copy(alpha = 0.03f),
-                                            )))
-                                            .border(1.dp, GlassBorder, shape)
-                                            .padding(horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                            Column {
+                                if (selected == 1 && selectedMovementIds.isNotEmpty()) {
+                                    GlassButton(
+                                        onClick = { batchCategoryOpen = true },
+                                        enabled = !state.syncing,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                                     ) {
-                                        Sections.forEachIndexed { index, section ->
-                                            val active = selected == index
-                                            val weight = when (index) {
-                                                1 -> 1.45f
-                                                3 -> 1.35f
-                                                4 -> 1.15f
-                                                else -> 1f
-                                            }
-                                            Column(
-                                                Modifier.weight(weight).height(76.dp)
-                                                    .selectable(
-                                                        selected = active,
-                                                        role = Role.Tab,
-                                                        onClick = { selected = index },
-                                                    ),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-                                            ) {
-                                                Box(
-                                                    Modifier.size(width = 48.dp, height = 30.dp)
-                                                        .background(
-                                                            if (active) NeonPalette[0].copy(alpha = 0.18f) else Color.Transparent,
-                                                            CircleShape,
-                                                        ),
-                                                    contentAlignment = Alignment.Center,
-                                                ) {
-                                                    Icon(section.icon, contentDescription = null,
-                                                        tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
-                                                        modifier = Modifier.size(22.dp))
+                                        Icon(MovementLabelIcon, contentDescription = null, modifier = Modifier.size(22.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Categorizar (${selectedMovementIds.size})")
+                                    }
+                                }
+                                val shape = RoundedCornerShape(28.dp)
+                                Box(
+                                    Modifier.fillMaxWidth().navigationBarsPadding()
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                                ) {
+                                    Box(
+                                        Modifier.fillMaxWidth().height(76.dp)
+                                            .onGloballyPositioned { navigationPosition = it.positionInRoot() }
+                                            .clip(shape),
+                                    ) {
+                                        // Only the captured background is blurred; controls stay sharp.
+                                        Box(
+                                            Modifier.matchParentSize()
+                                                .graphicsLayer {
+                                                    renderEffect = BlurEffect(20.dp.toPx(), 20.dp.toPx(), TileMode.Clamp)
                                                 }
-                                                Text(
-                                                    section.navigation,
-                                                    maxLines = 1,
-                                                    fontSize = 10.sp,
-                                                    letterSpacing = 0.sp,
-                                                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                                                    color = if (active) Color(0xFFE0FCFF) else Color(0xFFB9B4CE),
-                                                    textAlign = TextAlign.Center,
-                                                )
+                                                .drawWithContent {
+                                                    val offset = contentPosition - navigationPosition
+                                                    translate(offset.x, offset.y) { drawLayer(backdrop) }
+                                                },
+                                        )
+                                        Row(
+                                            Modifier.matchParentSize().selectableGroup()
+                                                .background(Color(0xFF071124).copy(alpha = 0.55f))
+                                                .background(neonGradient(0.16f))
+                                                .background(Brush.verticalGradient(listOf(
+                                                    Color.White.copy(alpha = 0.16f),
+                                                    Color.White.copy(alpha = 0.03f),
+                                                )))
+                                                .border(1.dp, GlassBorder, shape)
+                                                .padding(horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Sections.forEachIndexed { index, section ->
+                                                val active = selected == index
+                                                val weight = when (index) {
+                                                    1 -> 1.45f
+                                                    3 -> 1.35f
+                                                    4 -> 1.15f
+                                                    else -> 1f
+                                                }
+                                                Column(
+                                                    Modifier.weight(weight).height(76.dp)
+                                                        .selectable(
+                                                            selected = active,
+                                                            role = Role.Tab,
+                                                            onClick = { selected = index },
+                                                        ),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                                                ) {
+                                                    Box(
+                                                        Modifier.size(width = 48.dp, height = 30.dp)
+                                                            .background(
+                                                                if (active) NeonPalette[0].copy(alpha = 0.18f) else Color.Transparent,
+                                                                CircleShape,
+                                                            ),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        Icon(section.icon, contentDescription = null,
+                                                            tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
+                                                            modifier = Modifier.size(22.dp))
+                                                    }
+                                                    Text(
+                                                        section.navigation,
+                                                        maxLines = 1,
+                                                        fontSize = 10.sp,
+                                                        letterSpacing = 0.sp,
+                                                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                                                        color = if (active) Color(0xFFE0FCFF) else Color(0xFFB9B4CE),
+                                                        textAlign = TextAlign.Center,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -245,7 +281,10 @@ internal fun FinanceApp(
                                 }
                                 when (selected) {
                                     0 -> OverviewScreen(state, onMovements = { selected = 1 })
-                                    1 -> MovementsScreen(state, model)
+                                    1 -> MovementsScreen(
+                                        state, model, selectedMovementIds,
+                                        onSelectionChange = { selectedMovementIds = it },
+                                    )
                                     2 -> PlannedScreen("Pessoas")
                                     3 -> PlannedScreen("Planejamento")
                                     4 -> PlannedScreen("Patrimônio")
@@ -267,6 +306,22 @@ internal fun FinanceApp(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                        }
+                        if (batchCategoryOpen && selectedMovementIds.isNotEmpty()) {
+                            BatchCategoryDialog(
+                                selectedCount = selectedMovementIds.size,
+                                enabled = !state.syncing,
+                                error = state.error,
+                                onDismiss = { batchCategoryOpen = false },
+                                onConfirm = { category ->
+                                    val choices = state.movements.filter { it.id in selectedMovementIds }
+                                        .associate { it.id to (category to it.friendlyName) }
+                                    model.confirmBatch(choices) {
+                                        selectedMovementIds = emptySet()
+                                        batchCategoryOpen = false
+                                    }
+                                },
+                            )
                         }
                         state.importNotification?.let { notification ->
                             ImportNotificationPopup(

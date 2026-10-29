@@ -23,14 +23,19 @@ internal val ExpenseColor = Color(0xFFFF687E)
 private val ChartColors = NeonPalette + Color(0xFFB790FF)
 
 @Composable
-internal fun GlassPanel(modifier: Modifier = Modifier, highlighted: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+internal fun GlassPanel(
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Card(
         modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(1.dp, GlassBorder),
     ) {
         Column(
-            Modifier.fillMaxWidth().glassSurface(highlighted).padding(16.dp),
+            Modifier.fillMaxWidth().glassSurface(highlighted).padding(contentPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
         )
     }

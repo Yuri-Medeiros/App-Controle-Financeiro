@@ -225,32 +225,29 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 },
             ),
         highlighted = selected,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val expense = if (movement.row.kind == DocumentKind.NUBANK_CARD) movement.row.cents > 0 else movement.row.cents < 0
             val amountColor = if (expense) ExpenseColor else IncomeColor
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(38.dp).background(amountColor.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(if (expense) "↓" else "↑", color = amountColor, style = MaterialTheme.typography.titleLarge)
+                Box(Modifier.size(30.dp).background(amountColor.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
+                    Text(if (selected) "✓" else if (expense) "↓" else "↑", color = if (selected) NeonPalette[0] else amountColor, style = MaterialTheme.typography.titleMedium)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(friendly.ifBlank { suggestion.displayName }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                    Text(movement.category.ifBlank { accountName(movement.row.kind) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(movement.category.ifBlank { accountName(movement.row.kind) }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(BigDecimal.valueOf(movement.row.cents, 2)), color = amountColor, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                    Text(movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu")),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    movement.row.time?.let { Text(it.toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
-            if (selected) Text("✓ Selecionada", color = NeonPalette[0], style = MaterialTheme.typography.labelMedium)
-            Text(when (movement.status) {
-                "CONFIRMED" -> "Confirmada · ${movement.category}"
-                "PAYMENT" -> "Pagamento de fatura conciliado"
-                "PAYMENT_PENDING" -> "Pagamento de fatura · conciliação pendente"
-                else -> "Aguardando revisão"
-            })
+            when (movement.status) {
+                "PAYMENT" -> Text("Pagamento conciliado", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "PAYMENT_PENDING", "CONFLICT" -> Text("Conciliação pendente",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
             if (details && !selectionMode) {
                 if (movement.status == "CONFLICT" || MovementRepository.needsSpecialReview(movement.row)) {
                     Text("Requer conciliação antes de categorizar.", style = MaterialTheme.typography.bodySmall)
@@ -259,20 +256,40 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Pronto") }
                 }
             }
-            if (!selectionMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (friendly.isBlank()) {
-                    IconButton(
-                        onClick = { descriptionDraft = ""; descriptionOpen = true },
-                        enabled = !state.syncing,
-                    ) {
-                        Icon(MovementPencilIcon, contentDescription = "Adicionar descrição amigável",
-                            tint = NeonPalette[0], modifier = Modifier.size(22.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val date = movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu"))
+                val time = movement.row.time?.format(DateTimeFormatter.ofPattern("HH:mm"))
+                Text(
+                    if (time == null) date else "$date · $time",
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!selectionMode) {
+                    if (friendly.isBlank()) {
+                        IconButton(
+                            onClick = { descriptionDraft = ""; descriptionOpen = true },
+                            enabled = !state.syncing,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(MovementPencilIcon, contentDescription = "Adicionar descrição amigável",
+                                tint = NeonPalette[0], modifier = Modifier.size(20.dp))
+                        }
                     }
-                }
-                IconButton(onClick = { details = !details }, enabled = !state.syncing) {
-                    Icon(MovementLabelIcon,
-                        contentDescription = if (details) "Fechar categoria" else "Informar categoria",
-                        tint = NeonPalette[0], modifier = Modifier.size(22.dp))
+                    if (movement.status !in setOf("CONFIRMED", "PAYMENT") ||
+                        (canCategorize && movement.category.isBlank())) {
+                        IconButton(
+                            onClick = { details = !details },
+                            enabled = !state.syncing,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(MovementLabelIcon,
+                                contentDescription = if (details) "Fechar categoria" else "Informar categoria",
+                                tint = NeonPalette[0], modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
         }

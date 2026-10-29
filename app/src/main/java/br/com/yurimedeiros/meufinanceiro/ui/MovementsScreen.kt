@@ -248,14 +248,6 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 "PAYMENT_PENDING", "CONFLICT" -> Text("Conciliação pendente",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
-            if (details && !selectionMode) {
-                if (movement.status == "CONFLICT" || MovementRepository.needsSpecialReview(movement.row)) {
-                    Text("Requer conciliação antes de categorizar.", style = MaterialTheme.typography.bodySmall)
-                } else {
-                    CategoryDropdown(category, { category = it }, enabled = !state.syncing)
-                    GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Pronto") }
-                }
-            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 val date = movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu"))
                 val time = movement.row.time?.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -281,14 +273,38 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     if (movement.status !in setOf("CONFIRMED", "PAYMENT") ||
                         (canCategorize && movement.category.isBlank())) {
                         IconButton(
-                            onClick = { details = !details },
-                            enabled = !state.syncing,
+                            onClick = {
+                                if (details && canCategorize) {
+                                    model.confirmBatch(mapOf(movement.id to (category to friendly))) {
+                                        details = false
+                                    }
+                                } else {
+                                    details = !details
+                                }
+                            },
+                            enabled = !state.syncing && (!details || !canCategorize || category.isNotBlank()),
                             modifier = Modifier.size(48.dp),
                         ) {
-                            Icon(MovementLabelIcon,
-                                contentDescription = if (details) "Fechar categoria" else "Informar categoria",
+                            Icon(if (details && canCategorize) MovementCheckIcon else MovementLabelIcon,
+                                contentDescription = when {
+                                    details && canCategorize -> "Salvar categoria"
+                                    details -> "Fechar aviso de conciliação"
+                                    else -> "Informar categoria"
+                                },
                                 tint = NeonPalette[0], modifier = Modifier.size(20.dp))
                         }
+                    }
+                }
+            }
+            if (details && !selectionMode) {
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (!canCategorize) {
+                        Text("Requer conciliação antes de categorizar.", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        CategoryDropdown(category, { category = it }, enabled = !state.syncing)
                     }
                 }
             }
@@ -455,6 +471,13 @@ private val MovementPencilIcon = ImageVector.Builder(
     "Descrição amigável", 24.dp, 24.dp, 24f, 24f,
 ).addPath(
     PathParser().parsePathString("M3,17.25V21H6.75L17.81,9.94L14.06,6.19ZM20.71,7.04C21.1,6.65 21.1,6.02 20.71,5.63L18.37,3.29C17.98,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87Z").toNodes(),
+    fill = SolidColor(Color.Black),
+).build()
+
+private val MovementCheckIcon = ImageVector.Builder(
+    "Salvar categoria", 24.dp, 24.dp, 24f, 24f,
+).addPath(
+    PathParser().parsePathString("M9,16.17L4.83,12L3.41,13.41L9,19L21,7L19.59,5.59Z").toNodes(),
     fill = SolidColor(Color.Black),
 ).build()
 

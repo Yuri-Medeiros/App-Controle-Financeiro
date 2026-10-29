@@ -1,5 +1,11 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +43,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -157,29 +164,34 @@ internal fun FinanceApp(
 
 @Composable
 private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock: () -> Unit, onSecuritySettings: () -> Unit) {
-    Scaffold(modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF261942), Color(0xFF0D0D20)))), containerColor = Color.Transparent) { insets ->
-        Column(
-            Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(Modifier.size(88.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(LockIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(34.dp))
-            }
-            Text("Meu Financeiro", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Text("Seu dinheiro. Seu espaço.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            Text("Use sua biometria ou o PIN/senha do Android para continuar.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            state.error?.let { Text(it, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium) }
-            if (state.opening) {
-                CircularProgressIndicator(Modifier.size(32.dp))
-                Text("Abrindo seu espaço…", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings,
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFF130E30)),
-                    contentPadding = PaddingValues(),
-                    modifier = Modifier.fillMaxWidth().height(56.dp).background(Brush.horizontalGradient(listOf(Color(0xFF9B8AFF), Color(0xFF59D6F3))), RoundedCornerShape(18.dp)),
-                    shape = RoundedCornerShape(18.dp)) {
-                    Text(if (deviceSecure) "Desbloquear" else "Configurar bloqueio do Android")
+    Box(Modifier.fillMaxSize()) {
+        LockBackground()
+        Scaffold(containerColor = Color.Transparent) { insets ->
+            Column(
+                Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(32.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.size(88.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(LockIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(34.dp))
+                }
+                Text("Meu Financeiro", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text("Seu dinheiro. Seu espaço.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                state.error?.let { Text(it, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium) }
+                if (state.opening) {
+                    CircularProgressIndicator(Modifier.size(32.dp))
+                    Text("Abrindo seu espaço…", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFFF4F1FF)),
+                        contentPadding = PaddingValues(),
+                        border = BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color(0xFFB9AEFF).copy(alpha = 0.18f)))),
+                        modifier = Modifier.fillMaxWidth().height(56.dp).background(
+                            Brush.linearGradient(listOf(Color.White.copy(alpha = 0.20f), Color(0xFF9B8AFF).copy(alpha = 0.12f), Color(0xFF59D6F3).copy(alpha = 0.16f))),
+                            RoundedCornerShape(18.dp)),
+                        shape = RoundedCornerShape(18.dp)) {
+                        Text(if (deviceSecure) "Acessar" else "Configurar bloqueio do Android")
+                    }
                 }
             }
         }
@@ -227,5 +239,29 @@ private fun EmptySection(section: Section) {
             Text("Cada coisa no seu lugar", style = MaterialTheme.typography.titleLarge)
             Text("Esta área será preenchida nas próximas etapas. Consulte seus registros importados em Movimentações.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
         }
+    }
+}
+
+
+@Composable
+private fun LockBackground() {
+    val transition = rememberInfiniteTransition(label = "Fundo do bloqueio")
+    val drift by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(18000), RepeatMode.Reverse),
+        label = "Movimento suave",
+    )
+    Canvas(Modifier.fillMaxSize().background(Color(0xFF0D0D20))) {
+        // Soft radial shapes keep the background light to render, without blur layers.
+        drawRect(Brush.radialGradient(
+            colors = listOf(Color(0xFF7053C1).copy(alpha = 0.35f), Color.Transparent),
+            center = Offset(size.width * (0.10f + drift * 0.25f), size.height * (0.20f + drift * 0.08f)),
+            radius = size.maxDimension * 0.65f,
+        ))
+        drawRect(Brush.radialGradient(
+            colors = listOf(Color(0xFF486EB8).copy(alpha = 0.24f), Color.Transparent),
+            center = Offset(size.width * (0.95f - drift * 0.20f), size.height * (0.75f - drift * 0.10f)),
+            radius = size.maxDimension * 0.55f,
+        ))
     }
 }

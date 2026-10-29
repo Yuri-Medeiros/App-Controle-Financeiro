@@ -144,7 +144,10 @@ class MainActivity : ComponentActivity() {
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                         release(prepared)
                         if (!isDestroyed) {
-                            model.showError("Seus dados continuam protegidos. Toque em Desbloquear para tentar novamente.")
+                            if (errorCode != BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED &&
+                                errorCode != BiometricPrompt.BIOMETRIC_ERROR_CANCELED) {
+                                model.showError("Não foi possível autenticar. Tente acessar novamente.")
+                            }
                         }
                     }
 

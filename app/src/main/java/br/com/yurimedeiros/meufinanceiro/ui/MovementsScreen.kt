@@ -217,8 +217,6 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     val haptics = LocalHapticFeedback.current
     GlassPanel(
         modifier = Modifier.clip(RoundedCornerShape(18.dp))
-            .border(if (selected) 2.dp else 0.dp,
-                if (selected) NeonPalette[0] else Color.Transparent, RoundedCornerShape(18.dp))
             .semantics { this.selected = selected }
             .combinedClickable(
                 enabled = canCategorize && !state.syncing,

@@ -1,6 +1,5 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -32,7 +31,6 @@ internal fun GlassPanel(
     Card(
         modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, GlassBorder),
     ) {
         Column(
             Modifier.fillMaxWidth().glassSurface(highlighted).padding(contentPadding),

@@ -1,14 +1,9 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -66,9 +61,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.imageResource
 import br.com.yurimedeiros.meufinanceiro.R
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -91,7 +90,6 @@ private val ListIcon = symbol("Movimentações", "M4,4H20V6H4ZM4,11H20V13H4ZM4,1
 private val PeopleIcon = symbol("Pessoas", "M9,3A4,4 0,1 0,9,11A4,4 0,1 0,9,3M2,21V18C2,14 16,14 16,18V21ZM17,4A4,4 0,0 1,17,12V10A2,2 0,0 0,17,6ZM18,15C21,15 23,16 23,18V21H20V18C20,17 19,16 18,16Z")
 private val PlanIcon = symbol("Planejamento", "M6,2H8V4H16V2H18V4H21V22H3V4H6ZM5,9V20H19V9ZM7,12H11V16H7Z")
 private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V16ZM13,16V7H16V16ZM18,16V3H21V16Z")
-private val LockIcon = symbol("Proteção", "M6,10V7A6,6 0,0 1,18,7V10H20V22H4V10ZM8,10H16V7A4,4 0,0 0,8,7ZM11,14V18H13V14Z")
 private val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A7,7 0,1 1,16.5,5.5L14,8H20Z")
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")
 private val Sections = listOf(
@@ -350,8 +348,16 @@ private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock:
                 verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.size(88.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(LockIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(34.dp))
+                val appIcon = ImageBitmap.imageResource(R.drawable.launcher_art)
+                Canvas(Modifier.size(104.dp)) {
+                    // The original neon artwork is drawn directly, without an icon tile.
+                    // Screen blending makes its dark backdrop disappear into the gray surface.
+                    drawImage(
+                        image = appIcon,
+                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                        filterQuality = FilterQuality.High,
+                        blendMode = BlendMode.Screen,
+                    )
                 }
                 Text("Meu Financeiro", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Text("Seu dinheiro. Seu espaço.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -364,7 +370,7 @@ private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock:
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFFF4F1FF)),
                         contentPadding = PaddingValues(),
                         border = BorderStroke(1.dp, GlassBorder),
-                        modifier = Modifier.fillMaxWidth().height(56.dp).background(
+                        modifier = Modifier.width(220.dp).height(56.dp).background(
                             neonGradient(0.28f),
                             RoundedCornerShape(18.dp)),
                         shape = RoundedCornerShape(18.dp)) {
@@ -409,21 +415,13 @@ private fun InfoCard(title: String, description: String) {
 
 @Composable
 private fun LockBackground() {
-    val transition = rememberInfiniteTransition(label = "Fundo do bloqueio")
-    val drift by transition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(18000), RepeatMode.Reverse),
-        label = "Movimento suave",
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(
+                Color(0xFFD0D0D0),
+                Color(0xFF777777),
+                Color(0xFF202020),
+            )),
+        ),
     )
-    Image(
-        painter = painterResource(R.drawable.lock_background),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().graphicsLayer {
-            scaleX = 1.02f + drift * 0.02f
-            scaleY = scaleX
-        },
-    )
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
 }
-

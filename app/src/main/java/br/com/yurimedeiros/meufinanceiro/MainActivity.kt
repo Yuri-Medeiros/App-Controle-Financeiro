@@ -16,6 +16,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -68,6 +70,17 @@ class MainActivity : ComponentActivity() {
         )
         model = ViewModelProvider(this)[FinanceViewModel::class.java]
         setContent {
+            val state by model.state.collectAsStateWithLifecycle()
+            LaunchedEffect(state.unlocked) {
+                enableEdgeToEdge(
+                    statusBarStyle = if (state.unlocked) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    },
+                    navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                )
+            }
             FinanceApp(
                 model = model,
                 onUnlock = ::authenticate,

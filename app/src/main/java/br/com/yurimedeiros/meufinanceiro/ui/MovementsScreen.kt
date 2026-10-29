@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.importing.*
 import java.math.BigDecimal
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.text.NumberFormat
 import java.util.Locale
@@ -38,6 +39,11 @@ internal fun MovementsScreen(
     onSelectionChange: (Set<Long>) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    val currentPeriod = YearMonth.now()
+    var selectedPeriod by remember { mutableStateOf(YearMonth.now()) }
+    val friendlyDescriptions = remember(state.movements) { MovementFilters.friendlyNames(state.movements) }
+    val years = (state.movements.map { it.row.date.year } + currentPeriod.year + selectedPeriod.year)
+        .distinct().sortedDescending()
     var account by remember { mutableStateOf<DocumentKind?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -121,8 +127,8 @@ internal fun MovementsScreen(
         ) {
             Icon(
                 MovementFilterIcon,
-                contentDescription = if (searchVisible) "Ocultar busca" else "Mostrar busca",
-                tint = if (searchVisible) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
+                contentDescription = if (searchVisible) "Ocultar filtros" else "Mostrar filtros",
+                tint = if (searchVisible || selectedPeriod != currentPeriod) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -130,9 +136,25 @@ internal fun MovementsScreen(
     if (searchVisible) {
         OutlinedTextField(
             query, { query = it }, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Buscar por nome ou data") },
+            placeholder = { Text("Buscar descrição ou data") },
             shape = accountShape, singleLine = true,
         )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PeriodDropdown(
+                label = "Mês",
+                value = MonthNames[selectedPeriod.monthValue - 1],
+                options = MonthNames,
+                onValueChange = { selectedPeriod = YearMonth.of(selectedPeriod.year, MonthNames.indexOf(it) + 1) },
+                modifier = Modifier.weight(1.4f),
+            )
+            PeriodDropdown(
+                label = "Ano",
+                value = selectedPeriod.year.toString(),
+                options = years.map { it.toString() },
+                onValueChange = { selectedPeriod = YearMonth.of(it.toInt(), selectedPeriod.monthValue) },
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
     if (state.syncing) {
         LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -150,35 +172,25 @@ internal fun MovementsScreen(
             }
         }
     }
-    if (state.movements.isNotEmpty()) {
-        Text("${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
-    }
-    // Render a bounded page, keeping financial data out of savedInstanceState.
+    // Filter and sort the entire result before selecting the visible page.
     var page by remember { mutableIntStateOf(0) }
-    LaunchedEffect(query, account) { page = 0 }
-    val dateFormat = remember { DateTimeFormatter.ofPattern("dd/MM/uuuu") }
-    val rows = state.movements.filter {
-        (account == null || it.row.kind == account) &&
-            (query.isBlank() || it.friendlyName.contains(query, ignoreCase = true) ||
-                it.row.description.contains(query, ignoreCase = true) ||
-                it.row.date.format(dateFormat).contains(query) || it.row.date.toString().contains(query))
-    }.let { filtered ->
-        // Order the entire result before pagination so review records always come first.
-        val (pending, completed) = filtered.partition { it.status !in setOf("CONFIRMED", "PAYMENT") }
-        pending.sortedBy { it.row.date } + completed.sortedByDescending { it.row.date }
+    LaunchedEffect(query, account, selectedPeriod) {
+        page = 0
+        onSelectionChange(emptySet())
+    }
+    val rows = MovementFilters.filterAndSort(
+        state.movements, account, selectedPeriod, query, friendlyDescriptions,
+    )
+    if (state.movements.isNotEmpty()) {
+        Text("${rows.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes · ${MonthNames[selectedPeriod.monthValue - 1]} de ${selectedPeriod.year}")
     }
     val pages = ((rows.size + 29) / 30).coerceAtLeast(1)
     val current = page.coerceAtMost(pages - 1)
     if (rows.isEmpty() && state.movements.isNotEmpty()) Text("Nenhuma movimentação encontrada para estes filtros.", style = MaterialTheme.typography.bodyMedium)
     val visibleRows = rows.drop(current * 30).take(30)
-    visibleRows.forEachIndexed { index, movement ->
-        if (index == 0 || visibleRows[index - 1].row.date != movement.row.date ||
-            (visibleRows[index - 1].status in setOf("CONFIRMED", "PAYMENT")) !=
-            (movement.status in setOf("CONFIRMED", "PAYMENT"))) {
-            Text(movement.row.date.format(DateTimeFormatter.ofPattern("EEEE, dd 'de' MMMM 'de' uuuu", Locale.forLanguageTag("pt-BR"))), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    visibleRows.forEach { movement ->
         key(movement.id, movement.category) {
-            MovementCard(movement, state, model, selectedIds.contains(movement.id), selectedIds.isNotEmpty()) {
+            MovementCard(movement, state, model, selectedIds.contains(movement.id), selectedIds.isNotEmpty(), friendlyDescriptions[movement.id].orEmpty()) {
                 onSelectionChange(
                     if (movement.id in selectedIds) selectedIds - movement.id else selectedIds + movement.id,
                 )
@@ -193,17 +205,10 @@ internal fun MovementsScreen(
 }
 
 @Composable
-private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, selected: Boolean, selectionMode: Boolean, onToggleSelection: () -> Unit) {
+private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, selected: Boolean, selectionMode: Boolean, friendly: String, onToggleSelection: () -> Unit) {
     val suggestion = CounterpartySuggestion.identify(movement.row)
     val previous = state.movements.sortedBy { it.confirmedAt }.lastOrNull { it.status == "CONFIRMED" && it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") && suggestion.learningKey != null && CounterpartySuggestion.identify(it.row).learningKey == suggestion.learningKey }
     var category by remember(movement.category, previous?.category) { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
-    val identity = FriendlyDescriptions.key(movement.row)
-    val linkedName = state.movements.filter {
-        it.friendlyName.isNotBlank() &&
-            it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") &&
-            FriendlyDescriptions.key(it.row) == identity
-    }.maxWithOrNull(compareBy<ReviewMovement> { it.confirmedAt }.thenBy { it.id })?.friendlyName.orEmpty()
-    val friendly = linkedName.ifBlank { movement.friendlyName }
     var descriptionOpen by remember { mutableStateOf(false) }
     var descriptionDraft by remember(friendly) { mutableStateOf(friendly) }
     var details by remember { mutableStateOf(false) }
@@ -349,6 +354,57 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
 }
 
+
+private val MonthNames = listOf(
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+)
+
+@Composable
+private fun PeriodDropdown(
+    label: String,
+    value: String,
+    options: List<String>,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    BoxWithConstraints(modifier) {
+        OutlinedButton(
+            onClick = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .clip(FinanceInputShape).glassSurface(highlighted = expanded),
+            shape = FinanceInputShape,
+            border = BorderStroke(1.dp, GlassBorder),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                Text(label, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
+        }
+        DropdownMenu(
+            expanded = expanded, onDismissRequest = { expanded = false },
+            modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
+            shape = FinanceInputShape,
+            containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
+            tonalElevation = 0.dp, shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, GlassBorder),
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, color = if (option == value) NeonPalette[0] else MaterialTheme.colorScheme.onSurface) },
+                    onClick = { onValueChange(option); expanded = false },
+                )
+            }
+        }
+    }
+}
 
 @Composable
 internal fun BatchCategoryDialog(

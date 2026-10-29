@@ -50,7 +50,6 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.border
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -143,7 +142,7 @@ internal fun FinanceApp(
                 !state.visible -> Box(Modifier.fillMaxSize())
                 !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
                 else -> Scaffold(
-                    modifier = Modifier.background(Color(0xFF070D20)).background(neonGradient(0.28f)),
+                    modifier = Modifier.background(Color(0xFF070D20)),
                     containerColor = Color.Transparent,
                     bottomBar = {
                         if (!settings) {
@@ -190,7 +189,6 @@ internal fun FinanceApp(
                                                     Color.White.copy(alpha = 0.16f),
                                                     Color.White.copy(alpha = 0.03f),
                                                 )))
-                                                .border(1.dp, GlassBorder, shape)
                                                 .padding(horizontal = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
@@ -250,7 +248,7 @@ internal fun FinanceApp(
                                     backdrop.record { this@drawWithContent.drawContent() }
                                     drawLayer(backdrop)
                                 }
-                                .background(Color(0xFF070D20)).background(neonGradient(0.28f))
+                                .background(Color(0xFF070D20))
                                 .padding(top = insets.calculateTopPadding())
                                 .verticalScroll(contentScroll)
                                 .padding(bottom = insets.calculateBottomPadding())

@@ -26,7 +26,7 @@ import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
-internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onRefresh: () -> Unit) {
+internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel) {
     val selected = remember { mutableStateMapOf<Long, Pair<String, String>>() }
     LaunchedEffect(state.movements) { selected.clear() }
     var query by remember { mutableStateOf("") }
@@ -150,11 +150,8 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
         }
         GlassButton(onClick = { model.confirmBatch(selected.toMap()) }, enabled = !state.syncing) { Text("Confirmar selecionados") }
     }
-    Text("${state.movements.count { it.status in setOf("CONFIRMED", "PAYMENT") }} confirmadas · ${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
-    if (state.movements.isEmpty()) GlassPanel {
-        Text("Suas movimentações começam aqui", style = MaterialTheme.typography.titleMedium)
-        Text("Atualize pelo Gmail para buscar os extratos Nubank e Flash e revisar os registros.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        GlassButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Atualizar pelo Gmail") }
+    if (state.movements.isNotEmpty()) {
+        Text("${state.movements.count { it.status in setOf("CONFIRMED", "PAYMENT") }} confirmadas · ${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
     }
     // Render a bounded page, keeping financial data out of savedInstanceState.
     var page by remember { mutableIntStateOf(0) }

@@ -203,54 +203,71 @@ internal fun FinanceApp(
                         }
                     },
                 ) { insets ->
-                    Column(
-                        Modifier.fillMaxSize()
-                            .onGloballyPositioned { contentPosition = it.positionInRoot() }
-                            .drawWithContent {
-                                backdrop.record { this@drawWithContent.drawContent() }
-                                drawLayer(backdrop)
-                            }
-                            .background(Color(0xFF070D20)).background(neonGradient(0.28f))
-                            .padding(top = insets.calculateTopPadding())
-                            .verticalScroll(contentScroll)
-                            .padding(bottom = insets.calculateBottomPadding())
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        if (settings) {
-                            TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
-                                Text("Voltar")
-                            }
-                            ScreenTitle("Configurações", "Um espaço só seu.")
-                            SecurityCard(state.createdAtMillis)
-                            InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
-                            OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Bloquear agora")
-                            }
-                            Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            val section = Sections[selected]
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                if (selected == 1) {
-                                    IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
-                                        Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
-                                    }
-                                } else if (selected == 0) {
-                                    IconButton(onClick = { settings = true }) {
-                                        Icon(SettingsIcon, contentDescription = "Configurações")
+                    Box(Modifier.fillMaxSize()) {
+                        Column(
+                            Modifier.fillMaxSize()
+                                .onGloballyPositioned { contentPosition = it.positionInRoot() }
+                                .drawWithContent {
+                                    backdrop.record { this@drawWithContent.drawContent() }
+                                    drawLayer(backdrop)
+                                }
+                                .background(Color(0xFF070D20)).background(neonGradient(0.28f))
+                                .padding(top = insets.calculateTopPadding())
+                                .verticalScroll(contentScroll)
+                                .padding(bottom = insets.calculateBottomPadding())
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            if (settings) {
+                                TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
+                                    Text("Voltar")
+                                }
+                                ScreenTitle("Configurações", "Um espaço só seu.")
+                                SecurityCard(state.createdAtMillis)
+                                InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
+                                OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Bloquear agora")
+                                }
+                                Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                val section = Sections[selected]
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    if (selected == 1) {
+                                        IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
+                                            Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
+                                        }
+                                    } else if (selected == 0) {
+                                        IconButton(onClick = { settings = true }) {
+                                            Icon(SettingsIcon, contentDescription = "Configurações")
+                                        }
                                     }
                                 }
+                                when (selected) {
+                                    0 -> OverviewScreen(state, onMovements = { selected = 1 })
+                                    1 -> MovementsScreen(state, model)
+                                    2 -> PlannedScreen("Pessoas")
+                                    3 -> PlannedScreen("Planejamento")
+                                    4 -> PlannedScreen("Patrimônio")
+                                }
                             }
-                            when (selected) {
-                                0 -> OverviewScreen(state, onMovements = { selected = 1 })
-                                1 -> MovementsScreen(state, model, onRefresh)
-                                2 -> PlannedScreen("Pessoas")
-                                3 -> PlannedScreen("Planejamento")
-                                4 -> PlannedScreen("Patrimônio")
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (!settings && selected == 1 && state.movements.isEmpty()) {
+                            Box(
+                                Modifier.matchParentSize().padding(
+                                    top = insets.calculateTopPadding(),
+                                    bottom = insets.calculateBottomPadding(),
+                                ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "Sem movimentações",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }

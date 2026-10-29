@@ -197,7 +197,10 @@ internal fun MovementsScreen(
             }
         }
     }
-    if (pages > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (pages > 1) Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         TextButton(onClick = { page = (current - 1).coerceAtLeast(0) }, enabled = current > 0) { Text("Anterior") }
         Text("${current + 1}/$pages")
         TextButton(onClick = { page = current + 1 }, enabled = current + 1 < pages) { Text("Próxima") }

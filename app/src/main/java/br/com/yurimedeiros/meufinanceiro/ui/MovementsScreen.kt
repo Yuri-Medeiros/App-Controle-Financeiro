@@ -237,7 +237,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                         Checkbox(checked = selected, onCheckedChange = { onSelect(if (it && category.isNotBlank()) category to friendly else null) }, enabled = category.isNotBlank() && !state.syncing)
                         Text("Incluir no lote · $category")
                     }
-                    GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Confirmar este registro") }
+                    GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Pronto") }
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

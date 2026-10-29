@@ -8,6 +8,9 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import br.com.yurimedeiros.meufinanceiro.data.SecureDatabaseSession
+import br.com.yurimedeiros.meufinanceiro.data.Person
+import br.com.yurimedeiros.meufinanceiro.people.PeopleRepository
+import br.com.yurimedeiros.meufinanceiro.people.PersonNames
 import br.com.yurimedeiros.meufinanceiro.security.SessionTimeout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -26,6 +29,7 @@ internal data class FinanceUiState(
     val createdAtMillis: Long? = null,
     val error: String? = null,
     val movements: List<ReviewMovement> = emptyList(),
+    val people: List<Person> = emptyList(),
     val statements: List<StatementReview> = emptyList(),
     val syncing: Boolean = false,
     val importNotification: ImportNotification? = null,
@@ -84,10 +88,14 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         val attempt = generation
         viewModelScope.launch {
             try {
-                val rows = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
-                    session?.let { MovementRepository(it.database).all() }.orEmpty()
+                val snapshot = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    session?.let {
+                        MovementRepository(it.database).all() to PeopleRepository(it.database).all()
+                    } ?: (emptyList<ReviewMovement>() to emptyList<Person>())
                 } }
-                if (attempt == generation) mutableState.value = mutableState.value.copy(movements = rows)
+                if (attempt == generation) mutableState.value = mutableState.value.copy(
+                    movements = snapshot.first, people = snapshot.second,
+                )
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Não foi possível ler as movimentações. Seus arquivos foram preservados.") }
         }
@@ -176,6 +184,36 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                 )
             }
             finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
+        }
+    }
+
+    fun addPerson(name: String, onAdded: () -> Unit) {
+        if (!state.value.unlocked || state.value.syncing) return
+        val display = PersonNames.display(name)
+        if (display.isBlank() || display.length > 120) {
+            showError("Informe um nome de até 120 caracteres.")
+            return
+        }
+        val attempt = generation
+        mutableState.value = mutableState.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    PeopleRepository(checkNotNull(session).database).add(display)
+                } }
+                if (attempt == generation) onAdded()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: IllegalArgumentException) {
+                if (attempt == generation) showError("Uma pessoa com esse nome já está cadastrada.")
+            } catch (_: Exception) {
+                if (attempt == generation) showError("Não foi possível cadastrar a pessoa. Tente novamente.")
+            } finally {
+                if (attempt == generation) {
+                    mutableState.value = mutableState.value.copy(syncing = false)
+                    refresh()
+                }
+            }
         }
     }
 

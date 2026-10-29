@@ -11,6 +11,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import br.com.yurimedeiros.meufinanceiro.gmail.MailDocument
 import br.com.yurimedeiros.meufinanceiro.importing.DocumentKind
 import br.com.yurimedeiros.meufinanceiro.importing.MovementRepository
+import br.com.yurimedeiros.meufinanceiro.people.PeopleRepository
 
 /** Integration check using platform Instrumentation, without a test service. */
 class SecurityInstrumentation : Instrumentation() {
@@ -46,6 +47,11 @@ class SecurityInstrumentation : Instrumentation() {
             val first = SecureDatabaseSession.open(context, originalKey.copyOf(), name)
             val createdAt = first.createdAtMillis
             check(createdAt == 123456L)
+            val people = PeopleRepository(first.database)
+            check(people.all().size == 11 && people.all().none { it.name == "Eu" })
+            people.add("Pessoa de teste")
+            check(runCatching { people.add("  PESSOA   DE TESTE ") }.isFailure)
+            check(people.all().size == 12)
             val repo = MovementRepository(first.database)
             val csv = "Data,Valor,Identificador,Descrição\n01/09/2026,-10.00,00000000-0000-4000-8000-000000000001,Compra no débito - Loja\n"
             fun source(key: String, text: String = csv) = MailDocument("example@test.invalid:$key", "sample.csv", DocumentKind.NUBANK_ACCOUNT, text.toByteArray())
@@ -80,10 +86,19 @@ class SecurityInstrumentation : Instrumentation() {
             check(wrongKeyRejected)
             SecureDatabaseSession.open(context, originalKey.copyOf(), name).use {
                 check(it.createdAtMillis == createdAt)
+                val savedPeople = PeopleRepository(it.database).all()
+                check(savedPeople.size == 12 && savedPeople.any { person -> person.name == "Pessoa de teste" })
                 val saved = MovementRepository(it.database).all()
                 check(saved.size == 2 && saved.any { row -> row.category == "Alimentação" && row.status == "CONFIRMED" })
             }
-            result.putString("result", "PASS: encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
+            val freshName = "$name-fresh"
+            try {
+                context.deleteDatabase(freshName)
+                SecureDatabaseSession.open(context, originalKey.copyOf(), freshName).use {
+                    check(PeopleRepository(it.database).all().size == 11)
+                }
+            } finally { context.deleteDatabase(freshName) }
+            result.putString("result", "PASS: people seed, uniqueness and persistence; encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
             resultCode = Activity.RESULT_OK
         } catch (_: Exception) {
             result.putString("result", "FAIL: encrypted storage integration check")

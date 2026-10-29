@@ -286,7 +286,7 @@ internal fun FinanceApp(
                                         state, model, selectedMovementIds,
                                         onSelectionChange = { selectedMovementIds = it },
                                     )
-                                    2 -> PlannedScreen("Pessoas")
+                                    2 -> PeopleScreen(state, model)
                                     3 -> PlannedScreen("Planejamento")
                                     4 -> PlannedScreen("Patrimônio")
                                 }

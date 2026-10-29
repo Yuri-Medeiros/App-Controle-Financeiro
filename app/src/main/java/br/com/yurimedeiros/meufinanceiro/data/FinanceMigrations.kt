@@ -1,5 +1,6 @@
 package br.com.yurimedeiros.meufinanceiro.data
 
+import br.com.yurimedeiros.meufinanceiro.people.InitialPeople
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -8,6 +9,14 @@ internal object FinanceMigrations {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("CREATE TABLE IF NOT EXISTS movements (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, confirmedAt INTEGER NOT NULL, pairedMovementId INTEGER NOT NULL, payload TEXT NOT NULL, origin TEXT NOT NULL, status TEXT NOT NULL, category TEXT NOT NULL, friendlyName TEXT NOT NULL)")
             db.execSQL("CREATE TABLE IF NOT EXISTS import_documents (source TEXT NOT NULL PRIMARY KEY, reference TEXT NOT NULL)")
+        }
+    }
+
+    val from2To3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, normalizedName TEXT NOT NULL)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_people_normalizedName ON people (normalizedName)")
+            InitialPeople.insert(db)
         }
     }
 }

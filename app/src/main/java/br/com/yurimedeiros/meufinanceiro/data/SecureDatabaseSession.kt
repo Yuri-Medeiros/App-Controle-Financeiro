@@ -2,6 +2,9 @@ package br.com.yurimedeiros.meufinanceiro.data
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import br.com.yurimedeiros.meufinanceiro.people.InitialPeople
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import java.io.Closeable
 
@@ -34,7 +37,12 @@ internal class SecureDatabaseSession private constructor(
                 System.loadLibrary("sqlcipher")
                 database = Room.databaseBuilder(context, FinanceDatabase::class.java, databaseName)
                     .openHelperFactory(SupportOpenHelperFactory(password))
-                    .addMigrations(FinanceMigrations.from1To2)
+                    .addMigrations(FinanceMigrations.from1To2, FinanceMigrations.from2To3)
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            InitialPeople.insert(db)
+                        }
+                    })
                     .build()
                 // Force key validation now, before presenting an unlocked screen.
                 database.openHelper.writableDatabase

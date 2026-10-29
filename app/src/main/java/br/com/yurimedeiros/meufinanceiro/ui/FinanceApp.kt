@@ -151,7 +151,8 @@ internal fun FinanceApp(
                                     GlassButton(
                                         onClick = { batchCategoryOpen = true },
                                         enabled = !state.syncing,
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                                            .background(Color(0xFF080F24), FinanceInputShape),
                                     ) {
                                         Icon(MovementLabelIcon, contentDescription = null, modifier = Modifier.size(22.dp))
                                         Spacer(Modifier.width(8.dp))

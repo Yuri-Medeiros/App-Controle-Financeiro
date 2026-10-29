@@ -58,7 +58,7 @@ internal fun MovementsScreen(
             OutlinedButton(
                 onClick = { accountsOpen = !accountsOpen },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                    .clip(accountShape).glassSurface(highlighted = accountsOpen),
+                    .clip(accountShape).glassSurface(),
                 shape = accountShape,
                 border = BorderStroke(1.dp, GlassBorder),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -76,9 +76,9 @@ internal fun MovementsScreen(
             DropdownMenu(
                 expanded = accountsOpen,
                 onDismissRequest = { accountsOpen = false },
-                modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), accountShape),
+                modifier = Modifier.width(maxWidth),
                 shape = accountShape,
-                containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
+                containerColor = Color(0xFF080F24),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, GlassBorder),

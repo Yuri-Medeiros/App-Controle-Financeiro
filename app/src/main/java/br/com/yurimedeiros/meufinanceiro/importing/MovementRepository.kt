@@ -9,12 +9,17 @@ import java.time.LocalTime
 import org.json.JSONObject
 
 internal data class ReviewMovement(val id: Long, val row: ImportedRow, val origin: String, val status: String, val category: String, val friendlyName: String, val confirmedAt: Long, val pairedMovementId: Long)
+internal data class MovementImportResult(val review: StatementReview?, val importedCount: Int)
 internal data class StatementReview(val source: MailDocument, val document: ParsedDocument)
 
 internal class MovementRepository(private val db: FinanceDatabase) {
     fun all(): List<ReviewMovement> = db.movements().all().map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
 
-    fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? {
+    fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? =
+        importWithCount(source, confirmed).review
+
+    fun importWithCount(source: MailDocument, confirmed: LocalDate? = null): MovementImportResult {
+        var importedCount = 0
         var review: StatementReview? = null
         db.runInTransaction {
             val dao = db.movements()
@@ -34,11 +39,12 @@ internal class MovementRepository(private val db: FinanceDatabase) {
                     status = if (compared.disposition == ImportDisposition.CONFLICT_FOR_REVIEW) "CONFLICT" else "PENDING"
                 }
                 dao.insert(movement)
+                importedCount++
             }
             reconcilePayments()
             dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = confirmed?.toString().orEmpty() })
         }
-        return review
+        return MovementImportResult(review, importedCount)
     }
 
     private fun reconcilePayments() {

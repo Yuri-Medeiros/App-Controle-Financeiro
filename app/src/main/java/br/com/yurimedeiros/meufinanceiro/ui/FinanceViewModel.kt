@@ -28,7 +28,7 @@ internal data class FinanceUiState(
     val movements: List<ReviewMovement> = emptyList(),
     val statements: List<StatementReview> = emptyList(),
     val syncing: Boolean = false,
-    val notice: String? = null,
+    val importNotification: ImportNotification? = null,
 )
 
 internal class FinanceViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,6 +39,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     private var session: SecureDatabaseSession? = null
     @Volatile private var generation = 0L
     private val databaseGuard = Any()
+    private var notificationId = 0L
 
     fun openWith(password: ByteArray) {
         val attempt = ++generation
@@ -95,11 +96,15 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     fun syncGmail(token: String) {
         if (!state.value.unlocked || state.value.syncing || state.value.statements.isNotEmpty()) return
         val attempt = generation
-        mutableState.value = mutableState.value.copy(syncing = true, error = null, notice = null)
+        mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)
         viewModelScope.launch {
             val reviews = mutableListOf<StatementReview>()
+            var importedCount = 0
+            var skipped = 0
+            var failed = false
+            var cancelled = false
             try {
-                val skipped = withContext(Dispatchers.IO) {
+                skipped = withContext(Dispatchers.IO) {
                     GmailReader(token) { attempt == generation }.read(shouldRead = { source ->
                         synchronized(databaseGuard) {
                             check(attempt == generation)
@@ -110,17 +115,29 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                         synchronized(databaseGuard) {
                             check(attempt == generation)
                             check(reviews.size < 20) { "Confirme as referências das faturas e atualize novamente para continuar." }
-                            MovementRepository(checkNotNull(session).database).import(document)?.let(reviews::add)
+                            val result = MovementRepository(checkNotNull(session).database).importWithCount(document)
+                            importedCount += result.importedCount
+                            result.review?.let(reviews::add)
                         }
                     }
                 }
-                if (attempt == generation) mutableState.value = mutableState.value.copy(notice = "Consulta concluída. $skipped mensagens/anexos fora dos formatos suportados. Revise os registros antes de confirmar.")
-            } catch (cancelled: CancellationException) { throw cancelled }
+
+            } catch (error: CancellationException) { cancelled = true; throw error }
             catch (_: Exception) {
-                if (attempt == generation) mutableState.value = mutableState.value.copy(error = "A consulta não foi concluída. Os documentos já processados foram preservados. Verifique a conexão e a autorização Google e tente Atualizar novamente.")
+                failed = true
             } finally {
                 if (attempt == generation) {
-                    mutableState.value = mutableState.value.copy(syncing = false, statements = reviews.toList())
+                    mutableState.value = mutableState.value.copy(
+                        syncing = false,
+                        statements = reviews.toList(),
+                        importNotification = if (cancelled) null else ImportNotification(
+                            id = ++notificationId,
+                            failed = failed,
+                            importedCount = importedCount,
+                            skippedDocuments = skipped,
+                            pendingStatements = reviews.size,
+                        ),
+                    )
                     refresh()
                 }
             }
@@ -133,16 +150,31 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         if (date == null) { showError("Informe a referência como AAAA-MM-DD."); return }
         val attempt = generation
         if (state.value.syncing) return
-        mutableState.value = mutableState.value.copy(syncing = true, error = null)
+        mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                val result = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
                     check(attempt == generation)
-                    MovementRepository(checkNotNull(session).database).import(review.source, date)
+                    MovementRepository(checkNotNull(session).database).importWithCount(review.source, date)
                 } }
-                if (attempt == generation) mutableState.value = mutableState.value.copy(statements = state.value.statements.drop(1))
+                if (attempt == generation) mutableState.value = mutableState.value.copy(
+                    statements = state.value.statements.drop(1),
+                    importNotification = ImportNotification(
+                        id = ++notificationId,
+                        failed = false,
+                        importedCount = result.importedCount,
+                        pendingStatements = state.value.statements.size - 1,
+                    ),
+                )
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { if (attempt == generation) showError("Não foi possível confirmar esta fatura. Os dados foram preservados.") }
+            catch (_: Exception) {
+                if (attempt == generation) mutableState.value = mutableState.value.copy(
+                    importNotification = ImportNotification(
+                        id = ++notificationId, failed = true, importedCount = 0,
+                        pendingStatements = state.value.statements.size,
+                    ),
+                )
+            }
             finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
         }
     }
@@ -163,6 +195,23 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Escolha uma categoria. Conflitos e pagamentos/estornos ainda não podem ser confirmados nesta etapa.") }
             finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
+        }
+    }
+
+    fun showImportError(message: String) {
+        if (!state.value.unlocked) return
+        mutableState.value = mutableState.value.copy(
+            error = null,
+            importNotification = ImportNotification(
+                id = ++notificationId, failed = true, importedCount = 0,
+                failureMessage = message,
+            ),
+        )
+    }
+
+    fun dismissImportNotification(id: Long) {
+        if (mutableState.value.importNotification?.id == id) {
+            mutableState.value = mutableState.value.copy(importNotification = null)
         }
     }
 

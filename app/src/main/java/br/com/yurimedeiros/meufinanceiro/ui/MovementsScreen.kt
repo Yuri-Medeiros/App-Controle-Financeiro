@@ -131,7 +131,6 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel) {
         Text("Consultando seus extratos…", style = MaterialTheme.typography.bodySmall)
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    state.notice?.let { Text(it) }
     state.statements.firstOrNull()?.let { statement ->
         var reference by remember(statement.source.source) { mutableStateOf(statement.document.proposedStatement?.toString().orEmpty()) }
         GlassPanel {

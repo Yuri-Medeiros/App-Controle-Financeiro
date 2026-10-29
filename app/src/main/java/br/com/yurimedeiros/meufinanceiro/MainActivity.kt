@@ -36,11 +36,11 @@ class MainActivity : ComponentActivity() {
     private val googleAuthorization = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         authorizingGoogle = false
         if (result.resultCode != RESULT_OK) {
-            model.showError("Autorização Google cancelada. Seus registros foram preservados.")
+            model.showImportError("Autorização Google cancelada. Seus registros foram preservados.")
         } else try {
             val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(checkNotNull(result.data))
-            authorization.accessToken?.let(model::syncGmail) ?: model.showError("O Google não concedeu acesso de leitura ao Gmail.")
-        } catch (_: Exception) { model.showError("Não foi possível autorizar o Gmail. Tente novamente.") }
+            authorization.accessToken?.let(model::syncGmail) ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
+        } catch (_: Exception) { model.showImportError("Não foi possível autorizar o Gmail. Tente novamente.") }
     }
 
     private fun authorizeGmail() {
@@ -54,10 +54,10 @@ class MainActivity : ComponentActivity() {
                     result.pendingIntent?.let { googleAuthorization.launch(IntentSenderRequest.Builder(it).build()) }
                 } else {
                     authorizingGoogle = false
-                    result.accessToken?.let(model::syncGmail) ?: model.showError("O Google não concedeu acesso de leitura ao Gmail.")
+                    result.accessToken?.let(model::syncGmail) ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
                 }
             }
-            .addOnFailureListener { authorizingGoogle = false; model.showError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
+            .addOnFailureListener { authorizingGoogle = false; model.showImportError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -268,6 +268,15 @@ internal fun FinanceApp(
                                 )
                             }
                         }
+                        state.importNotification?.let { notification ->
+                            ImportNotificationPopup(
+                                notification = notification,
+                                onDismiss = { model.dismissImportNotification(notification.id) },
+                                modifier = Modifier.align(Alignment.TopCenter)
+                                    .padding(top = insets.calculateTopPadding() + 8.dp)
+                                    .padding(horizontal = 12.dp),
+                            )
+                        }
                     }
                 }
             }

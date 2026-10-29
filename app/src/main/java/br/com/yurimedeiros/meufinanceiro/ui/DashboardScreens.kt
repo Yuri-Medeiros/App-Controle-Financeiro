@@ -20,19 +20,17 @@ import androidx.compose.ui.unit.dp
 
 internal val IncomeColor = Color(0xFF46E4D1)
 internal val ExpenseColor = Color(0xFFFF687E)
-private val ChartColors = listOf(Color(0xFF4BD6DA), Color(0xFFFFAE6D), Color(0xFFDF80EE), Color(0xFFAC7DF2), Color(0xFF7886F9), Color(0xFF75A6ED))
+private val ChartColors = NeonPalette + Color(0xFFB790FF)
 
 @Composable
 internal fun GlassPanel(modifier: Modifier = Modifier, highlighted: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, if (highlighted) Color(0xFF9580D5) else Color.White.copy(alpha = 0.11f)),
+        border = BorderStroke(1.dp, GlassBorder),
     ) {
         Column(
-            Modifier.fillMaxWidth().background(Brush.linearGradient(if (highlighted)
-                listOf(Color(0xFF3D357D), Color(0xFF53359F), Color(0xFF202748)) else
-                listOf(Color(0xFF25263D), Color(0xFF191A2E)))).padding(16.dp),
+            Modifier.fillMaxWidth().glassSurface(highlighted).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
         )
     }
@@ -56,9 +54,9 @@ internal fun PillTabs(options: List<String>, selected: Int, onSelect: (Int) -> U
                 shape = SegmentedButtonDefaults.itemShape(index, options.size),
                 icon = {},
                 colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = Color(0xFF6547B8), activeContentColor = Color.White,
-                    inactiveContainerColor = Color(0xFF212039), inactiveContentColor = Color(0xFFD5CFE5),
-                    activeBorderColor = Color(0xFF9F82E9), inactiveBorderColor = Color(0xFF39364E),
+                    activeContainerColor = NeonPalette[1].copy(alpha = 0.28f), activeContentColor = Color.White,
+                    inactiveContainerColor = Color.White.copy(alpha = 0.06f), inactiveContentColor = Color(0xFFD5E3F0),
+                    activeBorderColor = NeonPalette[0].copy(alpha = 0.65f), inactiveBorderColor = Color.White.copy(alpha = 0.18f),
                 ),
             ) { Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1) }
         }
@@ -78,7 +76,7 @@ internal fun OverviewScreen(state: FinanceUiState, onMovements: () -> Unit) {
             }
         }
         Text(if (visible) "—" else "••••", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("Saldo consolidado ainda indisponível", style = MaterialTheme.typography.bodySmall, color = Color(0xFFE0D4FF))
+        Text("Saldo consolidado ainda indisponível", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD8EDFF))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Metric("Despesas restantes", if (visible) "—" else "••••", Modifier.weight(1f), "Orçamento não definido")
@@ -149,7 +147,7 @@ private fun CategoryLegend(groups: List<Pair<String, Int>>, total: Int) {
 private fun EmptyChart(title: String, message: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize().padding(10.dp)) { drawCircle(Color(0xFF464064), style = Stroke(width = 14.dp.toPx())) }
+            Canvas(Modifier.fillMaxSize().padding(10.dp)) { drawCircle(NeonPalette[1].copy(alpha = 0.28f), style = Stroke(width = 14.dp.toPx())) }
             Text("—", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
         }
         Text(title, style = MaterialTheme.typography.titleMedium)

@@ -58,7 +58,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
                 Text("Confirme a referência da fatura")
                 Text(statement.source.filename)
                 OutlinedTextField(reference, { reference = it }, label = { Text("Referência AAAA-MM-DD") })
-                Button(onClick = { model.confirmStatement(reference) }, enabled = !state.syncing) { Text("Confirmar referência") }
+                GlassButton(onClick = { model.confirmStatement(reference) }, enabled = !state.syncing) { Text("Confirmar referência") }
             }
         }
     }
@@ -67,13 +67,13 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
         selected.forEach { (id, choice) ->
             Text("${state.movements.firstOrNull { it.id == id }?.row?.description.orEmpty()} · ${choice.first}")
         }
-        Button(onClick = { model.confirmBatch(selected.toMap()) }, enabled = !state.syncing) { Text("Confirmar selecionados") }
+        GlassButton(onClick = { model.confirmBatch(selected.toMap()) }, enabled = !state.syncing) { Text("Confirmar selecionados") }
     }
     Text("${state.movements.count { it.status in setOf("CONFIRMED", "PAYMENT") }} confirmadas · ${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
     if (state.movements.isEmpty()) GlassPanel {
         Text("Suas movimentações começam aqui", style = MaterialTheme.typography.titleMedium)
         Text("Atualize pelo Gmail para buscar os extratos Nubank e Flash e revisar os registros.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Atualizar pelo Gmail") }
+        GlassButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Atualizar pelo Gmail") }
     }
     // Render a bounded page, keeping financial data out of savedInstanceState.
     var page by remember { mutableIntStateOf(0) }
@@ -152,7 +152,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                         Checkbox(checked = selected, onCheckedChange = { onSelect(if (it && category.isNotBlank()) category to friendly else null) }, enabled = category.isNotBlank() && !state.syncing)
                         Text("Incluir no lote · $category")
                     }
-                    Button(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Confirmar este registro") }
+                    GlassButton(onClick = { model.confirmMovement(setOf(movement.id), category, friendly) }, enabled = category.isNotBlank() && !state.syncing) { Text("Confirmar este registro") }
                 }
             }
         }

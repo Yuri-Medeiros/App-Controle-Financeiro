@@ -105,18 +105,18 @@ internal fun FinanceApp(
                 !state.visible -> Box(Modifier.fillMaxSize())
                 !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
                 else -> Scaffold(
-                    modifier = Modifier.background(Brush.verticalGradient(listOf(Color(0xFF201638), Color(0xFF090C1C), Color(0xFF151126)))),
+                    modifier = Modifier.background(Color(0xFF070D20)).background(neonGradient(0.28f)),
                     containerColor = Color.Transparent,
                     bottomBar = {
                         if (!settings) NavigationBar(
-                            modifier = Modifier.padding(horizontal = 8.dp).clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                            containerColor = Color(0xFF151426),
+                            modifier = Modifier.padding(horizontal = 8.dp).background(neonGradient(0.13f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                            containerColor = Color(0xFF071124).copy(alpha = 0.72f),
                             tonalElevation = 0.dp,
                         ) {
                             Sections.forEachIndexed { index, section ->
                                 NavigationBarItem(
                                     selected = selected == index,
-                                    colors = NavigationBarItemDefaults.colors(indicatorColor = Color(0xFF30274F), selectedIconColor = Color(0xFFD2BAFF), selectedTextColor = Color(0xFFEADDFF), unselectedIconColor = Color(0xFFB9B4CE), unselectedTextColor = Color(0xFFB9B4CE)),
+                                    colors = NavigationBarItemDefaults.colors(indicatorColor = NeonPalette[0].copy(alpha = 0.18f), selectedIconColor = NeonPalette[0], selectedTextColor = Color(0xFFE0FCFF), unselectedIconColor = Color(0xFFB9B4CE), unselectedTextColor = Color(0xFFB9B4CE)),
                                     onClick = { selected = index },
                                     icon = { Icon(section.icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
                                     label = { Text(section.navigation, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
@@ -193,9 +193,9 @@ private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock:
                     Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings,
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFFF4F1FF)),
                         contentPadding = PaddingValues(),
-                        border = BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color(0xFFB9AEFF).copy(alpha = 0.18f)))),
+                        border = BorderStroke(1.dp, GlassBorder),
                         modifier = Modifier.fillMaxWidth().height(56.dp).background(
-                            Brush.linearGradient(listOf(Color.White.copy(alpha = 0.20f), Color(0xFF9B8AFF).copy(alpha = 0.12f), Color(0xFF59D6F3).copy(alpha = 0.16f))),
+                            neonGradient(0.28f),
                             RoundedCornerShape(18.dp)),
                         shape = RoundedCornerShape(18.dp)) {
                         Text(if (deviceSecure) "Acessar" else "Configurar bloqueio do Android")
@@ -216,8 +216,8 @@ private fun ScreenTitle(title: String, subtitle: String) {
 
 @Composable
 private fun SecurityCard(createdAtMillis: Long?) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF262540), Color(0xFF19192D)))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    GlassPanel {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Cuidado com seus dados", style = MaterialTheme.typography.titleMedium)
             Text("Acesso por biometria ou credencial do Android", style = MaterialTheme.typography.bodyMedium)
             Text("Armazenamento criptografado neste aparelho", style = MaterialTheme.typography.bodyMedium)

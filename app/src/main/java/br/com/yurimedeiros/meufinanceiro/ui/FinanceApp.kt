@@ -9,7 +9,10 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,9 +35,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.material3.OutlinedButton
@@ -99,6 +110,9 @@ internal fun FinanceApp(
     var selected by rememberSaveable { mutableIntStateOf(0) }
     var settings by rememberSaveable { mutableStateOf(false) }
     val contentScroll = remember(selected, settings) { ScrollState(0) }
+    val backdrop = rememberGraphicsLayer()
+    var contentPosition by remember { mutableStateOf(Offset.Zero) }
+    var navigationPosition by remember { mutableStateOf(Offset.Zero) }
     FinanceTheme {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             when {
@@ -108,25 +122,99 @@ internal fun FinanceApp(
                     modifier = Modifier.background(Color(0xFF070D20)).background(neonGradient(0.28f)),
                     containerColor = Color.Transparent,
                     bottomBar = {
-                        if (!settings) NavigationBar(
-                            modifier = Modifier.padding(horizontal = 8.dp).background(neonGradient(0.13f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                            containerColor = Color(0xFF071124).copy(alpha = 0.72f),
-                            tonalElevation = 0.dp,
-                        ) {
-                            Sections.forEachIndexed { index, section ->
-                                NavigationBarItem(
-                                    selected = selected == index,
-                                    colors = NavigationBarItemDefaults.colors(indicatorColor = NeonPalette[0].copy(alpha = 0.18f), selectedIconColor = NeonPalette[0], selectedTextColor = Color(0xFFE0FCFF), unselectedIconColor = Color(0xFFB9B4CE), unselectedTextColor = Color(0xFFB9B4CE)),
-                                    onClick = { selected = index },
-                                    icon = { Icon(section.icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
-                                    label = { Text(section.navigation, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
-                                )
+                        if (!settings) {
+                            val shape = RoundedCornerShape(28.dp)
+                            Box(
+                                Modifier.fillMaxWidth().navigationBarsPadding()
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                            ) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(76.dp)
+                                        .onGloballyPositioned { navigationPosition = it.positionInRoot() }
+                                        .clip(shape),
+                                ) {
+                                    // Only the captured background is blurred; controls stay sharp.
+                                    Box(
+                                        Modifier.matchParentSize()
+                                            .graphicsLayer {
+                                                renderEffect = BlurEffect(20.dp.toPx(), 20.dp.toPx(), TileMode.Clamp)
+                                            }
+                                            .drawWithContent {
+                                                val offset = contentPosition - navigationPosition
+                                                translate(offset.x, offset.y) { drawLayer(backdrop) }
+                                            },
+                                    )
+                                    Row(
+                                        Modifier.matchParentSize().selectableGroup()
+                                            .background(Color(0xFF071124).copy(alpha = 0.55f))
+                                            .background(neonGradient(0.16f))
+                                            .background(Brush.verticalGradient(listOf(
+                                                Color.White.copy(alpha = 0.16f),
+                                                Color.White.copy(alpha = 0.03f),
+                                            )))
+                                            .border(1.dp, GlassBorder, shape)
+                                            .padding(horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Sections.forEachIndexed { index, section ->
+                                            val active = selected == index
+                                            val weight = when (index) {
+                                                1 -> 1.45f
+                                                3 -> 1.35f
+                                                4 -> 1.15f
+                                                else -> 1f
+                                            }
+                                            Column(
+                                                Modifier.weight(weight).height(76.dp)
+                                                    .selectable(
+                                                        selected = active,
+                                                        role = Role.Tab,
+                                                        onClick = { selected = index },
+                                                    ),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                                            ) {
+                                                Box(
+                                                    Modifier.size(width = 48.dp, height = 30.dp)
+                                                        .background(
+                                                            if (active) NeonPalette[0].copy(alpha = 0.18f) else Color.Transparent,
+                                                            CircleShape,
+                                                        ),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Icon(section.icon, contentDescription = null,
+                                                        tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
+                                                        modifier = Modifier.size(22.dp))
+                                                }
+                                                Text(
+                                                    section.navigation,
+                                                    maxLines = 1,
+                                                    fontSize = 10.sp,
+                                                    letterSpacing = 0.sp,
+                                                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (active) Color(0xFFE0FCFF) else Color(0xFFB9B4CE),
+                                                    textAlign = TextAlign.Center,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     },
                 ) { insets ->
                     Column(
-                        Modifier.fillMaxSize().padding(insets).verticalScroll(contentScroll).padding(horizontal = 16.dp, vertical = 8.dp),
+                        Modifier.fillMaxSize()
+                            .onGloballyPositioned { contentPosition = it.positionInRoot() }
+                            .drawWithContent {
+                                backdrop.record { this@drawWithContent.drawContent() }
+                                drawLayer(backdrop)
+                            }
+                            .background(Color(0xFF070D20)).background(neonGradient(0.28f))
+                            .padding(top = insets.calculateTopPadding())
+                            .verticalScroll(contentScroll)
+                            .padding(bottom = insets.calculateBottomPadding())
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
                         if (settings) {
@@ -256,3 +344,4 @@ private fun LockBackground() {
     )
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)))
 }
+

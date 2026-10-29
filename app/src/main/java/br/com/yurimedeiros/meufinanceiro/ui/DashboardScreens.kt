@@ -161,7 +161,7 @@ internal fun PlannedScreen(section: String) {
     var search by remember { mutableStateOf("") }
     when (section) {
         "Pessoas" -> {
-            OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Buscar pessoa") }, shape = RoundedCornerShape(18.dp), singleLine = true)
+            OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Buscar pessoa") }, shape = FinanceInputShape, singleLine = true)
             GlassPanel {
                 EmptyChart(if (search.isBlank()) "Nenhuma pessoa cadastrada" else "Nenhuma pessoa encontrada", "O cadastro de pessoas e as despesas compartilhadas estarão disponíveis em uma próxima etapa.")
             }

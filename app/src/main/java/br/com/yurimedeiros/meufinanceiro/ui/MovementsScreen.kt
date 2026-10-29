@@ -34,7 +34,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel) {
     var searchVisible by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     var accountsOpen by remember { mutableStateOf(false) }
-    val accountShape = RoundedCornerShape(16.dp)
+    val accountShape = FinanceInputShape
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -137,7 +137,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Confirme a referência da fatura")
                 Text(statement.source.filename)
-                OutlinedTextField(reference, { reference = it }, label = { Text("Referência AAAA-MM-DD") })
+                OutlinedTextField(reference, { reference = it }, label = { Text("Referência AAAA-MM-DD") }, shape = FinanceInputShape)
                 GlassButton(onClick = { model.confirmStatement(reference) }, enabled = !state.syncing) { Text("Confirmar referência") }
             }
         }
@@ -237,7 +237,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     Text("Pendente de conciliação de pagamento, estorno ou conflito. Preservado sem classificação automática.")
                 } else {
                     Text("Categorias: Moradia, Alimentação, Transporte, Saúde, Pessoal e lazer, Educação, Presentes e doações, Tarifas e impostos. Você também pode escrever uma categoria própria.")
-                    OutlinedTextField(category, { category = it }, label = { Text("Categoria (confirme a sugestão)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(category, { category = it }, label = { Text("Categoria (confirme a sugestão)") }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape)
                     if (movement.status != "CONFIRMED") Row {
                         Checkbox(checked = selected, onCheckedChange = { onSelect(if (it && category.isNotBlank()) category to friendly else null) }, enabled = category.isNotBlank() && !state.syncing)
                         Text("Incluir no lote · $category")
@@ -281,7 +281,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                         singleLine = true,
                         isError = descriptionDraft.trim().length > 120,
                         supportingText = { Text("Até 120 caracteres") },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = FinanceInputShape,
                     )
                 }
             },

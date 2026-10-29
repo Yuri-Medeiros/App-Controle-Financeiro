@@ -8,7 +8,7 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 - Chave AES do Android Keystore com autorização por operação para proteger a chave aleatória do banco. Nenhuma senha Google é solicitada.
 - Room 2 com SQLCipher, sem criação de banco em texto claro ou migração destrutiva.
 - Fechamento da sessão e do banco após 1 minuto em segundo plano; retorno curto preserva a sessão. Após encerramento do processo, exige nova autenticação.
-- Tema claro/escuro do sistema, paleta verde-petróleo e navegação aprovada. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
+- Tema escuro com paleta roxa, cartões em degradê e destaques em ciano. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 
 Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Planejamento financeiro, backup/recuperação e patrimônio permanecem pendentes. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.

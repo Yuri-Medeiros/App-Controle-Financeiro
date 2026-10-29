@@ -1,6 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -12,6 +13,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.importing.*
@@ -26,72 +31,101 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
     LaunchedEffect(state.movements) { selected.clear() }
     var query by remember { mutableStateOf("") }
     var account by remember { mutableStateOf<DocumentKind?>(null) }
-    var reviewOnly by remember { mutableStateOf(false) }
+    var searchVisible by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     var accountsOpen by remember { mutableStateOf(false) }
     val accountShape = RoundedCornerShape(16.dp)
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = { accountsOpen = !accountsOpen },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                .clip(accountShape).glassSurface(highlighted = accountsOpen),
-            shape = accountShape,
-            border = BorderStroke(1.dp, GlassBorder),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
-        ) {
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                Text("Conta", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(account?.let(::accountName) ?: "Todas as contas")
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BoxWithConstraints(Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { accountsOpen = !accountsOpen },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                    .clip(accountShape).glassSurface(highlighted = accountsOpen),
+                shape = accountShape,
+                border = BorderStroke(1.dp, GlassBorder),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                    Text("Conta", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(account?.let(::accountName) ?: "Todas as contas")
+                }
+                Text(if (accountsOpen) "⌃" else "⌄", color = NeonPalette[0])
             }
-            Text(if (accountsOpen) "⌃" else "⌄", color = NeonPalette[0])
+            DropdownMenu(
+                expanded = accountsOpen,
+                onDismissRequest = { accountsOpen = false },
+                modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), accountShape),
+                shape = accountShape,
+                containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+                border = BorderStroke(1.dp, GlassBorder),
+            ) {
+                AccountOptions.forEach { kind ->
+                    val isSelected = account == kind
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                kind?.let(::accountName) ?: "Todas as contas",
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
+                        leadingIcon = {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = null,
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = NeonPalette[0],
+                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                            )
+                        },
+                        onClick = { account = kind; accountsOpen = false },
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) NeonPalette[0].copy(alpha = 0.12f) else Color.Transparent),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                }
+            }
         }
-        DropdownMenu(
-            expanded = accountsOpen,
-            onDismissRequest = { accountsOpen = false },
-            modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), accountShape),
-            shape = accountShape,
-            containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-            border = BorderStroke(1.dp, GlassBorder),
+        IconToggleButton(
+            checked = searchVisible,
+            onCheckedChange = { visible ->
+                searchVisible = visible
+                if (!visible) {
+                    query = ""
+                    focusManager.clearFocus()
+                }
+            },
+            modifier = Modifier.size(56.dp).clip(accountShape)
+                .glassSurface(highlighted = searchVisible)
+                .border(BorderStroke(1.dp, GlassBorder), accountShape),
         ) {
-            AccountOptions.forEach { kind ->
-                val isSelected = account == kind
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            kind?.let(::accountName) ?: "Todas as contas",
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isSelected) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
-                        )
-                    },
-                    leadingIcon = {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = null,
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = NeonPalette[0],
-                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            ),
-                        )
-                    },
-                    onClick = { account = kind; accountsOpen = false },
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) NeonPalette[0].copy(alpha = 0.12f) else Color.Transparent),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                )
-            }
+            Icon(
+                MovementFilterIcon,
+                contentDescription = if (searchVisible) "Ocultar busca" else "Mostrar busca",
+                tint = if (searchVisible) NeonPalette[0] else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
-    OutlinedTextField(
-        query, { query = it }, modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text("Buscar por nome ou data") }, shape = RoundedCornerShape(16.dp), singleLine = true,
-    )
-    PillTabs(listOf("Todas", "Para revisar"), if (reviewOnly) 1 else 0) { reviewOnly = it == 1 }
+    if (searchVisible) {
+        OutlinedTextField(
+            query, { query = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Buscar por nome ou data") },
+            shape = accountShape, singleLine = true,
+        )
+    }
     if (state.syncing) {
         LinearProgressIndicator(Modifier.fillMaxWidth())
         Text("Consultando seus extratos…", style = MaterialTheme.typography.bodySmall)
@@ -124,21 +158,26 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel, onR
     }
     // Render a bounded page, keeping financial data out of savedInstanceState.
     var page by remember { mutableIntStateOf(0) }
-    LaunchedEffect(query, account, reviewOnly) { page = 0 }
+    LaunchedEffect(query, account) { page = 0 }
     val dateFormat = remember { DateTimeFormatter.ofPattern("dd/MM/uuuu") }
     val rows = state.movements.filter {
         (account == null || it.row.kind == account) &&
-            (!reviewOnly || it.status !in setOf("CONFIRMED", "PAYMENT")) &&
             (query.isBlank() || it.friendlyName.contains(query, ignoreCase = true) ||
                 it.row.description.contains(query, ignoreCase = true) ||
                 it.row.date.format(dateFormat).contains(query) || it.row.date.toString().contains(query))
-    }.sortedByDescending { it.row.date }
+    }.let { filtered ->
+        // Order the entire result before pagination so review records always come first.
+        val (pending, completed) = filtered.partition { it.status !in setOf("CONFIRMED", "PAYMENT") }
+        pending.sortedBy { it.row.date } + completed.sortedByDescending { it.row.date }
+    }
     val pages = ((rows.size + 29) / 30).coerceAtLeast(1)
     val current = page.coerceAtMost(pages - 1)
     if (rows.isEmpty() && state.movements.isNotEmpty()) Text("Nenhuma movimentação encontrada para estes filtros.", style = MaterialTheme.typography.bodyMedium)
     val visibleRows = rows.drop(current * 30).take(30)
     visibleRows.forEachIndexed { index, movement ->
-        if (index == 0 || visibleRows[index - 1].row.date != movement.row.date) {
+        if (index == 0 || visibleRows[index - 1].row.date != movement.row.date ||
+            (visibleRows[index - 1].status in setOf("CONFIRMED", "PAYMENT")) !=
+            (movement.status in setOf("CONFIRMED", "PAYMENT"))) {
             Text(movement.row.date.format(DateTimeFormatter.ofPattern("EEEE, dd 'de' MMMM 'de' uuuu", Locale.forLanguageTag("pt-BR"))), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         key(movement.id, movement.category) { MovementCard(movement, state, model, selected.containsKey(movement.id)) { choice ->
@@ -206,6 +245,13 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
 }
 
+
+private val MovementFilterIcon = ImageVector.Builder(
+    "Filtros", 24.dp, 24.dp, 24f, 24f,
+).addPath(
+    PathParser().parsePathString("M3,4H21L14,12V19L10,21V12Z").toNodes(),
+    fill = SolidColor(Color.Black),
+).build()
 
 private val AccountOptions = listOf(
     null,

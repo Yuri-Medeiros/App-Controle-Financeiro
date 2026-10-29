@@ -150,7 +150,7 @@ internal fun MovementsScreen(state: FinanceUiState, model: FinanceViewModel) {
         GlassButton(onClick = { model.confirmBatch(selected.toMap()) }, enabled = !state.syncing) { Text("Confirmar selecionados") }
     }
     if (state.movements.isNotEmpty()) {
-        Text("${state.movements.count { it.status in setOf("CONFIRMED", "PAYMENT") }} confirmadas · ${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
+        Text("${state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes")
     }
     // Render a bounded page, keeping financial data out of savedInstanceState.
     var page by remember { mutableIntStateOf(0) }

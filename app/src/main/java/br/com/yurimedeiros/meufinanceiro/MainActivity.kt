@@ -60,6 +60,36 @@ class MainActivity : ComponentActivity() {
             .addOnFailureListener { authorizingGoogle = false; model.showImportError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
     }
 
+    private val driveAuthorization = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        authorizingGoogle = false
+        if (!model.state.value.unlocked) return@registerForActivityResult
+        if (result.resultCode != RESULT_OK) {
+            model.backupAuthorizationFailed("Autorização do Drive cancelada. Seus dados foram preservados.")
+        } else try {
+            val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(checkNotNull(result.data))
+            authorization.accessToken?.let(model::connectDrive) ?: model.backupAuthorizationFailed("O Google não concedeu acesso à área privada de backup.")
+        } catch (_: Exception) { model.backupAuthorizationFailed("Não foi possível autorizar o Drive. Tente novamente.") }
+    }
+
+    private fun authorizeDrive() {
+        if (!model.state.value.unlocked || model.state.value.syncing || model.state.value.backupWorking || authorizingGoogle) return
+        authorizingGoogle = true
+        val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/drive.appdata"))).build()
+        Identity.getAuthorizationClient(this).authorize(request)
+            .addOnSuccessListener { result ->
+                if (!model.state.value.unlocked) { authorizingGoogle = false; return@addOnSuccessListener }
+                if (result.hasResolution()) {
+                    val intent = result.pendingIntent
+                    if (intent != null) driveAuthorization.launch(IntentSenderRequest.Builder(intent).build())
+                    else { authorizingGoogle = false; model.backupAuthorizationFailed("Não foi possível abrir a autorização do Drive.") }
+                } else {
+                    authorizingGoogle = false
+                    result.accessToken?.let(model::connectDrive) ?: model.backupAuthorizationFailed("O Google não concedeu acesso à área privada de backup.")
+                }
+            }
+            .addOnFailureListener { authorizingGoogle = false; model.backupAuthorizationFailed("Não foi possível autorizar o Drive. Confira a conexão e a configuração Google.") }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -72,6 +102,7 @@ class MainActivity : ComponentActivity() {
                 model = model,
                 onUnlock = ::authenticate,
                 onRefresh = ::authorizeGmail,
+                onBackupAuthorize = ::authorizeDrive,
                 onSecuritySettings = { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) },
                 deviceSecure = deviceSecure,
             )

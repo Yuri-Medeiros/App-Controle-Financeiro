@@ -55,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import br.com.yurimedeiros.meufinanceiro.importing.MovementRepository
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -100,6 +101,7 @@ internal fun FinanceApp(
     model: FinanceViewModel,
     onUnlock: () -> Unit,
     onRefresh: () -> Unit,
+    onBackupAuthorize: () -> Unit,
     onSecuritySettings: () -> Unit,
     deviceSecure: Boolean,
 ) {
@@ -119,12 +121,13 @@ internal fun FinanceApp(
             batchCategoryOpen = false
         }
     }
+    BackHandler(enabled = settings) { settings = false; model.cancelRestore() }
     BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen) {
         selectedMovementIds = emptySet()
     }
     LaunchedEffect(state.movements) {
         val eligibleIds = state.movements.filter {
-            it.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING") &&
+            it.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") &&
                 !MovementRepository.needsSpecialReview(it.row)
         }.map { it.id }.toSet()
         selectedMovementIds = selectedMovementIds.intersect(eligibleIds)
@@ -133,201 +136,206 @@ internal fun FinanceApp(
     val backdrop = rememberGraphicsLayer()
     var contentPosition by remember { mutableStateOf(Offset.Zero) }
     var navigationPosition by remember { mutableStateOf(Offset.Zero) }
-    FinanceTheme {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            when {
-                !state.visible -> Box(Modifier.fillMaxSize())
-                !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
-                else -> Scaffold(
-                    modifier = Modifier.background(Color(0xFF070D20)),
-                    containerColor = Color.Transparent,
-                    bottomBar = {
-                        if (!settings) {
-                            Column {
-                                if (selected == 1 && selectedMovementIds.isNotEmpty()) {
-                                    GlassButton(
-                                        onClick = { batchCategoryOpen = true },
-                                        enabled = !state.syncing,
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                                            .heightIn(min = 48.dp)
-                                            .background(Color(0xFF080F24), FinanceInputShape),
-                                    ) {
-                                        Icon(MovementLabelIcon, contentDescription = null, modifier = Modifier.size(22.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Categorizar (${selectedMovementIds.size})")
-                                    }
-                                }
-                                val shape = RoundedCornerShape(28.dp)
-                                Box(
-                                    Modifier.fillMaxWidth().navigationBarsPadding()
-                                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                                ) {
-                                    Box(
-                                        Modifier.fillMaxWidth().height(56.dp)
-                                            .onGloballyPositioned { navigationPosition = it.positionInRoot() }
-                                            .clip(shape),
-                                    ) {
-                                        // Only the captured background is blurred; controls stay sharp.
-                                        Box(
-                                            Modifier.matchParentSize()
-                                                .graphicsLayer {
-                                                    renderEffect = BlurEffect(20.dp.toPx(), 20.dp.toPx(), TileMode.Clamp)
-                                                }
-                                                .drawWithContent {
-                                                    val offset = contentPosition - navigationPosition
-                                                    translate(offset.x, offset.y) { drawLayer(backdrop) }
-                                                },
-                                        )
-                                        Row(
-                                            Modifier.matchParentSize().selectableGroup()
-                                                .background(Color(0xFF071124).copy(alpha = 0.55f))
-                                                .background(neonGradient(0.16f))
-                                                .background(Brush.verticalGradient(listOf(
-                                                    Color.White.copy(alpha = 0.16f),
-                                                    Color.White.copy(alpha = 0.03f),
-                                                )))
-                                                .padding(horizontal = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
+    val customCategories = (state.movements.map { it.category } + state.ledger.purchases.map { it.category } +
+        state.ledger.planning.budgets.keys + state.ledger.planning.expenses.map { it.category }).filter { it.isNotBlank() }.distinct().sorted()
+    CompositionLocalProvider(LocalCustomCategories provides customCategories) {
+        FinanceTheme {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                when {
+                    !state.visible -> Box(Modifier.fillMaxSize())
+                    !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                    else -> Scaffold(
+                        modifier = Modifier.background(Color(0xFF070D20)),
+                        containerColor = Color.Transparent,
+                        bottomBar = {
+                            if (!settings) {
+                                Column {
+                                    if (selected == 1 && selectedMovementIds.isNotEmpty()) {
+                                        GlassButton(
+                                            onClick = { batchCategoryOpen = true },
+                                            enabled = !state.syncing,
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                                                .heightIn(min = 48.dp)
+                                                .background(Color(0xFF080F24), FinanceInputShape),
                                         ) {
-                                            Sections.forEachIndexed { index, section ->
-                                                val active = selected == index
-                                                Column(
-                                                    Modifier.weight(1f).height(56.dp)
-                                                        .selectable(
-                                                            selected = active,
-                                                            role = Role.Tab,
-                                                            onClick = { navigateTo(index) },
-                                                        ),
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                    verticalArrangement = Arrangement.Center,
-                                                ) {
-                                                    Box(
-                                                        Modifier.size(width = 48.dp, height = 30.dp)
-                                                            .background(
-                                                                if (active) NeonPalette[0].copy(alpha = 0.18f) else Color.Transparent,
-                                                                CircleShape,
-                                                            ),
-                                                        contentAlignment = Alignment.Center,
-                                                    ) {
-                                                        Icon(section.icon, contentDescription = section.navigation,
-                                                            tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
-                                                            modifier = Modifier.size(22.dp))
+                                            Icon(MovementLabelIcon, contentDescription = null, modifier = Modifier.size(22.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Categorizar (${selectedMovementIds.size})")
+                                        }
+                                    }
+                                    val shape = RoundedCornerShape(28.dp)
+                                    Box(
+                                        Modifier.fillMaxWidth().navigationBarsPadding()
+                                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                                    ) {
+                                        Box(
+                                            Modifier.fillMaxWidth().height(56.dp)
+                                                .onGloballyPositioned { navigationPosition = it.positionInRoot() }
+                                                .clip(shape),
+                                        ) {
+                                            // Only the captured background is blurred; controls stay sharp.
+                                            Box(
+                                                Modifier.matchParentSize()
+                                                    .graphicsLayer {
+                                                        renderEffect = BlurEffect(20.dp.toPx(), 20.dp.toPx(), TileMode.Clamp)
                                                     }
+                                                    .drawWithContent {
+                                                        val offset = contentPosition - navigationPosition
+                                                        translate(offset.x, offset.y) { drawLayer(backdrop) }
+                                                    },
+                                            )
+                                            Row(
+                                                Modifier.matchParentSize().selectableGroup()
+                                                    .background(Color(0xFF071124).copy(alpha = 0.55f))
+                                                    .background(neonGradient(0.16f))
+                                                    .background(Brush.verticalGradient(listOf(
+                                                        Color.White.copy(alpha = 0.16f),
+                                                        Color.White.copy(alpha = 0.03f),
+                                                    )))
+                                                    .padding(horizontal = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Sections.forEachIndexed { index, section ->
+                                                    val active = selected == index
+                                                    Column(
+                                                        Modifier.weight(1f).height(56.dp)
+                                                            .selectable(
+                                                                selected = active,
+                                                                role = Role.Tab,
+                                                                onClick = { navigateTo(index) },
+                                                            ),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.Center,
+                                                    ) {
+                                                        Box(
+                                                            Modifier.size(width = 48.dp, height = 30.dp)
+                                                                .background(
+                                                                    if (active) NeonPalette[0].copy(alpha = 0.18f) else Color.Transparent,
+                                                                    CircleShape,
+                                                                ),
+                                                            contentAlignment = Alignment.Center,
+                                                        ) {
+                                                            Icon(section.icon, contentDescription = section.navigation,
+                                                                tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
+                                                                modifier = Modifier.size(22.dp))
+                                                        }
 
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                    },
-                ) { insets ->
-                    Box(Modifier.fillMaxSize()) {
-                        HorizontalPager(
-                            state = pager,
-                            modifier = Modifier.fillMaxSize(),
-                            // Avoid changing menus during batch selection or settings.
-                            userScrollEnabled = !settings && selectedMovementIds.isEmpty() && !batchCategoryOpen,
-                            key = { it },
-                        ) { page ->
-                            val contentScroll = rememberScrollState()
-                            Column(
-                                Modifier.fillMaxSize()
-                                    .onGloballyPositioned { if (page == selected) contentPosition = it.positionInRoot() }
-                                    .drawWithContent {
-                                        if (page == selected) {
-                                            backdrop.record { this@drawWithContent.drawContent() }
-                                            drawLayer(backdrop)
-                                        } else {
-                                            drawContent()
-                                        }
-                                    }
-                                    .background(Color(0xFF070D20))
-                                    .padding(top = insets.calculateTopPadding())
-                                    .verticalScroll(contentScroll)
-                                    .padding(bottom = insets.calculateBottomPadding())
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                if (settings) {
-                                    TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
-                                        Text("Voltar")
-                                    }
-                                    ScreenTitle("Configurações", "Um espaço só seu.")
-                                    SecurityCard(state.createdAtMillis)
-                                    InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
-                                    OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
-                                        Text("Bloquear agora")
-                                    }
-                                    Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                } else {
-                                    val section = Sections[page]
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                        if (page == 1) {
-                                            IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
-                                                Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
-                                            }
-                                        } else if (page == 0) {
-                                            IconButton(onClick = { settings = true }) {
-                                                Icon(SettingsIcon, contentDescription = "Configurações")
+                        },
+                    ) { insets ->
+                        Box(Modifier.fillMaxSize()) {
+                            HorizontalPager(
+                                state = pager,
+                                modifier = Modifier.fillMaxSize(),
+                                // Avoid changing menus during batch selection or settings.
+                                userScrollEnabled = !settings && selectedMovementIds.isEmpty() && !batchCategoryOpen,
+                                key = { it },
+                            ) { page ->
+                                val contentScroll = rememberScrollState()
+                                Column(
+                                    Modifier.fillMaxSize()
+                                        .onGloballyPositioned { if (page == selected) contentPosition = it.positionInRoot() }
+                                        .drawWithContent {
+                                            if (page == selected) {
+                                                backdrop.record { this@drawWithContent.drawContent() }
+                                                drawLayer(backdrop)
+                                            } else {
+                                                drawContent()
                                             }
                                         }
+                                        .background(Color(0xFF070D20))
+                                        .padding(top = insets.calculateTopPadding())
+                                        .verticalScroll(contentScroll)
+                                        .padding(bottom = insets.calculateBottomPadding())
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    if (settings) {
+                                        TextButton(onClick = { settings = false; model.cancelRestore() }, contentPadding = PaddingValues(0.dp)) {
+                                            Text("Voltar")
+                                        }
+                                        ScreenTitle("Configurações", "Um espaço só seu.")
+                                        SecurityCard(state.createdAtMillis)
+                                        InfoCard("Google", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos extratos. O backup usa somente a área privada do aplicativo no Drive.")
+                                        BackupSettings(state, model, onBackupAuthorize)
+                                        OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
+                                            Text("Bloquear agora")
+                                        }
+                                        Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    } else {
+                                        val section = Sections[page]
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                            if (page == 1) {
+                                                IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
+                                                    Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
+                                                }
+                                            } else if (page == 0) {
+                                                IconButton(onClick = { settings = true }) {
+                                                    Icon(SettingsIcon, contentDescription = "Configurações")
+                                                }
+                                            }
+                                        }
+                                        when (page) {
+                                            0 -> OverviewScreen(state, onMovements = { navigateTo(1) })
+                                            1 -> MovementsScreen(
+                                                state, model, selectedMovementIds,
+                                                onSelectionChange = { selectedMovementIds = it },
+                                            )
+                                            2 -> PeopleScreen(state, model)
+                                            3 -> PlanningScreen(state, model)
+                                            4 -> AssetsScreen(state, model)
+                                        }
                                     }
-                                    when (page) {
-                                        0 -> OverviewScreen(state, onMovements = { navigateTo(1) })
-                                        1 -> MovementsScreen(
-                                            state, model, selectedMovementIds,
-                                            onSelectionChange = { selectedMovementIds = it },
-                                        )
-                                        2 -> PeopleScreen(state, model)
-                                        3 -> PlannedScreen("Planejamento")
-                                        4 -> PlannedScreen("Patrimônio")
-                                    }
+                                    Spacer(Modifier.height(8.dp))
                                 }
-                                Spacer(Modifier.height(8.dp))
                             }
-                        }
-                        if (!settings && selected == 1 && state.movements.isEmpty()) {
-                            Box(
-                                Modifier.matchParentSize().padding(
-                                    top = insets.calculateTopPadding(),
-                                    bottom = insets.calculateBottomPadding(),
-                                ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    "Sem movimentações",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            if (!settings && selected == 1 && state.movements.isEmpty()) {
+                                Box(
+                                    Modifier.matchParentSize().padding(
+                                        top = insets.calculateTopPadding(),
+                                        bottom = insets.calculateBottomPadding(),
+                                    ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "Sem movimentações",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            if (batchCategoryOpen && selectedMovementIds.isNotEmpty()) {
+                                BatchCategoryDialog(
+                                    selectedCount = selectedMovementIds.size,
+                                    enabled = !state.syncing,
+                                    error = state.error,
+                                    onDismiss = { batchCategoryOpen = false },
+                                    onConfirm = { category ->
+                                        val choices = state.movements.filter { it.id in selectedMovementIds }
+                                            .associate { it.id to (category to it.friendlyName) }
+                                        model.confirmBatch(choices) {
+                                            selectedMovementIds = emptySet()
+                                            batchCategoryOpen = false
+                                        }
+                                    },
                                 )
                             }
-                        }
-                        if (batchCategoryOpen && selectedMovementIds.isNotEmpty()) {
-                            BatchCategoryDialog(
-                                selectedCount = selectedMovementIds.size,
-                                enabled = !state.syncing,
-                                error = state.error,
-                                onDismiss = { batchCategoryOpen = false },
-                                onConfirm = { category ->
-                                    val choices = state.movements.filter { it.id in selectedMovementIds }
-                                        .associate { it.id to (category to it.friendlyName) }
-                                    model.confirmBatch(choices) {
-                                        selectedMovementIds = emptySet()
-                                        batchCategoryOpen = false
-                                    }
-                                },
-                            )
-                        }
-                        state.importNotification?.let { notification ->
-                            ImportNotificationPopup(
-                                notification = notification,
-                                onDismiss = { model.dismissImportNotification(notification.id) },
-                                modifier = Modifier.align(Alignment.TopCenter)
-                                    .padding(top = insets.calculateTopPadding() + 8.dp)
-                                    .padding(horizontal = 12.dp),
-                            )
+                            state.importNotification?.let { notification ->
+                                ImportNotificationPopup(
+                                    notification = notification,
+                                    onDismiss = { model.dismissImportNotification(notification.id) },
+                                    modifier = Modifier.align(Alignment.TopCenter)
+                                        .padding(top = insets.calculateTopPadding() + 8.dp)
+                                        .padding(horizontal = 12.dp),
+                                )
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +28,8 @@ private val AddPersonIcon = ImageVector.Builder(
 
 @Composable
 internal fun PeopleScreen(state: FinanceUiState, model: FinanceViewModel) {
+    var selectedPerson by remember { mutableStateOf<Long?>(null) }
+    selectedPerson?.let { id -> PersonFinances(id, state, model) { selectedPerson = null } }
     var search by remember { mutableStateOf("") }
     var adding by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -61,7 +64,7 @@ internal fun PeopleScreen(state: FinanceUiState, model: FinanceViewModel) {
     }
     people.forEach { person ->
         key(person.id) {
-            GlassPanel(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
+            GlassPanel(modifier = Modifier.clickable { selectedPerson = person.id }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
                 Row(
                     Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -73,8 +76,13 @@ internal fun PeopleScreen(state: FinanceUiState, model: FinanceViewModel) {
                         Text(person.name.take(1).uppercase(), color = NeonPalette[0],
                             style = MaterialTheme.typography.labelLarge)
                     }
-                    Text(person.name, modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Column(Modifier.weight(1f)) {
+                        Text(person.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        val debts = state.ledger.debts.filter { it.personId == person.id }
+                        val receivable = debts.filter { it.direction == br.com.yurimedeiros.meufinanceiro.ledger.DebtDirection.RECEIVE }.sumOf { it.remaining }
+                        val payable = debts.filter { it.direction == br.com.yurimedeiros.meufinanceiro.ledger.DebtDirection.PAY }.sumOf { it.remaining }
+                        if (receivable > 0 || payable > 0) Text("Receber ${ledgerMoney(receivable)} · pagar ${ledgerMoney(payable)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

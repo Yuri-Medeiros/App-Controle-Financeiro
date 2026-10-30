@@ -37,7 +37,7 @@ internal class SecureDatabaseSession private constructor(
                 System.loadLibrary("sqlcipher")
                 database = Room.databaseBuilder(context, FinanceDatabase::class.java, databaseName)
                     .openHelperFactory(SupportOpenHelperFactory(password))
-                    .addMigrations(FinanceMigrations.from1To2, FinanceMigrations.from2To3)
+                    .addMigrations(FinanceMigrations.from1To2, FinanceMigrations.from2To3, FinanceMigrations.from3To4)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             InitialPeople.insert(db)

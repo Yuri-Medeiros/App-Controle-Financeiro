@@ -69,21 +69,35 @@ internal fun PillTabs(options: List<String>, selected: Int, onSelect: (Int) -> U
 @Composable
 internal fun OverviewScreen(state: FinanceUiState, onMovements: () -> Unit) {
     var visible by remember { mutableStateOf(true) }
+    val planning = br.com.yurimedeiros.meufinanceiro.planning.PlanningRules.view(state.ledger.planning, state.ledger, state.movements, java.time.LocalDate.now())
     val confirmed = state.movements.filter { it.status == "CONFIRMED" }
-    val pending = state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT") }
+    val pending = state.movements.count { it.status !in setOf("CONFIRMED", "PAYMENT", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") }
     GlassPanel(highlighted = true) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Saldo disponível", style = MaterialTheme.typography.bodyMedium)
+            Text("Disponível até o salário", style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = { visible = !visible }, contentPadding = PaddingValues(horizontal = 8.dp)) {
                 Text(if (visible) "Ocultar valores" else "Mostrar valores", style = MaterialTheme.typography.labelSmall)
             }
         }
-        Text(if (visible) "—" else "••••", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("Saldo consolidado ainda indisponível", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD8EDFF))
+        Text(if (!visible) "••••" else planning.available?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = if ((planning.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
+        Text(planning.warnings.firstOrNull() ?: "Antes de ${planning.nextSalary}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD8EDFF))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Metric("Despesas restantes", if (visible) "—" else "••••", Modifier.weight(1f), "Orçamento não definido")
-        Metric("Minha parte da fatura", if (visible) "—" else "••••", Modifier.weight(1f), "Divisão ainda indisponível")
+        Metric("Orçamento adicional", if (!visible) "••••" else if (state.ledger.planning.budgets.isEmpty()) "—" else ledgerMoney(planning.extraBudget), Modifier.weight(1f), "Não coberto por obrigações")
+        val month = java.time.YearMonth.now()
+        val refunds = state.ledger.actions.filterIsInstance<br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.Refund>()
+        val own = state.ledger.purchases.sumOf { p -> p.parts.filter { java.time.YearMonth.from(it.due) == month }.sumOf { part ->
+            (p.shares[0L]?.get(part.number - 1) ?: 0) - refunds.sumOf { it.credits["${p.id}:${part.number}:0"] ?: 0 }
+        } }
+        Metric("Minha parte confirmada", if (!visible) "••••" else if (state.ledger.purchases.isEmpty()) "—" else ledgerMoney(own), Modifier.weight(1f), "Vencimentos de $month")
+    }
+    val receivables = state.ledger.debts.filter { it.direction == br.com.yurimedeiros.meufinanceiro.ledger.DebtDirection.RECEIVE }
+    if (state.ledger.debts.isNotEmpty()) GlassPanel {
+        Text("Familiares", style = MaterialTheme.typography.titleSmall)
+        Text(if (visible) "A receber · ${ledgerMoney(receivables.sumOf { it.remaining })}" else "A receber · ••••")
+        val overdue = receivables.filter { it.due < java.time.LocalDate.now() }.sumOf { it.remaining }
+        if (overdue > 0) Text(if (visible) "Vencidos · ${ledgerMoney(overdue)}" else "Vencidos · ••••", color = ExpenseColor)
+        Text(if (visible) "Eu devo · ${ledgerMoney(state.ledger.debts.filter { it.direction == br.com.yurimedeiros.meufinanceiro.ledger.DebtDirection.PAY }.sumOf { it.remaining })}" else "Eu devo · ••••", style = MaterialTheme.typography.bodySmall)
     }
     val categoryCounts = confirmed.groupingBy { it.category.ifBlank { "Sem categoria" } }.eachCount().entries.sortedByDescending { it.value }
     val groups = categoryCounts.take(5).map { it.key to it.value }.toMutableList().apply {

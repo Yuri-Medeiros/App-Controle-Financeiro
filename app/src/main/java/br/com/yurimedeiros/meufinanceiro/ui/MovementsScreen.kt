@@ -31,6 +31,8 @@ import java.time.format.DateTimeFormatter
 import java.text.NumberFormat
 import java.util.Locale
 
+internal val LocalCustomCategories = staticCompositionLocalOf { emptyList<String>() }
+
 @Composable
 internal fun MovementsScreen(
     state: FinanceUiState,
@@ -38,6 +40,8 @@ internal fun MovementsScreen(
     selectedIds: Set<Long>,
     onSelectionChange: (Set<Long>) -> Unit,
 ) {
+    var installmentsOpen by remember { mutableStateOf(false) }
+    if (installmentsOpen) InstallmentsDialog(state) { installmentsOpen = false }
     var query by remember { mutableStateOf("") }
     val currentPeriod = YearMonth.now()
     var selectedPeriod by remember { mutableStateOf(YearMonth.now()) }
@@ -156,6 +160,20 @@ internal fun MovementsScreen(
             )
         }
     }
+    if (account == DocumentKind.FLASH) {
+        val flash = state.movements.filter { it.row.kind == DocumentKind.FLASH }
+        val latest = flash.maxWithOrNull(compareBy<ReviewMovement> { it.row.date }.thenBy { it.row.time })
+        val balance = latest?.let { last -> flash.filter { it.row.date == last.row.date && it.row.time == last.row.time }.map { it.row.balanceCents }.distinct().singleOrNull() }
+        GlassPanel {
+            Text("Flash · ${balance?.let(::ledgerMoney) ?: "Saldo a confirmar"}")
+            Text("Crédito previsto de R$ 150,00 aos domingos. Benefício separado do dinheiro disponível.", style = MaterialTheme.typography.bodySmall)
+            val confirmed = state.ledger.actions.filterIsInstance<br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.FlashCredit>().map { it.sunday }.toSet()
+            flash.filter { it.row.cents == 15000L && it.row.date.dayOfWeek == java.time.DayOfWeek.SUNDAY && it.row.date !in confirmed && it.id !in state.ledger.usedMovementIds }.takeLast(8).forEach { source ->
+                TextButton(onClick = { model.saveLedger(br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.FlashCredit(source.id, source.row.date)) {} }, enabled = !state.syncing) { Text("Confirmar crédito previsto · ${source.row.date}") }
+            }
+        }
+    }
+    TextButton(onClick = { installmentsOpen = true }) { Text("Faturas e parcelas") }
     if (state.syncing) {
         LinearProgressIndicator(Modifier.fillMaxWidth())
         Text("Consultando seus extratos…", style = MaterialTheme.typography.bodySmall)
@@ -212,11 +230,13 @@ internal fun MovementsScreen(
         state.movements, account, selectedPeriod, query, friendlyDescriptions,
     )
     if (state.movements.isNotEmpty()) {
-        Text("${rows.count { it.status !in setOf("CONFIRMED", "PAYMENT") }} pendentes · ${MonthNames[selectedPeriod.monthValue - 1]} de ${selectedPeriod.year}")
+        Text("${rows.count { it.status !in setOf("CONFIRMED", "PAYMENT", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") }} pendentes · ${MonthNames[selectedPeriod.monthValue - 1]} de ${selectedPeriod.year}")
     }
     val pages = ((rows.size + 29) / 30).coerceAtLeast(1)
     val current = page.coerceAtMost(pages - 1)
-    if (rows.isEmpty() && state.movements.isNotEmpty()) Text("Nenhuma movimentação encontrada para estes filtros.", style = MaterialTheme.typography.bodyMedium)
+    if (rows.isEmpty() && state.movements.isNotEmpty()) {
+        Text("Nenhuma movimentação encontrada para estes filtros.", style = MaterialTheme.typography.bodyMedium)
+    }
     val visibleRows = rows.drop(current * 30).take(30)
     visibleRows.forEach { movement ->
         key(movement.id, movement.category) {
@@ -245,19 +265,23 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     var descriptionOpen by remember { mutableStateOf(false) }
     var descriptionDraft by remember(friendly) { mutableStateOf(friendly) }
     var details by remember { mutableStateOf(false) }
-    val canCategorize = movement.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING") &&
+    var financeOpen by remember { mutableStateOf(false) }
+    val canCategorize = movement.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") &&
         !MovementRepository.needsSpecialReview(movement.row)
     val haptics = LocalHapticFeedback.current
     GlassPanel(
         modifier = Modifier.clip(RoundedCornerShape(18.dp))
             .semantics { this.selected = selected }
             .combinedClickable(
-                enabled = canCategorize && !state.syncing,
-                onClick = { if (selectionMode) onToggleSelection() },
+                enabled = !state.syncing,
+                onClickLabel = "Ver detalhes e vínculos financeiros",
+                onClick = { if (selectionMode && canCategorize) onToggleSelection() else if (!selectionMode) financeOpen = true },
                 onLongClickLabel = "Selecionar para categorização em lote",
                 onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onToggleSelection()
+                    if (canCategorize) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggleSelection()
+                    }
                 },
             ),
         highlighted = selected,
@@ -285,6 +309,12 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                 }
             }
             when (movement.status) {
+                "CARD_CREDIT" -> Text("Crédito de fatura confirmado", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "FLASH_CREDIT" -> Text("Crédito previsto conciliado", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "ASSET_TRANSFER" -> Text("Operação patrimonial vinculada", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "IGNORED" -> Text("Versão desconsiderada", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "REFUND" -> Text("Estorno vinculado", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "FAMILY_PAYMENT" -> Text("Pagamento pessoal vinculado", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 "PAYMENT" -> Text("Pagamento conciliado", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 "PAYMENT_PENDING", "CONFLICT" -> Text("Conciliação pendente",
@@ -312,7 +342,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                                 tint = NeonPalette[0], modifier = Modifier.size(20.dp))
                         }
                     }
-                    if (movement.status !in setOf("CONFIRMED", "PAYMENT") ||
+                    if (movement.status !in setOf("CONFIRMED", "PAYMENT", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") ||
                         (canCategorize && movement.category.isBlank())) {
                         IconButton(
                             onClick = {
@@ -352,6 +382,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
             }
         }
     }
+    if (financeOpen) MovementFinanceDialog(movement, state, model) { financeOpen = false }
     if (descriptionOpen) {
         AlertDialog(
             onDismissRequest = { descriptionOpen = false },
@@ -481,11 +512,11 @@ private val CategoryOptions = listOf(
 )
 
 @Composable
-private fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
+internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
     var expanded by remember { mutableStateOf(false) }
     var customOpen by remember { mutableStateOf(false) }
     var custom by remember { mutableStateOf("") }
-    val options = (CategoryOptions + listOfNotNull(value.takeIf { it.isNotBlank() })).distinct()
+    val options = (CategoryOptions + LocalCustomCategories.current + listOfNotNull(value.takeIf { it.isNotBlank() })).distinct()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         OutlinedButton(
             onClick = { expanded = !expanded },
@@ -546,7 +577,7 @@ private fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, ena
             text = {
                 OutlinedTextField(
                     custom, { custom = it }, modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Nome da categoria") }, shape = FinanceInputShape, singleLine = true,
+                    label = { Text("Categoria ou Categoria / Subcategoria") }, shape = FinanceInputShape, singleLine = true,
                 )
             },
             confirmButton = {

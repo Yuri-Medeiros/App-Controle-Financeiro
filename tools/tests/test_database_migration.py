@@ -40,7 +40,7 @@ class DatabaseMigrationTest(unittest.TestCase):
             db.execute("INSERT INTO movements (id, payload, origin, status, category, friendlyName, confirmedAt, pairedMovementId) VALUES (7, '{}', 'existing', 'CONFIRMED', 'Alimentação', 'Nome salvo', 123, 0)")
             db.execute("INSERT INTO import_documents (source, reference) VALUES ('existing-document', '2026-10-01')")
             original_movement = db.execute('SELECT * FROM movements').fetchall()
-            migration = (DATA / 'FinanceMigrations.kt').read_text().split('val from2To3', 1)[1]
+            migration = (DATA / 'FinanceMigrations.kt').read_text().split('val from2To3', 1)[1].split('val from3To4', 1)[0]
             statements = re.findall(r'db\.execSQL\("([^"\n]+)"\)', migration)
             self.assertEqual(len(statements), 2)
             for statement in statements:

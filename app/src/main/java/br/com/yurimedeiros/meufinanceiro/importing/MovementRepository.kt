@@ -54,7 +54,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
 
     private fun reconcilePayments() {
         val dao = db.movements()
-        val payments = dao.all().filter { it.status != "CONFLICT" }.map { it to decode(it.payload) }
+        val payments = dao.all().filter { it.status !in setOf("CONFLICT", "IGNORED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
             .filter { PaymentMatching.isPayment(it.second) }
         val pairs = PaymentMatching.pairs(payments.map { (item, row) -> PaymentCandidate(item.id, item.origin.substringBefore(" · "), row) })
         payments.forEach { (item, _) ->
@@ -92,7 +92,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             require(chosen.size == ids.size && chosen.isNotEmpty())
             chosen.forEach {
                 val row = decode(it.payload)
-                require(it.status != "CONFLICT") { "Conflito exige revisão antes de salvar." }
+                require(it.status !in setOf("CONFLICT", "IGNORED", "REFUND", "FAMILY_PAYMENT", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT")) { "Este registro exige revisão financeira, não categorização de consumo." }
                 require(!needsSpecialReview(row)) { "Pagamentos e créditos de fatura aguardam conciliação; não são despesas de consumo." }
                 it.category = category.trim()
                 it.friendlyName = friendlyName.trim()
@@ -118,7 +118,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             put("sourceId", row.sourceId); put("time", row.time?.toString()); put("paymentMethod", row.paymentMethod)
             put("balance", row.balanceCents); put("statement", row.statement?.toString())
         }.toString()
-        private fun decode(json: String): ImportedRow = JSONObject(json).let { o ->
+        internal fun decode(json: String): ImportedRow = JSONObject(json).let { o ->
             fun nullable(key: String) = if (o.isNull(key) || !o.has(key)) null else o.getString(key)
             ImportedRow(DocumentKind.valueOf(o.getString("kind")), LocalDate.parse(o.getString("date")), o.getString("description"), o.getLong("cents"),
                 nullable("sourceId"), nullable("time")?.let(LocalTime::parse), nullable("paymentMethod"),

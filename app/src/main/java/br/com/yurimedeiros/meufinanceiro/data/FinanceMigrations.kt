@@ -19,4 +19,10 @@ internal object FinanceMigrations {
             InitialPeople.insert(db)
         }
     }
+    val from3To4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS financial_events (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, createdAt INTEGER NOT NULL, payload TEXT NOT NULL)")
+        }
+    }
+
 }

@@ -26,3 +26,13 @@ AuthorizationClient no Android usa a identidade de pacote/assinatura registrada;
 - Fontes: branch docs/google-pages, PR #5. has_pages=true e implantação Actions 40696417164 concluída com sucesso. A tentativa de HTTP direto do executor foi bloqueada por política de rede; não equivale a erro do site.
 
 Drive appdata/backup financeiro ainda não foi configurado ou implementado nesta etapa. Backup da identidade de assinatura é independente. Sem prometer recuperação financeira antes de implementar e testar restauração em instalação limpa.
+
+## Backup privado no Drive — implementação de 30/10/2026
+
+O app solicita separadamente `https://www.googleapis.com/auth/drive.appdata`, pelo AuthorizationClient Android já existente. Para testar, habilitar a **Google Drive API** no mesmo projeto exclusivo, mantendo faturamento desabilitado, e conferir o escopo na configuração OAuth em produção. A ativação da API não foi executada por esta tarefa.
+
+No app: Configurações → Backup e recuperação → Gerenciar backup. Definir e guardar a senha de recuperação (independente da assinatura), confirmar e autorizar. Para recuperar uma instalação nova, buscar os backups, revisar e confirmar a restauração. Principal e candidato têm backups separados por pacote; testar apenas com dados de teste no candidato.
+
+A implementação envia arquivos cifrados à área privada e verifica por leitura antes da retenção. Credenciais permanecem em memória; a ativação automática vale para a sessão desbloqueada. Cancelamento, revogação, expiração e restauração em instalação limpa precisam de teste real no Android.
+
+Documentação oficial: https://developers.google.com/workspace/drive/api/guides/appdata

@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+internal val FinanceInputShape = RoundedCornerShape(16.dp)
+
 // A identidade visual permanece escura, independentemente do tema do aparelho.
 private val NeonNight = darkColorScheme(
     primary = Color(0xFF00E5D0),
@@ -38,8 +40,9 @@ internal fun FinanceTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NeonNight,
         shapes = Shapes(
+            extraSmall = FinanceInputShape,
             small = RoundedCornerShape(12.dp),
-            medium = RoundedCornerShape(16.dp),
+            medium = FinanceInputShape,
             large = RoundedCornerShape(20.dp),
         ),
         content = content,

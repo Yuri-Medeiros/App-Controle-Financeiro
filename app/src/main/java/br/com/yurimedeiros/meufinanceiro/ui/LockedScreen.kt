@@ -107,7 +107,7 @@ internal fun LockedScreen(
                         Button(
                             onClick = if (deviceSecure) onUnlock else onSecuritySettings,
                             enabled = !state.opening,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 45.56.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = WelcomeViolet,
@@ -115,7 +115,7 @@ internal fun LockedScreen(
                                 disabledContainerColor = WelcomeViolet,
                                 disabledContentColor = WelcomeText,
                             ),
-                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 9.dp),
                         ) {
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 Text(

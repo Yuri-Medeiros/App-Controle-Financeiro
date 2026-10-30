@@ -34,13 +34,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.yurimedeiros.meufinanceiro.R
 
-private val WelcomeBackground = Color(0xFF061222)
-private val WelcomeViolet = Color(0xFF6554E8)
+private val WelcomeBackground = Color(0xFF080B17)
+private val WelcomeLavender = Color(0xFFC4BFFF)
+private val WelcomeInk = Color(0xFF111329)
 private val WelcomeText = Color(0xFFFAFAFC)
 
 @Composable
@@ -54,7 +58,7 @@ internal fun LockedScreen(
         WelcomeBackdrop()
         Scaffold(containerColor = Color.Transparent) { insets ->
             BoxWithConstraints(Modifier.fillMaxSize().padding(insets).padding(horizontal = 28.dp)) {
-                val titleSize = (maxWidth.value / 5.8f).coerceAtMost(76f).sp
+                val titleSize = (maxWidth.value * 0.15f).sp
                 val heroHeight = (maxHeight * 0.43f).coerceIn(180.dp, 420.dp)
                 // Fill the safe viewport and distribute space between header, hero and CTA.
                 // If content grows beyond it, scroll rather than overlap or clip controls.
@@ -67,15 +71,22 @@ internal fun LockedScreen(
                         Modifier.fillMaxWidth().padding(bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(28.dp),
                     ) {
-                        Canvas(Modifier.size(44.dp, 36.dp)) {
-                            drawCircle(WelcomeViolet, radius = size.height * 0.47f,
-                                center = Offset(size.height * 0.47f, size.height * 0.47f))
-                            val center = Offset(size.width * 0.75f, size.height * 0.70f)
-                            drawCircle(WelcomeBackground, radius = size.height * 0.32f, center = center)
-                            drawCircle(Color(0xFF00CBE6), radius = size.height * 0.28f, center = center)
-                        }
                         Text(
-                            "Meu\nFinanceiro",
+                            "MEU FINANCEIRO",
+                            color = WelcomeText,
+                            fontSize = 11.sp,
+                            letterSpacing = 2.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(color = Color(0xFFF3F1F7))) {
+                                    append("Seu dinheiro.\n")
+                                }
+                                withStyle(SpanStyle(color = Color(0xFFB7B4EF))) {
+                                    append("Seu espaço.")
+                                }
+                            },
                             color = WelcomeText,
                             fontSize = titleSize,
                             lineHeight = titleSize * 0.95f,
@@ -93,11 +104,6 @@ internal fun LockedScreen(
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxWidth().height(heroHeight),
                         )
-                        Text(
-                            "Seu dinheiro. Suas conquistas.",
-                            color = Color(0xFFC6C5E5),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         state.error?.let {
@@ -110,17 +116,17 @@ internal fun LockedScreen(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 45.56.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = WelcomeViolet,
-                                contentColor = WelcomeText,
-                                disabledContainerColor = WelcomeViolet,
-                                disabledContentColor = WelcomeText,
+                                containerColor = WelcomeLavender,
+                                contentColor = WelcomeInk,
+                                disabledContainerColor = WelcomeLavender,
+                                disabledContentColor = WelcomeInk,
                             ),
                             contentPadding = PaddingValues(horizontal = 22.dp, vertical = 9.dp),
                         ) {
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 Text(
                                     when {
-                                        state.opening -> "Abrindo suas conquistas…"
+                                        state.opening -> "Abrindo…"
                                         deviceSecure -> "Acessar"
                                         else -> "Configurar bloqueio do Android"
                                     },
@@ -130,16 +136,16 @@ internal fun LockedScreen(
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 if (state.opening) {
-                                    CircularProgressIndicator(Modifier.align(Alignment.CenterEnd).size(24.dp), color = WelcomeText,
+                                    CircularProgressIndicator(Modifier.align(Alignment.CenterEnd).size(24.dp), color = WelcomeInk,
                                         strokeWidth = 2.dp)
                                 } else {
                                     Canvas(Modifier.align(Alignment.CenterEnd).size(26.dp)) {
                                         val stroke = 2.dp.toPx()
-                                        drawLine(WelcomeText, Offset(0f, size.height / 2),
+                                        drawLine(WelcomeInk, Offset(0f, size.height / 2),
                                             Offset(size.width, size.height / 2), stroke, StrokeCap.Round)
-                                        drawLine(WelcomeText, Offset(size.width * 0.60f, size.height * 0.12f),
+                                        drawLine(WelcomeInk, Offset(size.width * 0.60f, size.height * 0.12f),
                                             Offset(size.width, size.height / 2), stroke, StrokeCap.Round)
-                                        drawLine(WelcomeText, Offset(size.width, size.height / 2),
+                                        drawLine(WelcomeInk, Offset(size.width, size.height / 2),
                                             Offset(size.width * 0.60f, size.height * 0.88f), stroke, StrokeCap.Round)
                                     }
                                 }

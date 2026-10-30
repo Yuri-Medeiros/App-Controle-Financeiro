@@ -157,7 +157,7 @@ internal fun FinanceApp(
                                         .padding(horizontal = 12.dp, vertical = 12.dp),
                                 ) {
                                     Box(
-                                        Modifier.fillMaxWidth().height(76.dp)
+                                        Modifier.fillMaxWidth().height(56.dp)
                                             .onGloballyPositioned { navigationPosition = it.positionInRoot() }
                                             .clip(shape),
                                     ) {
@@ -185,21 +185,15 @@ internal fun FinanceApp(
                                         ) {
                                             Sections.forEachIndexed { index, section ->
                                                 val active = selected == index
-                                                val weight = when (index) {
-                                                    1 -> 1.45f
-                                                    3 -> 1.35f
-                                                    4 -> 1.15f
-                                                    else -> 1f
-                                                }
                                                 Column(
-                                                    Modifier.weight(weight).height(76.dp)
+                                                    Modifier.weight(1f).height(56.dp)
                                                         .selectable(
                                                             selected = active,
                                                             role = Role.Tab,
                                                             onClick = { selected = index },
                                                         ),
                                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                                                    verticalArrangement = Arrangement.Center,
                                                 ) {
                                                     Box(
                                                         Modifier.size(width = 48.dp, height = 30.dp)
@@ -209,19 +203,11 @@ internal fun FinanceApp(
                                                             ),
                                                         contentAlignment = Alignment.Center,
                                                     ) {
-                                                        Icon(section.icon, contentDescription = null,
+                                                        Icon(section.icon, contentDescription = section.navigation,
                                                             tint = if (active) NeonPalette[0] else Color(0xFFB9B4CE),
                                                             modifier = Modifier.size(22.dp))
                                                     }
-                                                    Text(
-                                                        section.navigation,
-                                                        maxLines = 1,
-                                                        fontSize = 10.sp,
-                                                        letterSpacing = 0.sp,
-                                                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                                                        color = if (active) Color(0xFFE0FCFF) else Color(0xFFB9B4CE),
-                                                        textAlign = TextAlign.Center,
-                                                    )
+
                                                 }
                                             }
                                         }

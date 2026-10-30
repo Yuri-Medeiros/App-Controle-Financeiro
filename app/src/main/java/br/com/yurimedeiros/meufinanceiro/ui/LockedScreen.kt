@@ -49,13 +49,13 @@ internal fun LockedScreen(
     Scaffold(containerColor = WelcomeBackground) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).padding(horizontal = 28.dp)) {
             val titleSize = (maxWidth.value / 5.8f).coerceAtMost(76f).sp
-            val heroHeight = (maxHeight * 0.40f).coerceIn(200.dp, 380.dp)
+            val heroHeight = (maxHeight * 0.36f).coerceIn(180.dp, 380.dp)
             // Minimum height distributes space on tall phones; scrolling keeps controls
             // reachable in landscape and with larger Android text settings.
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                    .heightIn(min = maxHeight).padding(top = 28.dp, bottom = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Top),
+                    .heightIn(min = maxHeight).padding(top = 20.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.Top),
             ) {
                 Canvas(Modifier.size(44.dp, 36.dp)) {
                     drawCircle(WelcomeViolet, radius = size.height * 0.47f,

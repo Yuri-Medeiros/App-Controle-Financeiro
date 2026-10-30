@@ -61,13 +61,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.imageResource
-import br.com.yurimedeiros.meufinanceiro.R
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.unit.IntSize
-import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -339,50 +332,6 @@ internal fun FinanceApp(
 }
 
 @Composable
-private fun LockedScreen(state: FinanceUiState, deviceSecure: Boolean, onUnlock: () -> Unit, onSecuritySettings: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        LockBackground()
-        Scaffold(containerColor = Color.Transparent) { insets ->
-            Column(
-                Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(32.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                val appIcon = ImageBitmap.imageResource(R.drawable.launcher_art)
-                Canvas(Modifier.size(104.dp)) {
-                    // The original neon artwork is drawn directly, without an icon tile.
-                    // Screen blending makes its dark backdrop disappear into the gray surface.
-                    drawImage(
-                        image = appIcon,
-                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                        filterQuality = FilterQuality.High,
-                        blendMode = BlendMode.Screen,
-                    )
-                }
-                Text("Meu Financeiro", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Text("Seu dinheiro. Seu espaço.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                state.error?.let { Text(it, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium) }
-                if (state.opening) {
-                    CircularProgressIndicator(Modifier.size(32.dp))
-                    Text("Abrindo seu espaço…", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    Button(onClick = if (deviceSecure) onUnlock else onSecuritySettings,
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color(0xFFF4F1FF)),
-                        contentPadding = PaddingValues(),
-                        border = BorderStroke(1.dp, GlassBorder),
-                        modifier = Modifier.width(220.dp).height(56.dp).background(
-                            neonGradient(0.28f),
-                            RoundedCornerShape(18.dp)),
-                        shape = RoundedCornerShape(18.dp)) {
-                        Text(if (deviceSecure) "Acessar" else "Configurar bloqueio do Android")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ScreenTitle(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -411,17 +360,4 @@ private fun InfoCard(title: String, description: String) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-@Composable
-private fun LockBackground() {
-    Box(
-        Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(
-                Color(0xFFD0D0D0),
-                Color(0xFF777777),
-                Color(0xFF202020),
-            )),
-        ),
-    )
 }

@@ -16,7 +16,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -69,7 +68,6 @@ class MainActivity : ComponentActivity() {
         )
         model = ViewModelProvider(this)[FinanceViewModel::class.java]
         setContent {
-            val state by model.state.collectAsStateWithLifecycle()
             FinanceApp(
                 model = model,
                 onUnlock = ::authenticate,

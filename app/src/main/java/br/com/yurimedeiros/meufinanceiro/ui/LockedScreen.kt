@@ -49,40 +49,50 @@ internal fun LockedScreen(
     Scaffold(containerColor = WelcomeBackground) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).padding(horizontal = 28.dp)) {
             val titleSize = (maxWidth.value / 5.8f).coerceAtMost(76f).sp
-            val heroHeight = (maxHeight * 0.36f).coerceIn(180.dp, 380.dp)
-            // Minimum height distributes space on tall phones; scrolling keeps controls
-            // reachable in landscape and with larger Android text settings.
+            val heroHeight = (maxHeight * 0.43f).coerceIn(180.dp, 420.dp)
+            // Fill the safe viewport and distribute space between header, hero and CTA.
+            // If content grows beyond it, scroll rather than overlap or clip controls.
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                     .heightIn(min = maxHeight).padding(top = 20.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.Top),
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                Canvas(Modifier.size(44.dp, 36.dp)) {
-                    drawCircle(WelcomeViolet, radius = size.height * 0.47f,
-                        center = Offset(size.height * 0.47f, size.height * 0.47f))
-                    val center = Offset(size.width * 0.75f, size.height * 0.70f)
-                    drawCircle(WelcomeBackground, radius = size.height * 0.32f, center = center)
-                    drawCircle(Color(0xFF00CBE6), radius = size.height * 0.28f, center = center)
+                Column(
+                    Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                ) {
+                    Canvas(Modifier.size(44.dp, 36.dp)) {
+                        drawCircle(WelcomeViolet, radius = size.height * 0.47f,
+                            center = Offset(size.height * 0.47f, size.height * 0.47f))
+                        val center = Offset(size.width * 0.75f, size.height * 0.70f)
+                        drawCircle(WelcomeBackground, radius = size.height * 0.32f, center = center)
+                        drawCircle(Color(0xFF00CBE6), radius = size.height * 0.28f, center = center)
+                    }
+                    Text(
+                        "Meu\nFinanceiro",
+                        color = WelcomeText,
+                        fontSize = titleSize,
+                        lineHeight = titleSize * 0.95f,
+                        letterSpacing = (-2).sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
                 }
-                Text(
-                    "Meu\nFinanceiro",
-                    color = WelcomeText,
-                    fontSize = titleSize,
-                    lineHeight = titleSize * 0.95f,
-                    letterSpacing = (-2).sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Image(
-                    painterResource(R.drawable.welcome_piggy),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(heroHeight),
-                )
-                Text(
-                    "Seu dinheiro. Suas conquistas.",
-                    color = Color(0xFFC6C5E5),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                Column(
+                    Modifier.fillMaxWidth().padding(bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    Image(
+                        painterResource(R.drawable.welcome_piggy),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().height(heroHeight),
+                    )
+                    Text(
+                        "Seu dinheiro. Suas conquistas.",
+                        color = Color(0xFFC6C5E5),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     state.error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error,

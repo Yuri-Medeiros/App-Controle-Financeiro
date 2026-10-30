@@ -31,7 +31,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -98,12 +100,7 @@ internal fun LockedScreen(
                         Modifier.fillMaxWidth().padding(bottom = 28.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        Image(
-                            painterResource(R.drawable.welcome_piggy),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().height(heroHeight),
-                        )
+                        WelcomePiggy(Modifier.fillMaxWidth().height(heroHeight))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         state.error?.let {
@@ -155,6 +152,45 @@ internal fun LockedScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WelcomePiggy(modifier: Modifier = Modifier) {
+    val piggy = painterResource(R.drawable.welcome_piggy)
+    Box(modifier, contentAlignment = Alignment.TopCenter) {
+        Canvas(Modifier.fillMaxSize()) {
+            // Match ContentScale.Fit so the floor stays beneath the feet on wide screens too.
+            val imageAreaHeight = size.height - 20.dp.toPx()
+            val aspect = piggy.intrinsicSize.width / piggy.intrinsicSize.height
+            val imageWidth = minOf(size.width, imageAreaHeight * aspect)
+            val imageHeight = imageWidth / aspect
+            val floorY = (imageAreaHeight - imageHeight) / 2f + imageHeight * 0.955f
+
+            fun floorLight(x: Float, y: Float, width: Float, height: Float, color: Color) {
+                val center = Offset(x, y)
+                withTransform({ scale(1f, height / width, center) }) {
+                    drawCircle(
+                        brush = Brush.radialGradient(listOf(color, Color.Transparent), center, width / 2f),
+                        radius = width / 2f,
+                        center = center,
+                    )
+                }
+            }
+            // Broad, low reflections establish a plane; the darker ellipse grounds the feet.
+            floorLight(size.width / 2f - imageWidth * 0.23f, floorY + imageHeight * 0.025f,
+                imageWidth * 0.82f, imageHeight * 0.20f, Color(0xFF008ED1).copy(alpha = 0.42f))
+            floorLight(size.width / 2f + imageWidth * 0.25f, floorY + imageHeight * 0.025f,
+                imageWidth * 0.72f, imageHeight * 0.18f, Color(0xFF7942DB).copy(alpha = 0.38f))
+            floorLight(size.width / 2f, floorY, imageWidth * 0.82f, imageHeight * 0.085f,
+                Color.Black.copy(alpha = 0.85f))
+        }
+        Image(
+            piggy,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize().padding(bottom = 20.dp),
+        )
     }
 }
 

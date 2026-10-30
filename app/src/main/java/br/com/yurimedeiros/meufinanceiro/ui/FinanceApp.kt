@@ -1,7 +1,10 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
@@ -54,7 +57,6 @@ import br.com.yurimedeiros.meufinanceiro.importing.MovementRepository
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -102,7 +104,12 @@ internal fun FinanceApp(
     deviceSecure: Boolean,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+    val pager = rememberPagerState(pageCount = { Sections.size })
+    val navigationScope = rememberCoroutineScope()
+    val selected = pager.currentPage
+    val navigateTo: (Int) -> Unit = { page ->
+        navigationScope.launch { pager.animateScrollToPage(page) }
+    }
     var settings by rememberSaveable { mutableStateOf(false) }
     var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
     var batchCategoryOpen by remember { mutableStateOf(false) }
@@ -123,7 +130,6 @@ internal fun FinanceApp(
         selectedMovementIds = selectedMovementIds.intersect(eligibleIds)
         if (selectedMovementIds.isEmpty()) batchCategoryOpen = false
     }
-    val contentScroll = remember(selected, settings) { ScrollState(0) }
     val backdrop = rememberGraphicsLayer()
     var contentPosition by remember { mutableStateOf(Offset.Zero) }
     var navigationPosition by remember { mutableStateOf(Offset.Zero) }
@@ -190,7 +196,7 @@ internal fun FinanceApp(
                                                         .selectable(
                                                             selected = active,
                                                             role = Role.Tab,
-                                                            onClick = { selected = index },
+                                                            onClick = { navigateTo(index) },
                                                         ),
                                                     horizontalAlignment = Alignment.CenterHorizontally,
                                                     verticalArrangement = Arrangement.Center,
@@ -218,57 +224,70 @@ internal fun FinanceApp(
                     },
                 ) { insets ->
                     Box(Modifier.fillMaxSize()) {
-                        Column(
-                            Modifier.fillMaxSize()
-                                .onGloballyPositioned { contentPosition = it.positionInRoot() }
-                                .drawWithContent {
-                                    backdrop.record { this@drawWithContent.drawContent() }
-                                    drawLayer(backdrop)
-                                }
-                                .background(Color(0xFF070D20))
-                                .padding(top = insets.calculateTopPadding())
-                                .verticalScroll(contentScroll)
-                                .padding(bottom = insets.calculateBottomPadding())
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            if (settings) {
-                                TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
-                                    Text("Voltar")
-                                }
-                                ScreenTitle("Configurações", "Um espaço só seu.")
-                                SecurityCard(state.createdAtMillis)
-                                InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
-                                OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
-                                    Text("Bloquear agora")
-                                }
-                                Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            } else {
-                                val section = Sections[selected]
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                    if (selected == 1) {
-                                        IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
-                                            Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
-                                        }
-                                    } else if (selected == 0) {
-                                        IconButton(onClick = { settings = true }) {
-                                            Icon(SettingsIcon, contentDescription = "Configurações")
+                        HorizontalPager(
+                            state = pager,
+                            modifier = Modifier.fillMaxSize(),
+                            // Avoid changing menus during batch selection or settings.
+                            userScrollEnabled = !settings && selectedMovementIds.isEmpty() && !batchCategoryOpen,
+                            key = { it },
+                        ) { page ->
+                            val contentScroll = rememberScrollState()
+                            Column(
+                                Modifier.fillMaxSize()
+                                    .onGloballyPositioned { if (page == selected) contentPosition = it.positionInRoot() }
+                                    .drawWithContent {
+                                        if (page == selected) {
+                                            backdrop.record { this@drawWithContent.drawContent() }
+                                            drawLayer(backdrop)
+                                        } else {
+                                            drawContent()
                                         }
                                     }
+                                    .background(Color(0xFF070D20))
+                                    .padding(top = insets.calculateTopPadding())
+                                    .verticalScroll(contentScroll)
+                                    .padding(bottom = insets.calculateBottomPadding())
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                if (settings) {
+                                    TextButton(onClick = { settings = false }, contentPadding = PaddingValues(0.dp)) {
+                                        Text("Voltar")
+                                    }
+                                    ScreenTitle("Configurações", "Um espaço só seu.")
+                                    SecurityCard(state.createdAtMillis)
+                                    InfoCard("Google e recuperação", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos seus extratos. Os dados ficam cifrados neste aparelho; backup e restauração ainda estão pendentes.")
+                                    OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Bloquear agora")
+                                    }
+                                    Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    val section = Sections[page]
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                        if (page == 1) {
+                                            IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
+                                                Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
+                                            }
+                                        } else if (page == 0) {
+                                            IconButton(onClick = { settings = true }) {
+                                                Icon(SettingsIcon, contentDescription = "Configurações")
+                                            }
+                                        }
+                                    }
+                                    when (page) {
+                                        0 -> OverviewScreen(state, onMovements = { navigateTo(1) })
+                                        1 -> MovementsScreen(
+                                            state, model, selectedMovementIds,
+                                            onSelectionChange = { selectedMovementIds = it },
+                                        )
+                                        2 -> PeopleScreen(state, model)
+                                        3 -> PlannedScreen("Planejamento")
+                                        4 -> PlannedScreen("Patrimônio")
+                                    }
                                 }
-                                when (selected) {
-                                    0 -> OverviewScreen(state, onMovements = { selected = 1 })
-                                    1 -> MovementsScreen(
-                                        state, model, selectedMovementIds,
-                                        onSelectionChange = { selectedMovementIds = it },
-                                    )
-                                    2 -> PeopleScreen(state, model)
-                                    3 -> PlannedScreen("Planejamento")
-                                    4 -> PlannedScreen("Patrimônio")
-                                }
+                                Spacer(Modifier.height(8.dp))
                             }
-                            Spacer(Modifier.height(8.dp))
                         }
                         if (!settings && selected == 1 && state.movements.isEmpty()) {
                             Box(

@@ -125,7 +125,9 @@ internal fun FinanceApp(
                     val freshHolder = rememberSaveableStateHolder()
                     val drafts = model.sessionDrafts { SessionDrafts(freshHolder) }
                     drafts.holder.SaveableStateProvider(FINANCE_DRAFT_KEY) {
-                        FinanceContent(state, model, onRefresh, onBackupAuthorize)
+                        SessionDraftScope {
+                            FinanceContent(state, model, onRefresh, onBackupAuthorize)
+                        }
                     }
                 }
             }
@@ -296,7 +298,10 @@ private fun FinanceContent(
                                         SecurityCard(state.createdAtMillis)
                                         InfoCard("Google", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos extratos. O backup usa somente a área privada do aplicativo no Drive.")
                                         // Recovery inputs and TextField internals must never enter the draft cache.
-                                        CompositionLocalProvider(LocalSaveableStateRegistry provides null) {
+                                        CompositionLocalProvider(
+                                            LocalSaveableStateRegistry provides null,
+                                            LocalSessionDraftRegistry provides null,
+                                        ) {
                                             BackupSettings(state, model, onBackupAuthorize)
                                         }
                                         OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {

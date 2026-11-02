@@ -44,7 +44,7 @@ internal fun LedgerDialog(
     confirmLabel: String = "Confirmar", confirm: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    AlertDialog(
+    SessionAlertDialog(
         onDismissRequest = { if (!state.syncing) close() }, title = { Text(title) },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             content()

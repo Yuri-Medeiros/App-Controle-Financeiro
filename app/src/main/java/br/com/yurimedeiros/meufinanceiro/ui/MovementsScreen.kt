@@ -389,7 +389,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
     if (financeOpen) MovementFinanceDialog(movement, state, model) { financeOpen = false }
     if (descriptionOpen) {
-        AlertDialog(
+        SessionAlertDialog(
             onDismissRequest = { descriptionOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),
@@ -488,7 +488,7 @@ internal fun BatchCategoryDialog(
     onConfirm: (String) -> Unit,
 ) {
     var category by rememberDraft { mutableStateOf("") }
-    AlertDialog(
+    SessionAlertDialog(
         onDismissRequest = { if (enabled) onDismiss() },
         shape = RoundedCornerShape(22.dp),
         containerColor = Color(0xFF080F24),
@@ -572,7 +572,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
         }
     }
     if (customOpen) {
-        AlertDialog(
+        SessionAlertDialog(
             onDismissRequest = { customOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),

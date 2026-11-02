@@ -28,6 +28,8 @@ internal object SessionDraftsCheck {
         val recomposer = Recomposer(EmptyCoroutineContext)
         val composition = Composition(NoUiApplier(), recomposer)
         val registry = SaveableStateRegistry(null) { true }
+        // Android Dialogs override the ambient registry. Drafts must ignore that registry.
+        val dialogRegistry = SaveableStateRegistry(null) { false }
         var holder: SaveableStateHolder? = null
         var field: MutableState<String>? = null
         var allocations: MutableMap<Long, String>? = null
@@ -37,14 +39,19 @@ internal object SessionDraftsCheck {
                     val fresh = rememberSaveableStateHolder()
                     if (holder == null) holder = fresh
                     if (visible) holder!!.SaveableStateProvider(FINANCE_DRAFT_KEY) {
-                        field = rememberDraft { mutableStateOf("") }
-                        allocations = rememberDraft { mutableStateMapOf<Long, String>() }
+                        SessionDraftScope {
+                            CompositionLocalProvider(LocalSaveableStateRegistry provides dialogRegistry) {
+                                field = rememberDraft { mutableStateOf("") }
+                                allocations = rememberDraft { mutableStateMapOf<Long, String>() }
+                            }
+                        }
                     }
                 }
             }
         }
         try {
             render(true)
+            check(dialogRegistry.performSave().isEmpty())
             field!!.value = "Compra compartilhada"
             allocations!![7L] = "123,45"
             render(false)
@@ -56,6 +63,12 @@ internal object SessionDraftsCheck {
             render(true)
             check(field!!.value.isEmpty())
             check(allocations!!.isEmpty())
+            // Manual lock/expiration can happen before Compose removes the visible provider.
+            field!!.value = "Rascunho que deve ser descartado"
+            SessionDrafts(holder!!).clear()
+            render(false)
+            render(true)
+            check(field!!.value.isEmpty())
         } finally {
             composition.dispose()
             recomposer.cancel()

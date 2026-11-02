@@ -43,7 +43,7 @@ internal data class LedgerSnapshot(
     val usedMovementIds: Set<Long> get() = buildSet {
         purchases.forEach { p -> p.parts.forEach { if (it.movementId > 0) add(it.movementId) } }
         actions.forEach { a -> when (a) {
-            is LedgerAction.Asset -> (a.change as? AssetChange.Transfer)?.let { add(it.movementId) }
+            is LedgerAction.Asset -> (a.change as? AssetChange.Transfer)?.let { if (it.movementId > 0) add(it.movementId) }
             is LedgerAction.CardCredit -> add(a.movementId)
             is LedgerAction.FlashCredit -> add(a.movementId)
             is LedgerAction.ForecastMatch -> add(a.movementId)

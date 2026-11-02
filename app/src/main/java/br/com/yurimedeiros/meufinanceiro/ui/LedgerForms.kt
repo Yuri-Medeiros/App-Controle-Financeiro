@@ -32,7 +32,7 @@ internal fun LedgerChoice(label: String, value: String, options: List<Pair<Strin
     var open by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape) { Text("$label: $value") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open && LocalFinanceInteractive.current, onDismissRequest = { open = false }) {
             options.forEach { (text, action) -> DropdownMenuItem(text = { Text(text) }, onClick = { action(); open = false }) }
         }
     }
@@ -44,7 +44,7 @@ internal fun LedgerDialog(
     confirmLabel: String = "Confirmar", confirm: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    AlertDialog(
+    if (LocalFinanceInteractive.current) AlertDialog(
         onDismissRequest = { if (!state.syncing) close() }, title = { Text(title) },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             content()

@@ -62,6 +62,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -75,6 +78,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DateFormat
 import java.util.Date
+
+internal val LocalFinanceInteractive = androidx.compose.runtime.compositionLocalOf { true }
 
 private data class Section(val title: String, val navigation: String, val description: String, val icon: ImageVector)
 private fun symbol(name: String, path: String): ImageVector = ImageVector.Builder(
@@ -106,6 +111,8 @@ internal fun FinanceApp(
     deviceSecure: Boolean,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(state.unlocked, state.visible) { if (!state.unlocked || !state.visible) keyboard?.hide() }
     val pager = rememberPagerState(pageCount = { Sections.size })
     val navigationScope = rememberCoroutineScope()
     val selected = pager.currentPage
@@ -116,13 +123,13 @@ internal fun FinanceApp(
     var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
     var batchCategoryOpen by remember { mutableStateOf(false) }
     LaunchedEffect(selected, settings, state.unlocked, state.visible) {
-        if (selected != 1 || settings || !state.unlocked || !state.visible) {
+        if (selected != 1 || settings) {
             selectedMovementIds = emptySet()
             batchCategoryOpen = false
         }
     }
-    BackHandler(enabled = settings) { settings = false; model.cancelRestore() }
-    BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen) {
+    BackHandler(enabled = settings && state.unlocked && state.visible) { settings = false; model.cancelRestore() }
+    BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen && state.unlocked && state.visible) {
         selectedMovementIds = emptySet()
     }
     LaunchedEffect(state.movements) {
@@ -138,14 +145,16 @@ internal fun FinanceApp(
     var navigationPosition by remember { mutableStateOf(Offset.Zero) }
     val customCategories = (state.movements.map { it.category } + state.ledger.purchases.map { it.category } +
         state.ledger.planning.budgets.keys + state.ledger.planning.expenses.map { it.category }).filter { it.isNotBlank() }.distinct().sorted()
-    CompositionLocalProvider(LocalCustomCategories provides customCategories) {
+    CompositionLocalProvider(LocalCustomCategories provides customCategories, LocalFinanceInteractive provides (state.unlocked && state.visible)) {
         FinanceTheme {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 when {
-                    !state.visible -> Box(Modifier.fillMaxSize())
-                    !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
-                    else -> Scaffold(
-                        modifier = Modifier.background(Color(0xFF070D20)),
+                    !state.unlocked && !state.resumeAvailable -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                    else -> Box(Modifier.fillMaxSize()) {
+                    Scaffold(
+                        modifier = Modifier.background(Color(0xFF070D20)).then(
+                            if (!state.unlocked || !state.visible) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier
+                        ),
                         containerColor = Color.Transparent,
                         bottomBar = {
                             if (!settings) {
@@ -327,6 +336,18 @@ internal fun FinanceApp(
                                     },
                                 )
                             }
+                            state.custody.firstOrNull()?.let { statement ->
+                                LedgerDialog("Revisar investimentos · ${statement.date}", state, { model.dismissCustody() }, confirm = { model.confirmCustody() }) {
+                                    Text("Saldo líquido estimado será usado no patrimônio. Não cria movimentações bancárias.")
+                                    statement.positions.forEach { p ->
+                                        Text(p.name, style = MaterialTheme.typography.titleSmall)
+                                        Text(p.description)
+                                        Text("Bruto ${ledgerMoney(p.gross)} · líquido ${ledgerMoney(p.net)}")
+                                    }
+                                    Text("Total bruto ${ledgerMoney(statement.gross)} · líquido ${ledgerMoney(statement.net)}")
+                                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                }
+                            }
                             state.importNotification?.let { notification ->
                                 ImportNotificationPopup(
                                     notification = notification,
@@ -337,6 +358,13 @@ internal fun FinanceApp(
                                 )
                             }
                         }
+                    }
+                    if (!state.unlocked || !state.visible) Surface(Modifier.fillMaxSize().then(Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                    })) {
+                        if (state.visible) LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                        else Box(Modifier.fillMaxSize())
+                    }
                     }
                 }
             }

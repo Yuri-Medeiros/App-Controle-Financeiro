@@ -78,7 +78,7 @@ internal fun MovementsScreen(
                 Text(if (accountsOpen) "⌃" else "⌄", color = NeonPalette[0])
             }
             DropdownMenu(
-                expanded = accountsOpen,
+                expanded = accountsOpen && LocalFinanceInteractive.current,
                 onDismissRequest = { accountsOpen = false },
                 modifier = Modifier.width(maxWidth),
                 shape = accountShape,
@@ -384,7 +384,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
     if (financeOpen) MovementFinanceDialog(movement, state, model) { financeOpen = false }
     if (descriptionOpen) {
-        AlertDialog(
+        if (LocalFinanceInteractive.current) AlertDialog(
             onDismissRequest = { descriptionOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),
@@ -457,7 +457,7 @@ private fun PeriodDropdown(
             Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
         }
         DropdownMenu(
-            expanded = expanded, onDismissRequest = { expanded = false },
+            expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false },
             modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
             shape = FinanceInputShape,
             containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
@@ -483,7 +483,7 @@ internal fun BatchCategoryDialog(
     onConfirm: (String) -> Unit,
 ) {
     var category by remember { mutableStateOf("") }
-    AlertDialog(
+    if (LocalFinanceInteractive.current) AlertDialog(
         onDismissRequest = { if (enabled) onDismiss() },
         shape = RoundedCornerShape(22.dp),
         containerColor = Color(0xFF080F24),
@@ -538,7 +538,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
             Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
         }
         DropdownMenu(
-            expanded = expanded && enabled,
+            expanded = expanded && enabled && LocalFinanceInteractive.current,
             onDismissRequest = { expanded = false },
             modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
             shape = FinanceInputShape,
@@ -567,7 +567,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
         }
     }
     if (customOpen) {
-        AlertDialog(
+        if (LocalFinanceInteractive.current) AlertDialog(
             onDismissRequest = { customOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),

@@ -1,5 +1,6 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.assets.*
 import br.com.yurimedeiros.meufinanceiro.ledger.*
 import br.com.yurimedeiros.meufinanceiro.backup.*
 import android.app.Application
@@ -26,6 +27,9 @@ import kotlinx.coroutines.withContext
 
 internal data class FinanceUiState(
     val unlocked: Boolean = false,
+    val resumeAvailable: Boolean = false,
+    val custody: List<CustodyStatement> = emptyList(),
+    val quoting: Boolean = false,
     val opening: Boolean = false,
     val visible: Boolean = true,
     val createdAtMillis: Long? = null,
@@ -49,6 +53,9 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     val state = mutableState.asStateFlow()
     private val timeout = SessionTimeout()
     private var expirationJob: Job? = null
+    private var cacheJob: Job? = null
+    private val resumeWindow = br.com.yurimedeiros.meufinanceiro.security.ResumeWindow()
+    private var quoteAttemptAt: Long? = null
     private var session: SecureDatabaseSession? = null
     @Volatile private var generation = 0L
     private val databaseGuard = Any()
@@ -80,10 +87,12 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                 transferred = true
                 mutableState.value = mutableState.value.copy(
                     unlocked = true,
+                    resumeAvailable = false,
                     opening = false,
                     createdAtMillis = session!!.createdAtMillis,
                     error = null,
                 )
+                cacheJob?.cancel(); resumeWindow.clear()
                 refresh()
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -131,6 +140,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)
         viewModelScope.launch {
             val reviews = mutableListOf<StatementReview>()
+            val custody = state.value.custody.toMutableList()
             var importedCount = 0
             var skipped = 0
             var failed = false
@@ -147,6 +157,17 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                         synchronized(databaseGuard) {
                             check(attempt == generation)
                             check(reviews.size < 20) { "Confirme as referências das faturas e atualize novamente para continuar." }
+                            if (document.custody) {
+                                val parsed = CustodyPdf.read(document.bytes, getApplication<Application>().cacheDir)
+                                val book = LedgerRepository(checkNotNull(session).database).snapshot().assets
+                                val actions = try { CustodyStatements.actions(parsed, book) }
+                                    catch (_: IllegalArgumentException) { return@read } // An older email must not overwrite newer holdings.
+                                if (actions.isNotEmpty() && parsed !in custody) {
+                                    check(custody.size < 20)
+                                    custody += parsed
+                                }
+                                return@read
+                            }
                             val result = MovementRepository(checkNotNull(session).database).importWithCount(document)
                             importedCount += result.importedCount
                             result.review?.let(reviews::add)
@@ -162,6 +183,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                     mutableState.value = mutableState.value.copy(
                         syncing = false,
                         statements = reviews.toList(),
+                        custody = custody.sortedByDescending { it.date },
                         importNotification = if (cancelled) null else ImportNotification(
                             id = ++notificationId,
                             failed = failed,
@@ -173,6 +195,55 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                     refresh()
                 }
             }
+        }
+    }
+
+    fun dismissCustody() {
+        if (state.value.unlocked && !state.value.syncing) mutableState.value = state.value.copy(custody = state.value.custody.drop(1))
+    }
+
+    fun confirmCustody() {
+        if (!state.value.unlocked || state.value.syncing) return
+        val statement = state.value.custody.firstOrNull() ?: return
+        val attempt = generation
+        mutableState.value = state.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    val db = checkNotNull(session).database
+                    db.runInTransaction {
+                        val repo = LedgerRepository(db)
+                        CustodyStatements.actions(statement, repo.snapshot().assets).forEach(repo::append)
+                    }
+                } }
+                if (attempt == generation) mutableState.value = state.value.copy(custody = state.value.custody.drop(1))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (attempt == generation) showError("Não foi possível importar o PDF. Verifique se o extrato é mais recente. Nenhum saldo foi alterado.") }
+            finally { if (attempt == generation) { mutableState.value = state.value.copy(syncing = false); refresh() } }
+        }
+    }
+
+    fun refreshBitcoin() {
+        if (!state.value.unlocked || !state.value.visible || state.value.quoting) return
+        val asset = state.value.ledger.assets.assets.firstOrNull { it.kind == AssetKind.BITCOIN && !it.disposed } ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (quoteAttemptAt?.let { now - it in 0..59_999L } == true) return
+        quoteAttemptAt = now
+        val attempt = generation
+        mutableState.value = state.value.copy(quoting = true, error = null)
+        viewModelScope.launch {
+            try {
+                val quote = withContext(Dispatchers.IO) { BitcoinQuotes.fetch() }
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    LedgerRepository(checkNotNull(session).database).append(LedgerAction.Asset(
+                        AssetChange.Quote(asset.id, 0, quote.price, quote.timestamp, "Mercado Bitcoin · BTC/BRL")))
+                } }
+                if (attempt == generation) refresh()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (attempt == generation) showError("Cotação do Bitcoin indisponível. A última avaliação foi preservada com sua data.") }
+            finally { if (attempt == generation) mutableState.value = state.value.copy(quoting = false) }
         }
     }
 
@@ -496,30 +567,46 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
 
     fun onBackground(now: Long = SystemClock.elapsedRealtime()) {
         mutableState.value = mutableState.value.copy(visible = false)
+        if (state.value.unlocked) resumeWindow.start(now)
         timeout.background(now)
         backupJob?.cancel()
         expirationJob?.cancel()
         expirationJob = viewModelScope.launch {
             delay(timeout.remaining(now))
-            lock()
+            lock(preserveAction = true)
         }
     }
 
     fun onForeground(now: Long = SystemClock.elapsedRealtime()) {
         expirationJob?.cancel()
-        if (timeout.expired(now)) lock()
+        if (state.value.unlocked && timeout.expired(now)) lock(preserveAction = true)
+        if (state.value.resumeAvailable && resumeWindow.remaining(now) == 0L) clearResume()
         timeout.foreground()
+        if (state.value.unlocked) resumeWindow.clear()
         mutableState.value = mutableState.value.copy(visible = true)
         scheduleBackup()
     }
 
-    fun lock() {
+    private fun clearResume() {
+        cacheJob?.cancel(); cacheJob = null; resumeWindow.clear()
+        if (!state.value.unlocked) mutableState.value = FinanceUiState(visible = state.value.visible)
+    }
+
+    fun lock(preserveAction: Boolean = false) {
         generation++
         clearBackupSecrets()
         expirationJob?.cancel()
         val previous = session
         session = null
-        mutableState.value = FinanceUiState(visible = mutableState.value.visible)
+        val remaining = resumeWindow.remaining(SystemClock.elapsedRealtime())
+        val old = mutableState.value
+        mutableState.value = if (preserveAction && remaining in 1..300_000L) FinanceUiState(
+            visible = old.visible, resumeAvailable = true, createdAtMillis = old.createdAtMillis,
+            movements = old.movements, people = old.people, ledger = old.ledger, statements = old.statements, custody = old.custody,
+        ) else FinanceUiState(visible = old.visible)
+        cacheJob?.cancel()
+        if (state.value.resumeAvailable) cacheJob = viewModelScope.launch { delay(remaining); clearResume() }
+        else resumeWindow.clear()
         // Close now: a canceled ViewModel scope must not drop a queued cleanup.
         // Serialize closure with any document transaction already in progress.
         synchronized(databaseGuard) { previous?.close() }

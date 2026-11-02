@@ -112,6 +112,7 @@ internal object BackupPayload {
             is LedgerAction.CardCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.NUBANK_CARD && source.cents < 0 && !PaymentMatching.isPayment(source)) }
             is LedgerAction.FlashCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.FLASH && source.cents == 15000L && source.date == a.sunday) }
             is LedgerAction.Asset -> (a.change as? br.com.yurimedeiros.meufinanceiro.assets.AssetChange.Transfer)?.let { transfer ->
+                if (transfer.movementId == 0L) return@let // FGTS-only validation is performed by ledger replay.
                 val source = sourceRows.getValue(transfer.movementId)
                 require(source.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(source) && abs(source.cents) == transfer.bankCents && source.date == transfer.date)
                 require(if (transfer.kind == br.com.yurimedeiros.meufinanceiro.assets.AssetTransferKind.CONTRIBUTION) source.cents < 0 else source.cents > 0)

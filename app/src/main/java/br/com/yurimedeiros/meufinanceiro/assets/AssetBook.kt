@@ -30,12 +30,21 @@ internal sealed interface AssetChange {
 }
 internal data class AssetBook(val assets: List<AssetPosition> = emptyList(), val goal: GoalSettings = GoalSettings(), val history: List<AssetChange> = emptyList())
 internal object AssetRules {
+    fun validateNew(book: AssetBook, change: AssetChange) {
+        when (change) {
+            is AssetChange.Register -> if (change.asset.kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
+                require(book.assets.none { it.kind == change.asset.kind }) { "Já existe um cadastro desse tipo. Use aportes e saques." }
+            }
+            is AssetChange.Confirm -> require(book.assets.single { it.id == change.id }.kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) { "Use aportes e saques para alterar o saldo." }
+            else -> Unit
+        }
+    }
     fun satoshis(text: String): Long = BigDecimal(text.trim().replace(',', '.')).movePointRight(8).longValueExact().also { require(it >= 0) }
     fun apply(book: AssetBook, change: AssetChange): AssetBook {
         var assets = book.assets; var goal = book.goal
         when (change) {
             is AssetChange.Register -> {
-                val a = change.asset
+                val a = change.asset.let { if (it.kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) it.copy(name = if (it.kind == AssetKind.FGTS) "FGTS" else "Bitcoin") else it }
                 require(a.id.isNotBlank() && a.name.isNotBlank() && assets.none { it.id == a.id })
                 require(a.cents >= 0 && a.satoshis >= 0)
                 assets = assets + a
@@ -53,9 +62,9 @@ internal object AssetRules {
             }
             is AssetChange.Transfer -> {
                 val a = assets.single { it.id == change.id }
-                require(change.movementId > 0 && change.bankCents > 0 && change.feesCents >= 0)
-                require(a.kind != AssetKind.FGTS)
-                require(book.history.filterIsInstance<AssetChange.Transfer>().none { it.movementId == change.movementId })
+                require((change.movementId > 0 || (a.kind == AssetKind.FGTS && change.movementId == 0L)) && change.bankCents > 0 && change.feesCents >= 0)
+                if (a.kind == AssetKind.FGTS) require(change.feesCents == 0L && !change.includedInBalance && change.kind != AssetTransferKind.SALE)
+                require(book.history.filterIsInstance<AssetChange.Transfer>().none { change.movementId > 0 && it.movementId == change.movementId })
                 require(!a.disposed && (change.includedInBalance || change.date >= a.confirmedDate))
                 val outgoing = change.kind == AssetTransferKind.CONTRIBUTION
                 if (outgoing) require(change.feesCents < change.bankCents)

@@ -1,0 +1,36 @@
+Extrato de Custódia
+Custódia em: 02/11/2026
+NU INVESTIMENTOS
+Resumo da posição consolidada
+Tipo de investimento Saldo bruto (R$) IR (R$) IOF (R$) Saldo líquido (R$)
+Caixinhas 21.527,20 311,15 0,00 21.216,05
+Tesouro Direto 9.621,74 127,98 0,00 9.480,33
+Bolsa de Valores 5.301,30 0,00 0,00 5.301,30
+Total geral 36.450,24 439,13 0,00 35.997,68
+
+Custódia em Caixinhas
+Caixinha "Turbo Croma"
+Tipo de Ativo Emissor Saldo Bruto (R$) IR (R$) IOF (R$) Saldo Líquido (R$) Disponível em
+RDB Resgate Imediato Nubank 11.298,57 259,71 0,00 11.038,86 No mesmo dia
+Total 11.298,57 259,71 0,00 11.038,86
+Caixinha "Turbo NuCel"
+Tipo de Ativo Emissor Saldo Bruto (R$) IR (R$) IOF (R$) Saldo Líquido (R$) Disponível em
+RDB Resgate Imediato Nubank 10.228,63 51,44 0,00 10.177,19 No mesmo dia
+Total 10.228,63 51,44 0,00 10.177,19
+
+Custódia em Tesouro Direto
+Tipo de Ativo Vencimento Quantidade Valor aplicado (R$) Saldo bruto (R$) IR (R$) IOF (R$)
+Taxa B3 Estimada
+(R$)
+Saldo Líquido (R$) Disponível em
+Tesouro IPCA+
+2032
+15/08/2032 3,14 8.981,81 9.621,74 127,98 0,00 13,43 9.480,33 Até 1 dia útil
+Total 8.981,81 9.621,74 127,98 0,00 13,43 9.480,33
+
+Custódia em Bolsa de Valores
+Tipo de Ativo Emissor Quantidade Saldo bruto (R$) Disponível em
+Fundo de Índice (ETF) Trend IFIX-L (XFIX11) 100,00 1.288,00 Até 2 dias úteis
+Fundo de Índice (ETF) Trend LBMA Ouro (GOLD11) 70,00 1.532,30 Até 2 dias úteis
+Fundo de Índice (ETF) Ishares Ibovespa (BOVA11) 15,00 2.481,00 Até 2 dias úteis
+Total 5.301,30

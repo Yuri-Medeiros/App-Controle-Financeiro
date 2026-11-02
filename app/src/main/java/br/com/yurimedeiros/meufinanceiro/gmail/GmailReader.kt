@@ -7,7 +7,7 @@ import java.net.URI
 import java.net.URLEncoder
 import org.json.JSONObject
 
-internal data class MailDocument(val source: String, val filename: String, val kind: DocumentKind, val bytes: ByteArray)
+internal data class MailDocument(val source: String, val filename: String, val kind: DocumentKind, val bytes: ByteArray, val custody: Boolean = false)
 
 /** Token and attachments exist only in memory; no message bodies or credentials are logged. */
 internal class GmailReader(private val token: String, private val shouldContinue: () -> Boolean = { true }) {
@@ -28,7 +28,9 @@ internal class GmailReader(private val token: String, private val shouldContinue
                     .firstOrNull { it.optString("name").equals(name, true) }?.optString("value").orEmpty()
                 val from = header("From").trim().let { Regex("<([^<>]+)>").find(it)?.groupValues?.get(1) ?: it }.lowercase()
                 val subject = header("Subject").trim()
+                val custody = from == "todomundo@nubank.com.br" && subject == "Seu extrato de custódia de investimentos chegou"
                 val kind = when {
+                    custody -> DocumentKind.NUBANK_ACCOUNT
                     from == "noreply@flashapp.com.br" && subject == "Seu extrato Flash chegou!" -> DocumentKind.FLASH
                     from == "todomundo@nubank.com.br" && subject == "Extrato da sua conta do Nubank" -> DocumentKind.NUBANK_ACCOUNT
                     from == "todomundo@nubank.com.br" && subject == "Extrato da fatura do Cartão Nubank" -> DocumentKind.NUBANK_CARD
@@ -38,14 +40,14 @@ internal class GmailReader(private val token: String, private val shouldContinue
                 fun visit(part: JSONObject, path: String) {
                     val filename = part.optString("filename")
                     if (filename.isNotEmpty()) {
-                        if (!filename.endsWith(".csv", true)) { skipped++; return }
+                        if (!filename.endsWith(if (custody) ".pdf" else ".csv", true)) { skipped++; return }
                         val sourceKey = "$account:$id:$path"
                         if (!shouldRead(sourceKey)) return
                         val body = part.getJSONObject("body")
                         require(body.optLong("size") <= 10 * 1024 * 1024) { "Anexo acima do limite de 10 MB." }
                         val attachment = body.optString("attachmentId")
                         val encoded = if (attachment.isNotEmpty()) get("messages/$id/attachments/${encode(attachment)}").getString("data") else body.optString("data")
-                        consume(MailDocument(sourceKey, filename, kind, Base64.decode(encoded, Base64.URL_SAFE)))
+                        consume(MailDocument(sourceKey, filename, kind, Base64.decode(encoded, Base64.URL_SAFE), custody))
                     }
                     val parts = part.optJSONArray("parts")
                     for (j in 0 until (parts?.length() ?: 0)) visit(parts!!.getJSONObject(j), "$path.$j")

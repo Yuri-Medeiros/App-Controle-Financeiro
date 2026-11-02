@@ -16,6 +16,7 @@ internal fun BackupSettings(state: FinanceUiState, model: FinanceViewModel, auth
     // Deliberately not rememberSaveable: recovery passwords never enter saved instance state.
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
+    LaunchedEffect(state.unlocked) { if (!state.unlocked) { password = ""; confirmation = "" } }
     GlassPanel {
         Text("Backup e recuperação", style = MaterialTheme.typography.titleMedium)
         Text(if (state.backupEnabled) "Automático nesta sessão · mudanças agrupadas por 30 segundos" else "Senha de recuperação independente do bloqueio e da assinatura", style = MaterialTheme.typography.bodySmall)

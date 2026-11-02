@@ -395,6 +395,7 @@ private fun SecurityCard(createdAtMillis: Long?) {
             Text("Acesso por biometria ou credencial do Android", style = MaterialTheme.typography.bodyMedium)
             Text("Armazenamento criptografado neste aparelho", style = MaterialTheme.typography.bodyMedium)
             Text("Novo desbloqueio após 1 minuto fora do app", style = MaterialTheme.typography.bodyMedium)
+            Text("Retome o que estava preenchendo por até 5 minutos após o bloqueio automático", style = MaterialTheme.typography.bodyMedium)
             createdAtMillis?.let {
                 Text("Espaço criado em ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

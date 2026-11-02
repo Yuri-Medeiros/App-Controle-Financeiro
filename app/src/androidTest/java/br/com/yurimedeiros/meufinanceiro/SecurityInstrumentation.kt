@@ -30,6 +30,11 @@ class SecurityInstrumentation : Instrumentation() {
         val originalKey = ByteArray(32).also(SecureRandom()::nextBytes)
         var resultCode = Activity.RESULT_CANCELED
         try {
+            var draftCheck: Result<Unit>? = null
+            runOnMainSync {
+                draftCheck = runCatching { br.com.yurimedeiros.meufinanceiro.ui.SessionDraftsCheck.verify() }
+            }
+            checkNotNull(draftCheck).getOrThrow()
             context.deleteDatabase(name)
             System.loadLibrary("sqlcipher")
             // Create the real encrypted schema 1, then let Room validate and migrate it.
@@ -134,7 +139,7 @@ class SecurityInstrumentation : Instrumentation() {
                 }
             } finally { context.deleteDatabase(freshName) }
             recoveryData.fill(0)
-            result.putString("result", "PASS: backup restore and malformed backup rejection; financial history and shares order; people seed, uniqueness and persistence; encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
+            result.putString("result", "PASS: in-memory form restoration and draft discard; backup restore and malformed backup rejection; financial history and shares order; people seed, uniqueness and persistence; encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
             resultCode = Activity.RESULT_OK
         } catch (_: Exception) {
             result.putString("result", "FAIL: encrypted storage integration check")

@@ -11,12 +11,11 @@ import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.SaveableStateRegistry
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import org.junit.Assert.*
-import org.junit.Test
 import kotlin.coroutines.EmptyCoroutineContext
 
-class SessionDraftsTest {
-    // Exercise actual Compose save/dispose/restore, without an Activity, Bundle or disk.
+internal object SessionDraftsCheck {
+    // Runs on the Android main thread: exercises actual Compose disposal/restoration.
+    // No Activity, saved-instance-state Bundle, disk or user database is involved.
     private class NoUiApplier : AbstractApplier<Unit>(Unit) {
         override fun insertTopDown(index: Int, instance: Unit) = Unit
         override fun insertBottomUp(index: Int, instance: Unit) = Unit
@@ -25,7 +24,7 @@ class SessionDraftsTest {
         override fun onClear() = Unit
     }
 
-    @Test fun filledFormAndAllocationsSurviveRemovalForAuthentication() {
+    fun verify() {
         val recomposer = Recomposer(EmptyCoroutineContext)
         val composition = Composition(NoUiApplier(), recomposer)
         val registry = SaveableStateRegistry(null) { true }
@@ -50,13 +49,13 @@ class SessionDraftsTest {
             allocations!![7L] = "123,45"
             render(false)
             render(true)
-            assertEquals("Compra compartilhada", field!!.value)
-            assertEquals("123,45", allocations!![7L])
+            check(field!!.value == "Compra compartilhada")
+            check(allocations!![7L] == "123,45")
             render(false)
             SessionDrafts(holder!!).clear()
             render(true)
-            assertEquals("", field!!.value)
-            assertTrue(allocations!!.isEmpty())
+            check(field!!.value.isEmpty())
+            check(allocations!!.isEmpty())
         } finally {
             composition.dispose()
             recomposer.cancel()

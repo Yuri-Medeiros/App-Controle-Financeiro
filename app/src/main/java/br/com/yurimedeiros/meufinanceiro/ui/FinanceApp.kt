@@ -364,7 +364,8 @@ internal fun FinanceApp(
                         }
                     }
                     if (!state.unlocked || !state.visible) Surface(Modifier.fillMaxSize().then(Modifier.pointerInput(Unit) {
-                        awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                        // Keep the overlay in hit testing without consuming events from the unlock button.
+                        awaitPointerEventScope { while (true) awaitPointerEvent() }
                     })) {
                         if (state.visible) LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
                         else Box(Modifier.fillMaxSize())

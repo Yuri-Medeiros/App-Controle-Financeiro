@@ -9,12 +9,17 @@ import java.time.LocalTime
 import org.json.JSONObject
 
 internal data class ReviewMovement(val id: Long, val row: ImportedRow, val origin: String, val status: String, val category: String, val friendlyName: String, val confirmedAt: Long, val pairedMovementId: Long)
+internal data class MovementImportResult(val review: StatementReview?, val importedCount: Int)
 internal data class StatementReview(val source: MailDocument, val document: ParsedDocument)
 
 internal class MovementRepository(private val db: FinanceDatabase) {
     fun all(): List<ReviewMovement> = db.movements().all().map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
 
-    fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? {
+    fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? =
+        importWithCount(source, confirmed).review
+
+    fun importWithCount(source: MailDocument, confirmed: LocalDate? = null): MovementImportResult {
+        var importedCount = 0
         var review: StatementReview? = null
         db.runInTransaction {
             val dao = db.movements()
@@ -26,24 +31,30 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             }
             val rows = if (confirmed != null) ImportComparison.withStatement(document, confirmed) else document.rows
             val account = source.source.substringBefore(':')
-            val existing = all().filter { it.origin.startsWith("$account · ") }.map { it.row }
+            val accountMovements = all().filter { it.origin.startsWith("$account · ") }
+            val existing = accountMovements.map { it.row }
+            val friendlyNames = accountMovements.filter { it.friendlyName.isNotBlank() }
+                .sortedWith(compareBy<ReviewMovement> { it.confirmedAt }.thenBy { it.id })
+                .associate { FriendlyDescriptions.key(it.row) to it.friendlyName }
             ImportComparison.compare(rows, existing).filter { it.disposition != ImportDisposition.ALREADY_PRESENT }.forEach { compared ->
                 val movement = Movement().apply {
                     payload = encode(compared.row)
                     origin = "$account · ${source.filename}"
+                    friendlyName = friendlyNames[FriendlyDescriptions.key(compared.row)].orEmpty()
                     status = if (compared.disposition == ImportDisposition.CONFLICT_FOR_REVIEW) "CONFLICT" else "PENDING"
                 }
                 dao.insert(movement)
+                importedCount++
             }
             reconcilePayments()
             dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = confirmed?.toString().orEmpty() })
         }
-        return review
+        return MovementImportResult(review, importedCount)
     }
 
     private fun reconcilePayments() {
         val dao = db.movements()
-        val payments = dao.all().filter { it.status != "CONFLICT" }.map { it to decode(it.payload) }
+        val payments = dao.all().filter { it.status !in setOf("CONFLICT", "IGNORED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
             .filter { PaymentMatching.isPayment(it.second) }
         val pairs = PaymentMatching.pairs(payments.map { (item, row) -> PaymentCandidate(item.id, item.origin.substringBefore(" · "), row) })
         payments.forEach { (item, _) ->
@@ -51,6 +62,25 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             item.category = ""
             item.pairedMovementId = pairs[item.id] ?: 0
             dao.update(item)
+        }
+    }
+
+    fun saveFriendlyName(id: Long, friendlyName: String) {
+        val name = friendlyName.trim()
+        require(name.isNotBlank() && name.length <= 120)
+        db.runInTransaction {
+            val dao = db.movements()
+            val rows = dao.all()
+            val target = rows.firstOrNull { it.id == id } ?: error("Movimentação não encontrada.")
+            val account = target.origin.substringBefore(" · ")
+            val identity = FriendlyDescriptions.key(decode(target.payload))
+            rows.filter {
+                it.origin.substringBefore(" · ") == account &&
+                    FriendlyDescriptions.key(decode(it.payload)) == identity
+            }.forEach {
+                it.friendlyName = name
+                dao.update(it)
+            }
         }
     }
 
@@ -62,7 +92,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             require(chosen.size == ids.size && chosen.isNotEmpty())
             chosen.forEach {
                 val row = decode(it.payload)
-                require(it.status != "CONFLICT") { "Conflito exige revisão antes de salvar." }
+                require(it.status !in setOf("CONFLICT", "IGNORED", "REFUND", "FAMILY_PAYMENT", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT")) { "Este registro exige revisão financeira, não categorização de consumo." }
                 require(!needsSpecialReview(row)) { "Pagamentos e créditos de fatura aguardam conciliação; não são despesas de consumo." }
                 it.category = category.trim()
                 it.friendlyName = friendlyName.trim()
@@ -88,7 +118,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             put("sourceId", row.sourceId); put("time", row.time?.toString()); put("paymentMethod", row.paymentMethod)
             put("balance", row.balanceCents); put("statement", row.statement?.toString())
         }.toString()
-        private fun decode(json: String): ImportedRow = JSONObject(json).let { o ->
+        internal fun decode(json: String): ImportedRow = JSONObject(json).let { o ->
             fun nullable(key: String) = if (o.isNull(key) || !o.has(key)) null else o.getString(key)
             ImportedRow(DocumentKind.valueOf(o.getString("kind")), LocalDate.parse(o.getString("date")), o.getString("description"), o.getLong("cents"),
                 nullable("sourceId"), nullable("time")?.let(LocalTime::parse), nullable("paymentMethod"),

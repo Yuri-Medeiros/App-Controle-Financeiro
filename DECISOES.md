@@ -81,3 +81,16 @@ Os scripts em tools preparam infraestrutura e assinatura. A prova técnica inici
 - Projeto Google `meu-financeiro-513012`: Gmail API ativada pelo usuário, escopo gmail.readonly configurado e status Em produção confirmado por print. Dois clientes Android informados nos JSONs recebidos; pacotes/certificados fornecidos ao usuário. Concessão real no S23 ainda pendente.
 - Páginas públicas preparadas na PR #5, Pages ativado pelo usuário e implantação confirmada pelo GitHub. Não declarar aceite ou verificação Google concluídos a partir desse fato.
 - Não usar dados financeiros reais no repositório público. Não alterar certificados, pipeline ou autorizar publicação definitiva por conta própria.
+
+## Complexidades financeiras autorizadas — 30/10/2026
+
+O usuário autorizou desenvolver os requisitos pendentes de parcelamento, responsáveis, estornos e demais complexidades, mantendo o estilo atual e uma experiência simples. Essa autorização amplia a implementação; não autoriza inventar dados ou metodologias financeiras pendentes.
+
+Confirmações explícitas desta conversa:
+
+- Divisão de cada parcela pelos maiores restos, com ordem fixa de responsáveis para desempate e prévia obrigatória dos valores.
+- Sugestão de estorno proporcional à divisão original, com maiores restos para centavos, valores editáveis e confirmação antes de salvar.
+- Backup versionado AES-GCM com senha de recuperação independente da assinatura e prévia/confirmacão antes de restaurar.
+- Calendário de feriados oficiais da Prefeitura de Ribeirão Preto junto ao calendário bancário da Febraban, distinguindo pontos facultativos e exibindo fontes/ano. Datas fora do período validado exigem confirmação.
+
+Fontes de Bitcoin e FIPE foram submetidas separadamente à decisão. Ausência de resposta não equivale a aprovação. Metodologia de rendimento do FGTS e amostra do PDF continuam pendentes. Detalhes, limites e roteiro em DESENVOLVIMENTO_COMPLEXIDADES.md.

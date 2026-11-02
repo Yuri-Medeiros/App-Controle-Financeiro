@@ -75,3 +75,7 @@ Ao consolidar este planejamento, o remoto já tinha avançado até b2768ff com a
 ## Desenvolvimento autorizado em 28/10/2026
 
 A tela Movimentações será o primeiro fluxo funcional com Gmail/importação. Regras detalhadas da entrevista em ESPECIFICACAO_IMPORTACAO.md; configuração Google em CONFIGURACAO_GOOGLE.md; progresso e testes em DESENVOLVIMENTO_MOVIMENTACOES.md. O trabalho manual cancelado permanece preservado no worktree antigo e não foi enviado. O desenvolvimento ativo usa feat/movimentacoes-gmail, preservando a continuidade de work e feat/primeiro-apk.
+
+## Continuação autorizada — 30/10/2026
+
+Desenvolvimento dos fluxos financeiros e recuperação na PR #9, versão 0.8.0. Ver DESENVOLVIMENTO_COMPLEXIDADES.md para o estado atual, fontes aprovadas, modelo de persistência e pendências. As seções de estado de 27/10 acima são históricas: não descrevem os módulos agora implementados. Não confundir código/testes locais com candidato instalado ou aprovado.

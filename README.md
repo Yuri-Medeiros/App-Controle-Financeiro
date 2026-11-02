@@ -11,7 +11,7 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 - Tema escuro com paleta roxa, cartões em degradê e destaques em ciano. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 
-Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Planejamento financeiro, backup/recuperação e patrimônio permanecem pendentes. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
+Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Responsáveis, parcelas, pagamentos, estornos, planejamento, patrimônio manual e backup cifrado foram implementados na continuação da PR #9; veja [o estado detalhado](DESENVOLVIMENTO_COMPLEXIDADES.md). Cotações externas, metodologia de projeção do FGTS e importação do PDF ainda têm pendências explícitas. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
 
 ## Atualizar pelo PC ou pelo celular
 
@@ -46,7 +46,7 @@ O teste Android usa Instrumentation do sistema e banco separado para conferir Ro
 
 ## Segurança operacional
 
-O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos e transferência do Android estão desabilitados para evitar copiar banco sem a chave local não transferível. O backup criptografado no Drive aprovado ainda não está implementado. Não há botão que apague o banco ou regenere sua chave diante de falha de abertura.
+O arquivo com a chave cifrada fica em `noBackupFilesDir`. Backups automáticos do Android e transferência entre aparelhos pelo sistema estão desabilitados para evitar copiar banco sem a chave local não transferível. O backup criptografado e recuperação no Drive estão implementados, mas dependem de configuração OAuth/Drive e validação real em instalação limpa. A senha de recuperação e o token não são persistidos entre sessões bloqueadas. Não há botão que apague o banco ou regenere sua chave diante de falha de abertura.
 
 Capturas de tela são permitidas por solicitação do usuário; a prévia na lista de aplicativos recentes também pode exibir o conteúdo da tela. A permissão de internet permite consultar o Gmail mediante autorização explícita de leitura. O token fica em memória e os anexos são processados no aparelho.
 

@@ -29,7 +29,7 @@ internal fun neonGradient(alpha: Float = 1f): Brush = object : ShaderBrush() {
     }
 }
 
-internal val GlassBorder: Brush = Brush.linearGradient(listOf(Color.White.copy(alpha = 0.46f), NeonPalette[0].copy(alpha = 0.20f), NeonPalette[4].copy(alpha = 0.42f)))
+internal val GlassBorder: Brush = SolidColor(Color(0xFF8298B3).copy(alpha = 0.65f))
 
 internal fun Modifier.glassSurface(highlighted: Boolean = false): Modifier =
     background(Color(0xFF080F24).copy(alpha = if (highlighted) 0.58f else 0.72f))

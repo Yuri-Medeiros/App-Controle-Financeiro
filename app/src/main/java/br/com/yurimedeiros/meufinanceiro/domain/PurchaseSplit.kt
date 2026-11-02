@@ -19,6 +19,11 @@ internal object PurchaseSplit {
         return allocate(totalCents, percentages.map { it.setScale(scale).unscaledValue() })
     }
 
+    fun proportionally(totalCents: Long, weights: List<Long>): List<Long> {
+        require(weights.isNotEmpty() && weights.all { it >= 0 } && weights.any { it > 0 })
+        return allocate(totalCents, weights.map(BigInteger::valueOf))
+    }
+
     private fun allocate(totalCents: Long, weights: List<BigInteger>): List<Long> {
         require(totalCents >= 0)
         val denominator = weights.fold(BigInteger.ZERO, BigInteger::add)

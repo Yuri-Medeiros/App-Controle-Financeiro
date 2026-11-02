@@ -162,8 +162,9 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                                 val book = LedgerRepository(checkNotNull(session).database).snapshot().assets
                                 val actions = try { CustodyStatements.actions(parsed, book) }
                                     catch (_: IllegalArgumentException) { return@read } // An older email must not overwrite newer holdings.
-                                if (actions.isNotEmpty() && parsed !in custody) {
-                                    check(custody.size < 20)
+                                if (actions.isNotEmpty() && custody.none { it.date >= parsed.date }) {
+                                    // Custody is a complete snapshot: do not offer obsolete snapshots after the newest one.
+                                    custody.clear()
                                     custody += parsed
                                 }
                                 return@read

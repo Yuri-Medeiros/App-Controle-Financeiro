@@ -64,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -112,7 +113,10 @@ internal fun FinanceApp(
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    LaunchedEffect(state.unlocked, state.visible) { if (!state.unlocked || !state.visible) keyboard?.hide() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(state.unlocked, state.visible) {
+        if (!state.unlocked || !state.visible) { focusManager.clearFocus(force = true); keyboard?.hide() }
+    }
     val pager = rememberPagerState(pageCount = { Sections.size })
     val navigationScope = rememberCoroutineScope()
     val selected = pager.currentPage
@@ -152,7 +156,7 @@ internal fun FinanceApp(
                     !state.unlocked && !state.resumeAvailable -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
                     else -> Box(Modifier.fillMaxSize()) {
                     Scaffold(
-                        modifier = Modifier.background(Color(0xFF070D20)).then(
+                        modifier = Modifier.background(Color(0xFF070D20)).focusProperties { canFocus = state.unlocked && state.visible }.then(
                             if (!state.unlocked || !state.visible) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier
                         ),
                         containerColor = Color.Transparent,

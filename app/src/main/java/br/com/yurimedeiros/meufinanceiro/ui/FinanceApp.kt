@@ -59,7 +59,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
+import androidx.compose.runtime.saveable.SaveableStateRegistry
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,17 +109,48 @@ internal fun FinanceApp(
     deviceSecure: Boolean,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    // This registry is deliberately detached from Android's saved-instance-state registry.
+    // Draft objects stay in this process and are never serialized to disk or a Bundle.
+    val memoryRegistry = remember { SaveableStateRegistry(null) { true } }
+    CompositionLocalProvider(LocalSaveableStateRegistry provides memoryRegistry) {
+        key(state.draftEpoch) {
+            when {
+                !state.visible -> Box(Modifier.fillMaxSize())
+                !state.unlocked -> FinanceTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                    }
+                }
+                else -> {
+                    val freshHolder = rememberSaveableStateHolder()
+                    val drafts = model.sessionDrafts { SessionDrafts(freshHolder) }
+                    drafts.holder.SaveableStateProvider(FINANCE_DRAFT_KEY) {
+                        FinanceContent(state, model, onRefresh, onBackupAuthorize)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceContent(
+    state: FinanceUiState,
+    model: FinanceViewModel,
+    onRefresh: () -> Unit,
+    onBackupAuthorize: () -> Unit,
+) {
     val pager = rememberPagerState(pageCount = { Sections.size })
     val navigationScope = rememberCoroutineScope()
     val selected = pager.currentPage
     val navigateTo: (Int) -> Unit = { page ->
         navigationScope.launch { pager.animateScrollToPage(page) }
     }
-    var settings by rememberSaveable { mutableStateOf(false) }
-    var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
-    var batchCategoryOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(selected, settings, state.unlocked, state.visible) {
-        if (selected != 1 || settings || !state.unlocked || !state.visible) {
+    var settings by rememberDraft { mutableStateOf(false) }
+    var selectedMovementIds by rememberDraft { mutableStateOf(emptySet<Long>()) }
+    var batchCategoryOpen by rememberDraft { mutableStateOf(false) }
+    LaunchedEffect(selected, settings) {
+        if (selected != 1 || settings) {
             selectedMovementIds = emptySet()
             batchCategoryOpen = false
         }
@@ -141,10 +175,8 @@ internal fun FinanceApp(
     CompositionLocalProvider(LocalCustomCategories provides customCategories) {
         FinanceTheme {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                when {
-                    !state.visible -> Box(Modifier.fillMaxSize())
-                    !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
-                    else -> Scaffold(
+                run {
+                    Scaffold(
                         modifier = Modifier.background(Color(0xFF070D20)),
                         containerColor = Color.Transparent,
                         bottomBar = {
@@ -263,7 +295,10 @@ internal fun FinanceApp(
                                         ScreenTitle("Configurações", "Um espaço só seu.")
                                         SecurityCard(state.createdAtMillis)
                                         InfoCard("Google", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos extratos. O backup usa somente a área privada do aplicativo no Drive.")
-                                        BackupSettings(state, model, onBackupAuthorize)
+                                        // Recovery inputs and TextField internals must never enter the draft cache.
+                                        CompositionLocalProvider(LocalSaveableStateRegistry provides null) {
+                                            BackupSettings(state, model, onBackupAuthorize)
+                                        }
                                         OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
                                             Text("Bloquear agora")
                                         }

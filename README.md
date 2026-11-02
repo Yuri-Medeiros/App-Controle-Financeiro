@@ -7,7 +7,7 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 - Acesso por BiometricPrompt, aceitando biometria forte ou credencial do Android.
 - Chave AES do Android Keystore com autorização por operação para proteger a chave aleatória do banco. Nenhuma senha Google é solicitada.
 - Room 2 com SQLCipher, sem criação de banco em texto claro ou migração destrutiva.
-- Fechamento da sessão e do banco após 1 minuto em segundo plano; retorno curto preserva a sessão. Após encerramento do processo, exige nova autenticação.
+- Fechamento da sessão e do banco após 1 minuto em segundo plano; retorno curto preserva a sessão. Após o bloqueio por tempo, tela, filtros e rascunhos podem ser retomados mediante autenticação por até 5 minutos contados do bloqueio. O cache fica somente na memória do processo; expiração, bloqueio manual e encerramento do processo o descartam. Senhas e tokens não entram nesse cache, e operações não são reexecutadas.
 - Tema escuro com paleta roxa, cartões em degradê e destaques em ciano. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 

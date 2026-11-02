@@ -22,9 +22,9 @@ private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainStr
 @Composable
 internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     val book = state.ledger.assets
-    var adding by remember { mutableStateOf(false) }
-    var goalOpen by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<String?>(null) }
+    var adding by rememberDraft { mutableStateOf(false) }
+    var goalOpen by rememberDraft { mutableStateOf(false) }
+    var selected by rememberDraft { mutableStateOf<String?>(null) }
     val live = book.assets.filter { !it.disposed }
     val known = live.mapNotNull { it.valueCents }.sum()
     val incomplete = live.any { it.valueCents == null }
@@ -64,12 +64,12 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     if (adding) AddAssetDialog(state, model) { adding = false }
     selected?.let { id -> book.assets.firstOrNull { it.id == id }?.let { AssetDetails(it, state, model) { selected = null } } }
     if (goalOpen) {
-        var target by remember { mutableStateOf(assetEdit(book.goal.targetCents)) }
-        var selectedIds by remember { mutableStateOf(book.goal.selectedAssets) }
-        var bank by remember { mutableStateOf(book.goal.includeBank) }
-        var flashChosen by remember { mutableStateOf(book.goal.includeFlash) }
-        var receivables by remember { mutableStateOf(book.goal.includeReceivables) }
-        var error by remember { mutableStateOf<String?>(null) }
+        var target by rememberDraft { mutableStateOf(assetEdit(book.goal.targetCents)) }
+        var selectedIds by rememberDraft { mutableStateOf(book.goal.selectedAssets) }
+        var bank by rememberDraft { mutableStateOf(book.goal.includeBank) }
+        var flashChosen by rememberDraft { mutableStateOf(book.goal.includeFlash) }
+        var receivables by rememberDraft { mutableStateOf(book.goal.includeReceivables) }
+        var error by rememberDraft { mutableStateOf<String?>(null) }
         LedgerDialog("Componentes da meta", state, { goalOpen = false }, confirm = {
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables)))) { goalOpen = false } }
             catch (_: Exception) { error = "Informe uma meta positiva." }
@@ -87,9 +87,9 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
 
 @Composable
 private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var name by remember { mutableStateOf("") }; var kind by remember { mutableStateOf(AssetKind.INVESTMENT) }
-    var amount by remember { mutableStateOf("") }; var date by remember { mutableStateOf(LocalDate.now().toString()) }
-    var error by remember { mutableStateOf<String?>(null) }; val id = remember { UUID.randomUUID().toString() }
+    var name by rememberDraft { mutableStateOf("") }; var kind by rememberDraft { mutableStateOf(AssetKind.INVESTMENT) }
+    var amount by rememberDraft { mutableStateOf("") }; var date by rememberDraft { mutableStateOf(LocalDate.now().toString()) }
+    var error by rememberDraft { mutableStateOf<String?>(null) }; val id = rememberDraft { UUID.randomUUID().toString() }
     LedgerDialog("Adicionar patrimônio", state, close, confirm = {
         try {
             val cents = if (kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount)
@@ -108,8 +108,8 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
 
 @Composable
 private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var action by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var action by rememberDraft { mutableStateOf("") }
+    var error by rememberDraft { mutableStateOf<String?>(null) }
     LedgerDialog(asset.name, state, close) {
         Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação")
         Text("Saldo confirmado em ${asset.confirmedDate}", style = MaterialTheme.typography.bodySmall)
@@ -140,8 +140,8 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
         }, style = MaterialTheme.typography.bodySmall) }
     }
     if (action == "confirm") {
-        var amount by remember { mutableStateOf(if (asset.kind == AssetKind.BITCOIN) btcEdit(asset.satoshis) else assetEdit(asset.cents)) }
-        var date by remember { mutableStateOf(LocalDate.now().toString()) }
+        var amount by rememberDraft { mutableStateOf(if (asset.kind == AssetKind.BITCOIN) btcEdit(asset.satoshis) else assetEdit(asset.cents)) }
+        var date by rememberDraft { mutableStateOf(LocalDate.now().toString()) }
         LedgerDialog("Confirmar saldo real", state, { action = ""; error = null }, confirm = {
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Confirm(asset.id, if (asset.kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount), if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0, LocalDate.parse(date)))) { action = "" } }
             catch (_: Exception) { error = "Revise valor e data da confirmação." }
@@ -153,8 +153,8 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
         }
     }
     if (action == "configure") {
-        var path by remember { mutableStateOf(asset.vehiclePath) }; var monthly by remember { mutableStateOf(assetEdit(asset.monthlyFgts)) }
-        var deposits by remember { mutableStateOf(asset.fgtsDepositsActive) }
+        var path by rememberDraft { mutableStateOf(asset.vehiclePath) }; var monthly by rememberDraft { mutableStateOf(assetEdit(asset.monthlyFgts)) }
+        var deposits by rememberDraft { mutableStateOf(asset.fgtsDepositsActive) }
         LedgerDialog("Configurar ${assetLabel(asset.kind)}", state, { action = ""; error = null }, confirm = {
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Configure(asset.id, path, FinanceLedger.money(monthly), deposits))) { action = "" } }
             catch (_: Exception) { error = "Revise os dados informados." }
@@ -175,9 +175,9 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
 
 @Composable
 private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var kind by remember { mutableStateOf(AssetTransferKind.CONTRIBUTION) }; var movementId by remember { mutableLongStateOf(0) }
-    var fees by remember { mutableStateOf("0,00") }; var quantity by remember { mutableStateOf("") }; var included by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var kind by rememberDraft { mutableStateOf(AssetTransferKind.CONTRIBUTION) }; var movementId by rememberDraft { mutableLongStateOf(0) }
+    var fees by rememberDraft { mutableStateOf("0,00") }; var quantity by rememberDraft { mutableStateOf("") }; var included by rememberDraft { mutableStateOf(false) }
+    var error by rememberDraft { mutableStateOf<String?>(null) }
     val sources = state.movements.filter { it.id !in state.ledger.usedMovementIds && it.status !in setOf("CONFLICT", "IGNORED") && it.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(it.row) && if (kind == AssetTransferKind.CONTRIBUTION) it.row.cents < 0 else it.row.cents > 0 }
     val source = sources.firstOrNull { it.id == movementId }
     LedgerDialog("Vincular operação patrimonial", state, close, confirm = {

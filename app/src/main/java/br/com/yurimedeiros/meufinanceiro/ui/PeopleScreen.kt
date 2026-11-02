@@ -28,11 +28,11 @@ private val AddPersonIcon = ImageVector.Builder(
 
 @Composable
 internal fun PeopleScreen(state: FinanceUiState, model: FinanceViewModel) {
-    var selectedPerson by remember { mutableStateOf<Long?>(null) }
+    var selectedPerson by rememberDraft { mutableStateOf<Long?>(null) }
     selectedPerson?.let { id -> PersonFinances(id, state, model) { selectedPerson = null } }
-    var search by remember { mutableStateOf("") }
-    var adding by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("") }
+    var search by rememberDraft { mutableStateOf("") }
+    var adding by rememberDraft { mutableStateOf(false) }
+    var name by rememberDraft { mutableStateOf("") }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),

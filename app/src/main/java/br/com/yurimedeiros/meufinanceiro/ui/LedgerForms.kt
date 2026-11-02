@@ -29,7 +29,7 @@ internal fun LedgerField(label: String, value: String, change: (String) -> Unit)
 
 @Composable
 internal fun LedgerChoice(label: String, value: String, options: List<Pair<String, () -> Unit>>) {
-    var open by remember { mutableStateOf(false) }
+    var open by rememberDraft { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape) { Text("$label: $value") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -58,24 +58,24 @@ internal fun LedgerDialog(
 @Composable
 internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     val parsed = remember(movement.id) { Regex("(\\d{1,3})\\s*/\\s*(\\d{1,3})").find(movement.row.description) }
-    var mode by remember { mutableIntStateOf(0) }
-    var count by remember { mutableStateOf(parsed?.groupValues?.get(2) ?: "1") }
-    var current by remember { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
-    var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
-    var category by remember { mutableStateOf(movement.category) }
-    var firstDue by remember { mutableStateOf((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1).toString()) }
-    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.toString().orEmpty()) }
-    var participants by remember { mutableStateOf(listOf(0L)) }
-    var split by remember { mutableIntStateOf(0) }
-    val values = remember { mutableStateMapOf<Long, String>() }
-    var futureDatesConfirmed by remember { mutableStateOf(false) }
-    var draft by remember { mutableStateOf<PurchasePlan?>(null) }
-    var chosenLink by remember { mutableStateOf<Pair<PurchasePlan, SchedulePart>?>(null) }
-    val linkAmounts = remember { mutableStateMapOf<Long, String>() }
-    var linkDue by remember { mutableStateOf("") }
-    var localError by remember { mutableStateOf<String?>(null) }
-    val id = remember { UUID.randomUUID().toString() }
-    val invalidInputs = remember { mutableStateMapOf<String, Boolean>() }
+    var mode by rememberDraft { mutableIntStateOf(0) }
+    var count by rememberDraft { mutableStateOf(parsed?.groupValues?.get(2) ?: "1") }
+    var current by rememberDraft { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
+    var title by rememberDraft { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
+    var category by rememberDraft { mutableStateOf(movement.category) }
+    var firstDue by rememberDraft { mutableStateOf((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1).toString()) }
+    var familyStart by rememberDraft { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.toString().orEmpty()) }
+    var participants by rememberDraft { mutableStateOf(listOf(0L)) }
+    var split by rememberDraft { mutableIntStateOf(0) }
+    val values = rememberDraft { mutableStateMapOf<Long, String>() }
+    var futureDatesConfirmed by rememberDraft { mutableStateOf(false) }
+    var draft by rememberDraft { mutableStateOf<PurchasePlan?>(null) }
+    var chosenLink by rememberDraft { mutableStateOf<Pair<PurchasePlan, SchedulePart>?>(null) }
+    val linkAmounts = rememberDraft { mutableStateMapOf<Long, String>() }
+    var linkDue by rememberDraft { mutableStateOf("") }
+    var localError by rememberDraft { mutableStateOf<String?>(null) }
+    val id = rememberDraft { UUID.randomUUID().toString() }
+    val invalidInputs = rememberDraft { mutableStateMapOf<String, Boolean>() }
     fun prepare() {
         try {
             val n = count.toInt(); val number = current.toInt()
@@ -177,14 +177,14 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                         )
                     })
                 }
-                var dueText by remember(i) { mutableStateOf(part.due.toString()) }
+                var dueText by rememberDraft(i) { mutableStateOf(part.due.toString()) }
                 LedgerField("Vencimento", dueText) { text ->
                     dueText = text
                     val date = runCatching { LocalDate.parse(text) }.getOrNull()
                     invalidInputs["due:$i"] = date == null
                     if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
                 }
-                var totalText by remember(i) { mutableStateOf(editMoney(part.cents)) }
+                var totalText by rememberDraft(i) { mutableStateOf(editMoney(part.cents)) }
                 LedgerField("Valor da parcela R$", totalText) { text ->
                     totalText = text
                     val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
@@ -194,7 +194,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 p.shares.forEach { (person, amounts) ->
                     if (person > 0 && part.number in p.familyOpening) {
                         val openingKey = "${part.number}:$person"
-                        var opening by remember(i, person, "opening", amounts[i]) { mutableStateOf(editMoney(p.openingBalances[openingKey] ?: amounts[i])) }
+                        var opening by rememberDraft(i, person, "opening", amounts[i]) { mutableStateOf(editMoney(p.openingBalances[openingKey] ?: amounts[i])) }
                         LedgerField("${personLabel(state, person)} · saldo em aberto confirmado R$", opening) { text ->
                             opening = text
                             val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
@@ -202,7 +202,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                             if (cents != null) draft = draft!!.copy(openingBalances = draft!!.openingBalances + (openingKey to cents))
                         }
                     }
-                    var amount by remember(i, person) { mutableStateOf(editMoney(amounts[i])) }
+                    var amount by rememberDraft(i, person) { mutableStateOf(editMoney(amounts[i])) }
                     LedgerField(personLabel(state, person), amount) { text ->
                         amount = text
                         val parsedAmount = runCatching { FinanceLedger.money(text) }.getOrNull()
@@ -222,12 +222,12 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
 
 @Composable
 internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit, initialMovement: Long = 0) {
-    var movementId by remember { mutableLongStateOf(initialMovement) }
-    val allocations = remember { mutableStateMapOf<String, String>() }
+    var movementId by rememberDraft { mutableLongStateOf(initialMovement) }
+    val allocations = rememberDraft { mutableStateMapOf<String, String>() }
     val debts = state.ledger.debts.filter { it.personId == personId && it.direction == direction && it.remaining > 0 }.sortedBy { it.due }
     val sources = state.movements.filter { it.row.kind == DocumentKind.NUBANK_ACCOUNT && it.id !in state.ledger.usedMovementIds && it.status != "CONFLICT" && !PaymentMatching.isPayment(it.row) && if (direction == DebtDirection.RECEIVE) it.row.cents > 0 else it.row.cents < 0 }
     val source = sources.firstOrNull { it.id == movementId }
-    var localError by remember { mutableStateOf<String?>(null) }
+    var localError by rememberDraft { mutableStateOf<String?>(null) }
     LedgerDialog(if (direction == DebtDirection.RECEIVE) "Registrar recebimento" else "Registrar pagamento", state, close, confirm = {
         try {
             require(source != null) { "Selecione a transferência." }
@@ -247,10 +247,10 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
 
 @Composable
 internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var title by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }
-    var due by remember { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.toString()) }
-    var direction by remember { mutableStateOf(DebtDirection.RECEIVE) }; var error by remember { mutableStateOf<String?>(null) }
-    val id = remember { UUID.randomUUID().toString() }
+    var title by rememberDraft { mutableStateOf("") }; var amount by rememberDraft { mutableStateOf("") }
+    var due by rememberDraft { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.toString()) }
+    var direction by rememberDraft { mutableStateOf(DebtDirection.RECEIVE) }; var error by rememberDraft { mutableStateOf<String?>(null) }
+    val id = rememberDraft { UUID.randomUUID().toString() }
     LedgerDialog("Nova dívida", state, close, confirm = {
         try { model.saveLedger(LedgerAction.Debt(id, personId, direction, title.trim(), FinanceLedger.money(amount), LocalDate.parse(due)), close) }
         catch (_: Exception) { error = "Revise descrição, valor e vencimento." }
@@ -266,10 +266,10 @@ internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: Fina
 
 @Composable
 internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var purchaseId by remember { mutableStateOf("") }
-    val credits = remember { mutableStateMapOf<String, String>() }
-    val selectedParts = remember { mutableStateListOf<Int>() }
-    var error by remember { mutableStateOf<String?>(null) }
+    var purchaseId by rememberDraft { mutableStateOf("") }
+    val credits = rememberDraft { mutableStateMapOf<String, String>() }
+    val selectedParts = rememberDraft { mutableStateListOf<Int>() }
+    var error by rememberDraft { mutableStateOf<String?>(null) }
     val p = state.ledger.purchases.firstOrNull { it.id == purchaseId }
     LedgerDialog("Revisar estorno", state, close, confirm = {
         try {
@@ -307,9 +307,9 @@ internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model
 
 @Composable
 internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var step by remember { mutableStateOf("") }
-    var person by remember { mutableLongStateOf(0) }
-    var creditReason by remember { mutableStateOf("") }
+    var step by rememberDraft { mutableStateOf("") }
+    var person by rememberDraft { mutableLongStateOf(0) }
+    var creditReason by rememberDraft { mutableStateOf("") }
     val row = movement.row
     when (step) {
         "purchase" -> PurchaseDialog(movement, state, model, close)

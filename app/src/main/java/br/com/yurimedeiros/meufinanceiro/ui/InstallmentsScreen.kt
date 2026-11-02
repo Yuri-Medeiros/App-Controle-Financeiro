@@ -12,8 +12,8 @@ import java.time.YearMonth
 
 @Composable
 internal fun InstallmentsDialog(state: FinanceUiState, close: () -> Unit) {
-    var month by remember { mutableStateOf(YearMonth.now()) }
-    var expanded by remember { mutableStateOf<String?>(null) }
+    var month by rememberDraft { mutableStateOf(YearMonth.now()) }
+    var expanded by rememberDraft { mutableStateOf<String?>(null) }
     val actions = state.ledger.actions.filterIsInstance<LedgerAction.Refund>()
     LedgerDialog("Faturas e parcelas", state, close) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

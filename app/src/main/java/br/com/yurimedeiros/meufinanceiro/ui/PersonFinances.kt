@@ -12,19 +12,19 @@ import java.time.LocalDate
 
 @Composable
 internal fun PersonFinances(personId: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
-    var limit by remember { mutableIntStateOf(30) }
-    var action by remember { mutableStateOf("") }
-    var postpone by remember { mutableStateOf<DebtBalance?>(null) }
-    var newDue by remember { mutableStateOf("") }; var reason by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var sharing by remember { mutableStateOf(false) }
+    var tab by rememberDraft { mutableIntStateOf(0) }
+    var limit by rememberDraft { mutableIntStateOf(30) }
+    var action by rememberDraft { mutableStateOf("") }
+    var postpone by rememberDraft { mutableStateOf<DebtBalance?>(null) }
+    var newDue by rememberDraft { mutableStateOf("") }; var reason by rememberDraft { mutableStateOf("") }
+    var error by rememberDraft { mutableStateOf<String?>(null) }
+    var sharing by rememberDraft { mutableStateOf(false) }
     val context = LocalContext.current
     val debts = state.ledger.debts.filter { it.personId == personId }
     val today = LocalDate.now()
     val received = debts.filter { it.direction == DebtDirection.RECEIVE }
     val owed = debts.filter { it.direction == DebtDirection.PAY }
-    var reference by remember { mutableStateOf("") }
+    var reference by rememberDraft { mutableStateOf("") }
     val dates = debts.filter { it.purchaseId != null }.map { it.due }.distinct().sorted()
     val shareDebts = if (reference.isBlank()) debts.filter { it.remaining > 0 && it.due <= today.withDayOfMonth(today.lengthOfMonth()) } else debts.filter { it.due.toString() == reference }
     val shareText = buildString {

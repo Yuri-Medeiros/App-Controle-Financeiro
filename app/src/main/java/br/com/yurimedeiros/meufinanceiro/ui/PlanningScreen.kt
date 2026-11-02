@@ -24,13 +24,13 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
     val p = state.ledger.planning
     val today = LocalDate.now()
     val view = PlanningRules.view(p, state.ledger, state.movements, today)
-    var tab by remember { mutableIntStateOf(0) }
-    var dialog by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var match by remember { mutableStateOf<ExpenseOccurrence?>(null) }
-    var dateConfirmation by remember { mutableStateOf<ExpenseOccurrence?>(null) }
-    var confirmedDate by remember { mutableStateOf("") }
-    var matchingId by remember { mutableLongStateOf(0) }
+    var tab by rememberDraft { mutableIntStateOf(0) }
+    var dialog by rememberDraft { mutableStateOf("") }
+    var error by rememberDraft { mutableStateOf<String?>(null) }
+    var match by rememberDraft { mutableStateOf<ExpenseOccurrence?>(null) }
+    var dateConfirmation by rememberDraft { mutableStateOf<ExpenseOccurrence?>(null) }
+    var confirmedDate by rememberDraft { mutableStateOf("") }
+    var matchingId by rememberDraft { mutableLongStateOf(0) }
     GlassPanel(highlighted = true) {
         Text("Até o próximo salário", style = MaterialTheme.typography.titleSmall)
         Text(view.available?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.headlineLarge, color = if ((view.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
@@ -95,12 +95,12 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         Text("Fontes: ${BankCalendar.MUNICIPAL_SOURCE}\n${BankCalendar.BANK_SOURCE}", style = MaterialTheme.typography.bodySmall)
     }
     if (dialog == "settings") {
-        var balance by remember { mutableStateOf(planningAmount(p.balanceCents)) }
-        var date by remember { mutableStateOf((p.balanceDate ?: today.minusDays(1)).toString()) }
-        var salary by remember { mutableStateOf(planningAmount(p.salaryCents)) }
-        var fixed by remember { mutableStateOf(planningAmount(p.fixedReserve)) }
-        var salaryDate by remember { mutableStateOf("") }
-        var invoiceDate by remember { mutableStateOf("") }
+        var balance by rememberDraft { mutableStateOf(planningAmount(p.balanceCents)) }
+        var date by rememberDraft { mutableStateOf((p.balanceDate ?: today.minusDays(1)).toString()) }
+        var salary by rememberDraft { mutableStateOf(planningAmount(p.salaryCents)) }
+        var fixed by rememberDraft { mutableStateOf(planningAmount(p.fixedReserve)) }
+        var salaryDate by rememberDraft { mutableStateOf("") }
+        var invoiceDate by rememberDraft { mutableStateOf("") }
         LedgerDialog("Saldo, salário e ciclo", state, { dialog = ""; error = null }, confirm = {
             try {
                 val fixedValue = FinanceLedger.money(fixed)
@@ -125,7 +125,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         }
     }
     if (dialog == "budget") {
-        var category by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }
+        var category by rememberDraft { mutableStateOf("") }; var amount by rememberDraft { mutableStateOf("") }
         LedgerDialog("Limite por ciclo", state, { dialog = ""; error = null }, confirm = {
             try { require(category.isNotBlank()); model.saveLedger(LedgerAction.Planning(p.copy(budgets = p.budgets + (category.trim() to FinanceLedger.money(amount))))) { dialog = "" } }
             catch (_: Exception) { error = "Informe categoria e valor." }
@@ -136,9 +136,9 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         }
     }
     if (dialog == "reserve") {
-        var title by remember { mutableStateOf("Reserva do ciclo") }; var amount by remember { mutableStateOf("") }
-        var location by remember { mutableStateOf(ReserveLocation.BANK) }
-        val id = remember { UUID.randomUUID().toString() }
+        var title by rememberDraft { mutableStateOf("Reserva do ciclo") }; var amount by rememberDraft { mutableStateOf("") }
+        var location by rememberDraft { mutableStateOf(ReserveLocation.BANK) }
+        val id = rememberDraft { UUID.randomUUID().toString() }
         LedgerDialog("Reservar ou liberar", state, { dialog = ""; error = null }, confirm = {
             try { model.saveLedger(LedgerAction.Planning(p.copy(reserves = p.reserves + ReserveChange(id, title.trim(), signedAmount(amount), location, today)))) { dialog = "" } }
             catch (_: Exception) { error = "Revise nome e valor. Use sinal negativo para liberar." }
@@ -150,9 +150,9 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         }
     }
     if (dialog == "expense") {
-        var title by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }; var category by remember { mutableStateOf("") }
-        var date by remember { mutableStateOf(today.toString()) }; var frequency by remember { mutableStateOf(ExpenseFrequency.ONCE) }
-        val id = remember { UUID.randomUUID().toString() }
+        var title by rememberDraft { mutableStateOf("") }; var amount by rememberDraft { mutableStateOf("") }; var category by rememberDraft { mutableStateOf("") }
+        var date by rememberDraft { mutableStateOf(today.toString()) }; var frequency by rememberDraft { mutableStateOf(ExpenseFrequency.ONCE) }
+        val id = rememberDraft { UUID.randomUUID().toString() }
         LedgerDialog("Nova previsão", state, { dialog = ""; error = null }, confirm = {
             try { model.saveLedger(LedgerAction.Planning(p.copy(expenses = p.expenses + PlannedExpense(id, title.trim(), FinanceLedger.money(amount), LocalDate.parse(date), frequency, category.trim())))) { dialog = "" } }
             catch (_: Exception) { error = "Revise descrição, categoria, valor e data." }

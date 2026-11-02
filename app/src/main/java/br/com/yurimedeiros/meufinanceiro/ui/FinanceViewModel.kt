@@ -14,6 +14,7 @@ import br.com.yurimedeiros.meufinanceiro.data.Person
 import br.com.yurimedeiros.meufinanceiro.people.PeopleRepository
 import br.com.yurimedeiros.meufinanceiro.people.PersonNames
 import br.com.yurimedeiros.meufinanceiro.security.SessionTimeout
+import br.com.yurimedeiros.meufinanceiro.security.SessionDraftCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +27,7 @@ import kotlinx.coroutines.withContext
 
 internal data class FinanceUiState(
     val unlocked: Boolean = false,
+    val draftEpoch: Long = 0,
     val opening: Boolean = false,
     val visible: Boolean = true,
     val createdAtMillis: Long? = null,
@@ -48,6 +50,23 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     private val mutableState = MutableStateFlow(FinanceUiState())
     val state = mutableState.asStateFlow()
     private val timeout = SessionTimeout()
+    private val draftCache = SessionDraftCache<SessionDrafts> { it.clear() }
+    private var draftExpirationJob: Job? = null
+
+    fun sessionDrafts(create: () -> SessionDrafts): SessionDrafts = draftCache.getOrPut(create)
+
+    private fun expireDrafts(now: Long) {
+        if (draftCache.expire(now)) {
+            mutableState.value = mutableState.value.copy(draftEpoch = draftCache.epoch)
+        }
+    }
+
+    private fun discardDrafts() {
+        draftExpirationJob?.cancel()
+        draftCache.clear()
+        mutableState.value = mutableState.value.copy(draftEpoch = draftCache.epoch)
+    }
+
     private var expirationJob: Job? = null
     private var session: SecureDatabaseSession? = null
     @Volatile private var generation = 0L
@@ -63,25 +82,45 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     private var backedUpRevision = -1L
 
     fun openWith(password: ByteArray) {
+        expireDrafts(SystemClock.elapsedRealtime())
         val attempt = ++generation
         mutableState.value = mutableState.value.copy(opening = true, error = null)
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             var opened: SecureDatabaseSession? = null
             var transferred = false
+            var snapshot: Triple<List<ReviewMovement>, List<Person>, LedgerSnapshot>? = null
             try {
                 // Assign inside IO so cancellation on the return boundary cannot leak an open DB.
                 withContext(Dispatchers.IO) {
                     opened = SecureDatabaseSession.open(getApplication(), password)
+                    val database = checkNotNull(opened).database
+                    // Load before composing restored dialogs that depend on people/assets/movements.
+                    snapshot = Triple(MovementRepository(database).all(), PeopleRepository(database).all(), LedgerRepository(database).snapshot())
                 }
-                if (attempt != generation) return@launch
+                if (attempt != generation || !state.value.visible) {
+                    if (attempt == generation) mutableState.value = mutableState.value.copy(opening = false)
+                    return@launch
+                }
                 session?.close()
                 session = opened
                 opened = null
                 transferred = true
+                val now = SystemClock.elapsedRealtime()
+                expireDrafts(now)
+                draftCache.resume(now)
+                draftExpirationJob?.cancel()
+                val loaded = checkNotNull(snapshot)
+                val statements = draftCache.value?.statements.orEmpty()
+                draftCache.value?.statements = emptyList()
                 mutableState.value = mutableState.value.copy(
                     unlocked = true,
                     opening = false,
                     createdAtMillis = session!!.createdAtMillis,
+                    movements = loaded.first,
+                    people = loaded.second,
+                    ledger = loaded.third,
+                    statements = statements,
+                    draftEpoch = draftCache.epoch,
                     error = null,
                 )
                 refresh()
@@ -496,36 +535,63 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
 
     fun onBackground(now: Long = SystemClock.elapsedRealtime()) {
         mutableState.value = mutableState.value.copy(visible = false)
-        timeout.background(now)
         backupJob?.cancel()
+        if (!state.value.unlocked) return
+        timeout.background(now)
+        draftCache.background(now, timeout.remaining(now))
+        draftExpirationJob?.cancel()
+        draftExpirationJob = viewModelScope.launch {
+            delay(draftCache.remaining(now))
+            expireDrafts(SystemClock.elapsedRealtime())
+        }
         expirationJob?.cancel()
         expirationJob = viewModelScope.launch {
             delay(timeout.remaining(now))
-            lock()
+            lockAfterTimeout()
         }
     }
 
     fun onForeground(now: Long = SystemClock.elapsedRealtime()) {
         expirationJob?.cancel()
-        if (timeout.expired(now)) lock()
+        expireDrafts(now)
+        if (state.value.unlocked && timeout.expired(now)) lockAfterTimeout()
         timeout.foreground()
+        if (state.value.unlocked) {
+            draftCache.resume(now)
+            draftExpirationJob?.cancel()
+        }
         mutableState.value = mutableState.value.copy(visible = true)
         scheduleBackup()
     }
 
+    private fun lockAfterTimeout() {
+        if (!state.value.unlocked) return
+        // Never restore a confirmation whose database write may already have committed.
+        if (state.value.syncing || state.value.backupWorking) discardDrafts()
+        else draftCache.value?.statements = state.value.statements
+        closeSession()
+    }
+
     fun lock() {
+        discardDrafts()
+        closeSession()
+    }
+
+    private fun closeSession() {
         generation++
         clearBackupSecrets()
         expirationJob?.cancel()
         val previous = session
         session = null
-        mutableState.value = FinanceUiState(visible = mutableState.value.visible)
+        mutableState.value = FinanceUiState(visible = mutableState.value.visible, draftEpoch = draftCache.epoch)
         // Close now: a canceled ViewModel scope must not drop a queued cleanup.
         // Serialize closure with any document transaction already in progress.
         synchronized(databaseGuard) { previous?.close() }
     }
 
     override fun onCleared() {
+        draftExpirationJob?.cancel()
+        draftCache.clear()
         generation++
         clearBackupSecrets()
         // No independent coroutine survives the ViewModel to retain the database secret.

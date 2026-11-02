@@ -40,18 +40,18 @@ internal fun MovementsScreen(
     selectedIds: Set<Long>,
     onSelectionChange: (Set<Long>) -> Unit,
 ) {
-    var installmentsOpen by remember { mutableStateOf(false) }
+    var installmentsOpen by rememberDraft { mutableStateOf(false) }
     if (installmentsOpen) InstallmentsDialog(state) { installmentsOpen = false }
-    var query by remember { mutableStateOf("") }
+    var query by rememberDraft { mutableStateOf("") }
     val currentPeriod = YearMonth.now()
-    var selectedPeriod by remember { mutableStateOf(YearMonth.now()) }
+    var selectedPeriod by rememberDraft { mutableStateOf(YearMonth.now()) }
     val friendlyDescriptions = remember(state.movements) { MovementFilters.friendlyNames(state.movements) }
     val years = (state.movements.map { it.row.date.year } + currentPeriod.year + selectedPeriod.year)
         .distinct().sortedDescending()
-    var account by remember { mutableStateOf<DocumentKind?>(null) }
-    var searchVisible by remember { mutableStateOf(false) }
+    var account by rememberDraft { mutableStateOf<DocumentKind?>(null) }
+    var searchVisible by rememberDraft { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    var accountsOpen by remember { mutableStateOf(false) }
+    var accountsOpen by rememberDraft { mutableStateOf(false) }
     val accountShape = FinanceInputShape
     Row(
         Modifier.fillMaxWidth(),
@@ -180,7 +180,7 @@ internal fun MovementsScreen(
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     state.statements.firstOrNull()?.let { statement ->
-        var reference by remember(statement.source.source) { mutableStateOf(statement.document.proposedStatement?.toString().orEmpty()) }
+        var reference by rememberDraft(statement.source.source) { mutableStateOf(statement.document.proposedStatement?.toString().orEmpty()) }
         // This pending action has its own light surface and readable field colors.
         // A native filled button avoids stacking the glass border with its outline.
         MaterialTheme(
@@ -221,10 +221,15 @@ internal fun MovementsScreen(
         }
     }
     // Filter and sort the entire result before selecting the visible page.
-    var page by remember { mutableIntStateOf(0) }
+    var page by rememberDraft { mutableIntStateOf(0) }
+    var previousFilters by rememberDraft { mutableStateOf(Triple(query, account, selectedPeriod)) }
     LaunchedEffect(query, account, selectedPeriod) {
-        page = 0
-        onSelectionChange(emptySet())
+        val filters = Triple(query, account, selectedPeriod)
+        if (filters != previousFilters) {
+            page = 0
+            onSelectionChange(emptySet())
+            previousFilters = filters
+        }
     }
     val rows = MovementFilters.filterAndSort(
         state.movements, account, selectedPeriod, query, friendlyDescriptions,
@@ -261,11 +266,11 @@ internal fun MovementsScreen(
 private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, selected: Boolean, selectionMode: Boolean, friendly: String, onToggleSelection: () -> Unit) {
     val suggestion = CounterpartySuggestion.identify(movement.row)
     val previous = state.movements.sortedBy { it.confirmedAt }.lastOrNull { it.status == "CONFIRMED" && it.origin.substringBefore(" · ") == movement.origin.substringBefore(" · ") && suggestion.learningKey != null && CounterpartySuggestion.identify(it.row).learningKey == suggestion.learningKey }
-    var category by remember(movement.category, previous?.category) { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
-    var descriptionOpen by remember { mutableStateOf(false) }
-    var descriptionDraft by remember(friendly) { mutableStateOf(friendly) }
-    var details by remember { mutableStateOf(false) }
-    var financeOpen by remember { mutableStateOf(false) }
+    var category by rememberDraft(movement.category, previous?.category) { mutableStateOf(movement.category.ifBlank { previous?.category.orEmpty() }) }
+    var descriptionOpen by rememberDraft { mutableStateOf(false) }
+    var descriptionDraft by rememberDraft(friendly) { mutableStateOf(friendly) }
+    var details by rememberDraft { mutableStateOf(false) }
+    var financeOpen by rememberDraft { mutableStateOf(false) }
     val canCategorize = movement.status !in setOf("CONFLICT", "PAYMENT", "PAYMENT_PENDING", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") &&
         !MovementRepository.needsSpecialReview(movement.row)
     val haptics = LocalHapticFeedback.current
@@ -436,7 +441,7 @@ private fun PeriodDropdown(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberDraft { mutableStateOf(false) }
     BoxWithConstraints(modifier) {
         OutlinedButton(
             onClick = { expanded = !expanded },
@@ -482,7 +487,7 @@ internal fun BatchCategoryDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    var category by remember { mutableStateOf("") }
+    var category by rememberDraft { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { if (enabled) onDismiss() },
         shape = RoundedCornerShape(22.dp),
@@ -513,9 +518,9 @@ private val CategoryOptions = listOf(
 
 @Composable
 internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
-    var expanded by remember { mutableStateOf(false) }
-    var customOpen by remember { mutableStateOf(false) }
-    var custom by remember { mutableStateOf("") }
+    var expanded by rememberDraft { mutableStateOf(false) }
+    var customOpen by rememberDraft { mutableStateOf(false) }
+    var custom by rememberDraft { mutableStateOf("") }
     val options = (CategoryOptions + LocalCustomCategories.current + listOfNotNull(value.takeIf { it.isNotBlank() })).distinct()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         OutlinedButton(

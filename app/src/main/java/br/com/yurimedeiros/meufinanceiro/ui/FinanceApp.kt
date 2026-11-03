@@ -107,6 +107,7 @@ internal fun FinanceApp(
     model: FinanceViewModel,
     onUnlock: () -> Unit,
     onRefresh: () -> Unit,
+    onRefreshInvestments: () -> Unit,
     onBackupAuthorize: () -> Unit,
     onSecuritySettings: () -> Unit,
     deviceSecure: Boolean,
@@ -293,13 +294,23 @@ internal fun FinanceApp(
                                                 IconButton(onClick = { settings = true }) {
                                                     Icon(SettingsIcon, contentDescription = "Configurações")
                                                 }
-                                            } else if (page == 4 && state.ledger.assets.assets.any { it.kind == br.com.yurimedeiros.meufinanceiro.assets.AssetKind.BITCOIN && !it.disposed }) {
+                                            } else if (page == 4) {
                                                 Spacer(Modifier.width(12.dp))
-                                                BitcoinQuoteButton(
-                                                    loading = state.quoting,
-                                                    enabled = state.unlocked && state.visible,
-                                                    onClick = { model.refreshBitcoin(manual = true) },
-                                                )
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    AssetRefreshButton(
+                                                        loading = state.syncing,
+                                                        enabled = state.unlocked && state.visible && state.statements.isEmpty() && state.custody.isEmpty(),
+                                                        label = "Invest.", description = "investimentos pelo Gmail",
+                                                        onClick = onRefreshInvestments,
+                                                    )
+                                                    if (state.ledger.assets.assets.any { it.kind == br.com.yurimedeiros.meufinanceiro.assets.AssetKind.BITCOIN && !it.disposed }) {
+                                                        AssetRefreshButton(
+                                                            loading = state.quoting,
+                                                            enabled = state.unlocked && state.visible,
+                                                            onClick = { model.refreshBitcoin(manual = true) },
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                         when (page) {
@@ -348,7 +359,7 @@ internal fun FinanceApp(
                                 )
                             }
                             state.custody.firstOrNull()?.let { statement ->
-                                LedgerDialog("Revisar investimentos · ${AppDates.date(statement.date)}", state, { model.dismissCustody() }, confirm = { model.confirmCustody() }) {
+                                AssetDialog("Revisar investimentos", state, { model.dismissCustody() }, subtitle = "Posição em ${AppDates.date(statement.date)}", confirmLabel = "Atualizar investimentos", confirm = { model.confirmCustody() }) {
                                     Text("Saldo líquido estimado será usado no patrimônio. Não cria movimentações bancárias.")
                                     statement.positions.forEach { p ->
                                         Text(p.name, style = MaterialTheme.typography.titleSmall)

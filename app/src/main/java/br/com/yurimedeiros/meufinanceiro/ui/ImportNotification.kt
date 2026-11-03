@@ -6,16 +6,21 @@ internal data class ImportNotification(
     val importedCount: Int,
     val skippedDocuments: Int = 0,
     val pendingStatements: Int = 0,
+    val investmentsOnly: Boolean = false,
+    val pendingCustody: Int = 0,
     val failureMessage: String? = null,
 ) {
-    val hasWarnings: Boolean get() = skippedDocuments > 0 || pendingStatements > 0
+    val hasWarnings: Boolean get() = skippedDocuments > 0 || pendingStatements > 0 || pendingCustody > 0
     val title: String get() = when {
         failed -> "Importação não concluída"
         hasWarnings -> "Importação concluída com avisos"
         else -> "Importação concluída"
     }
     val message: String get() = buildList {
-        add(when (importedCount) {
+        if (investmentsOnly) add(if (pendingCustody > 0) "Posição de investimentos pronta para revisão."
+            else if (failed) "Não foi possível concluir a busca da posição de investimentos."
+            else "Nenhuma posição nova de investimentos encontrada no Gmail.")
+        else add(when (importedCount) {
             0 -> "Nenhuma nova movimentação importada."
             1 -> "1 movimentação importada."
             else -> "$importedCount movimentações importadas."

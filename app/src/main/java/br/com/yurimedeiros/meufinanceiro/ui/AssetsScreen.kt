@@ -35,13 +35,13 @@ private fun assetEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainString()
 
 @Composable
-internal fun BitcoinQuoteButton(loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
+internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, label: String = "BTC", description: String = "cotação do Bitcoin", onClick: () -> Unit) {
     val accent = NeonPalette[0]
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = Modifier.heightIn(min = 48.dp).semantics {
-            contentDescription = if (loading) "Atualizando cotação do Bitcoin" else "Atualizar cotação do Bitcoin"
+            contentDescription = if (loading) "Atualizando $description" else "Atualizar $description"
         },
         shape = CircleShape,
         border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
@@ -54,7 +54,7 @@ internal fun BitcoinQuoteButton(loading: Boolean, enabled: Boolean, onClick: () 
         if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accent, strokeWidth = 2.dp)
         else Icon(RefreshIcon, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
-        Text("BTC", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -254,7 +254,7 @@ private fun AssetEntryField(label: String, value: String, enabled: Boolean = tru
 }
 
 @Composable
-private fun AssetDialog(
+internal fun AssetDialog(
     title: String, state: FinanceUiState, close: () -> Unit,
     subtitle: String? = null, confirmLabel: String = "Salvar", confirm: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,

@@ -80,3 +80,12 @@ Remove o parágrafo explicativo dos provedores e o botão extenso acima dos cart
 - Operações identificam o patrimônio, separam rótulos e seletores e mostram claramente a opção de inclusão no saldo confirmado.
 - Meta agrupa patrimônios e outros componentes em linhas selecionáveis com caixas de seleção e semântica acessível.
 - Roteiro no aparelho: conferir as três telas com teclado e fonte ampliada; selecionar/desmarcar componentes e salvar; vincular movimentação elegível sem duplicar o extrato; cancelar e retornar aos detalhes; bloquear automaticamente com um formulário aberto e retomar o rascunho.
+
+## Atualizar investimentos pelo cabeçalho — 0.9.9
+
+- Botão compacto Invest. ao lado de BTC, com autorização Gmail somente leitura, carregamento e descrição de acessibilidade. Disponível também antes do primeiro investimento.
+- A busca dedicada filtra remetente Nubank, assunto de custódia e PDF; revalida cabeçalhos e extensão antes de ler anexos. Não importa conta, cartão ou Flash por essa ação.
+- Usa o parser de custódia e a revisão de descrições, valores brutos/líquidos e data. Confirmação aplica a posição de forma transacional, sem duplicar investimentos nem criar movimento bancário. Posições anteriores não substituem confirmações mais recentes.
+- Mensagem específica quando não há posição nova. O modo de autorização é preservado na recriação da Activity.
+- Testes simulam respostas Gmail misturadas, filtragem do anexo e sessão encerrada. Os testes existentes verificam os totais do PDF, reimportação e rejeição de posição antiga.
+- Roteiro no aparelho: tocar Invest., autorizar leitura, revisar PDF atualizado e confirmar; repetir e conferir ausência de duplicação; conferir que extratos bancários não foram importados; testar ausência de e-mail novo, cancelamento da autorização e erro de conexão.

@@ -138,7 +138,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun syncGmail(token: String) {
+    fun syncGmail(token: String, investmentsOnly: Boolean = false) {
         if (!state.value.unlocked || state.value.syncing || state.value.statements.isNotEmpty()) return
         val attempt = generation
         mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)
@@ -151,7 +151,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             var cancelled = false
             try {
                 skipped = withContext(Dispatchers.IO) {
-                    GmailReader(token) { attempt == generation }.read(shouldRead = { source ->
+                    GmailReader(token) { attempt == generation }.read(investmentsOnly = investmentsOnly, shouldRead = { source ->
                         synchronized(databaseGuard) {
                             check(attempt == generation)
                             checkNotNull(session).database.movements().document(source) == null
@@ -195,6 +195,8 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                             importedCount = importedCount,
                             skippedDocuments = skipped,
                             pendingStatements = reviews.size,
+                            investmentsOnly = investmentsOnly,
+                            pendingCustody = custody.size,
                         ),
                     )
                     refresh()

@@ -111,4 +111,20 @@ class BitcoinQuoteTest {
         assertTrue(runCatching { AssetRules.validateNew(AssetBook(listOf(asset)),older) }.isFailure)
         assertEquals(5000000L,asset.valueCents)
     }
+    @Test fun reportedRedirectAnd502RecoverWithHighPrecisionCoinbasePrice() {
+        val amount = "500123.123456789123456789123456789"
+        val quote = BitcoinQuotes.fetch { url -> when(url) {
+            BitcoinQuotes.MERCADO_URL -> throw QuoteResponseException("redirecionamento sem destino")
+            BitcoinQuotes.MERCADO_LEGACY_URL -> throw QuoteHttpException(502)
+            BitcoinQuotes.COINBASE_URL -> QuoteResponse("""{"data":{"base":"BTC","currency":"BRL","amount":"$amount"}}""",now)
+            else -> throw AssertionError("Coinbase spot should provide a valid quote")
+        } }
+        assertEquals(amount,quote.price)
+        assertEquals("Coinbase · BTC/BRL",quote.source)
+        assertFalse(quote.stale)
+        val asset = AssetPosition("btc","Bitcoin",AssetKind.BITCOIN,0,10000000,java.time.LocalDate.of(2026,11,2),btcPrice=quote.price)
+        assertEquals(5001231L,asset.valueCents)
+        assertEquals(10000000L,asset.satoshis)
+        assertTrue(runCatching { BitcoinQuote.validated("BTC-BRL","1e-1000000000",now.epochSecond,now) }.isFailure)
+    }
 }

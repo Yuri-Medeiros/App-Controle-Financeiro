@@ -12,7 +12,9 @@ internal data class BitcoinQuote(val price: String, val timestamp: String, val s
         fun validated(pair: String, value: String, date: Long, now: Instant = Instant.now(), source: String = "Mercado Bitcoin · BTC/BRL", allowReference: Boolean = false): BitcoinQuote {
             require(pair == "BTC-BRL" && value.length <= 128 && date > 0)
             val price = BigDecimal(value).stripTrailingZeros()
-            require(price.signum() > 0 && price < BigDecimal("1000000000000") && price.scale() <= 18)
+            if (price.signum() <= 0 || price >= BigDecimal("1000000000000") || price.scale() > 100) {
+                throw QuoteResponseException("preço fora do intervalo permitido")
+            }
             val timestamp = when {
                 date >= 100_000_000_000_000_000L -> Instant.ofEpochSecond(date / 1_000_000_000L, date % 1_000_000_000L)
                 date >= 100_000_000_000_000L -> Instant.ofEpochSecond(date / 1_000_000L, (date % 1_000_000L) * 1000)
@@ -20,7 +22,9 @@ internal data class BitcoinQuote(val price: String, val timestamp: String, val s
                 else -> Instant.ofEpochSecond(date)
             }
             val maxAge = if (allowReference) 86400L else 300L
-            require(!timestamp.isAfter(now.plusSeconds(60)) && !timestamp.isBefore(now.minusSeconds(maxAge))) { "Cotação antiga ou com data inválida." }
+            if (timestamp.isAfter(now.plusSeconds(60)) || timestamp.isBefore(now.minusSeconds(maxAge))) {
+                throw QuoteResponseException("cotação com data inválida ou anterior ao limite de referência")
+            }
             return BitcoinQuote(price.toPlainString(), timestamp.toString(), source, timestamp.isBefore(now.minusSeconds(300)))
         }
     }
@@ -95,7 +99,9 @@ internal object BitcoinQuotes {
 
     private fun coinbase(response: QuoteResponse): BitcoinQuote {
         val row = JSONObject(response.body).getJSONObject("data")
-        require(row.getString("currency") == "BRL" && row.optString("base", "BTC") == "BTC")
+        if (row.getString("currency") != "BRL" || row.optString("base", "BTC") != "BTC") {
+            throw QuoteResponseException("a resposta não corresponde ao par BTC/BRL")
+        }
         // Spot has no trade timestamp: record the HTTP server's consultation time.
         return BitcoinQuote.validated("BTC-BRL", row.getString("amount"), response.priceTime.epochSecond, response.serverTime, "Coinbase · BTC/BRL", allowReference = true)
     }

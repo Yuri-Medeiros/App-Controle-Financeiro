@@ -25,12 +25,14 @@ internal data class BitcoinQuote(val price: String, val timestamp: String, val s
     }
 }
 
+internal class QuoteResponseException(message: String) : IllegalArgumentException(message)
+
 internal class QuoteHttpException(val status: Int) : java.io.IOException("HTTP $status")
 
 internal data class QuoteResponse(val body: String, val serverTime: Instant) {
     companion object {
         fun fromHttp(body: String, dateMillis: Long, ageSeconds: Long, receivedAt: Instant = Instant.now()): QuoteResponse {
-            require(ageSeconds in 0..299) { "Resposta em cache expirada." }
+            if (ageSeconds !in 0..299) throw QuoteResponseException("cache do serviço expirado")
             val serverTime = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).plusSeconds(ageSeconds) else receivedAt
             return QuoteResponse(body, serverTime)
         }
@@ -41,16 +43,19 @@ internal class BitcoinQuoteUnavailable(val failures: List<String>) : IllegalStat
 /** Requests contain only the public BTC/BRL pair, never credentials or holdings. */
 internal object BitcoinQuotes {
     const val MERCADO_URL = "https://api.mercadobitcoin.net/api/v4/tickers?symbols=BTC-BRL"
+    const val MERCADO_LEGACY_URL = "https://www.mercadobitcoin.net/api/BTC/ticker/"
     const val COINBASE_URL = "https://api.coinbase.com/v2/prices/BTC-BRL/spot"
 
-    fun fetch(request: (String) -> QuoteResponse = ::request): BitcoinQuote {
+    fun fetch(request: (String) -> QuoteResponse = { QuoteHttp.request(it) }): BitcoinQuote {
         val failures = mutableListOf<String>()
-        for ((name, url) in listOf("Mercado Bitcoin" to MERCADO_URL, "Coinbase" to COINBASE_URL)) {
+        for ((name, url) in listOf("Mercado Bitcoin" to MERCADO_URL, "Mercado Bitcoin (público)" to MERCADO_LEGACY_URL, "Coinbase" to COINBASE_URL)) {
             try {
                 val response = request(url)
-                return if (url == MERCADO_URL) mercado(response) else coinbase(response)
+                return if (url != COINBASE_URL) mercado(response) else coinbase(response)
             } catch (error: Exception) {
                 val reason = when (error) {
+                    is QuoteResponseException -> error.message ?: "resposta inválida"
+                    is org.json.JSONException -> "JSON fora do formato esperado"
                     is QuoteHttpException -> "serviço retornou HTTP ${error.status}"
                     is java.net.UnknownHostException -> "DNS indisponível"
                     is java.net.SocketTimeoutException -> "tempo de conexão esgotado"
@@ -65,9 +70,11 @@ internal object BitcoinQuotes {
     }
 
     private fun mercado(response: QuoteResponse): BitcoinQuote {
-        val rows = JSONArray(response.body)
-        val row = (0 until rows.length()).map { rows.getJSONObject(it) }.single { it.optString("pair") == "BTC-BRL" }
-        return BitcoinQuote.validated(row.getString("pair"), row.getString("last"), row.getLong("date"), response.serverTime)
+        val row = if (response.body.trimStart().startsWith("[")) {
+            val rows = JSONArray(response.body)
+            (0 until rows.length()).map { rows.getJSONObject(it) }.single { it.optString("pair") == "BTC-BRL" }
+        } else JSONObject(response.body).getJSONObject("ticker")
+        return BitcoinQuote.validated(row.optString("pair", "BTC-BRL"), row.getString("last"), row.getLong("date"), response.serverTime)
     }
 
     private fun coinbase(response: QuoteResponse): BitcoinQuote {
@@ -77,22 +84,60 @@ internal object BitcoinQuotes {
         return BitcoinQuote.validated("BTC-BRL", row.getString("amount"), response.serverTime.epochSecond, response.serverTime, "Coinbase · BTC/BRL")
     }
 
-    private fun request(url: String): QuoteResponse {
-        val connection = URI(url).toURL().openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = 5000; connection.readTimeout = 5000
-            connection.instanceFollowRedirects = false
-            connection.useCaches = false
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("Cache-Control", "no-cache")
-            connection.setRequestProperty("User-Agent", "MeuFinanceiro/Android")
-            val status = connection.responseCode
-            if (status != 200) throw QuoteHttpException(status)
-            val bytes = connection.inputStream.use { it.readNBytes(65537) }
-            require(bytes.size <= 65536)
-            val age = connection.getHeaderField("Age")?.toLongOrNull() ?: 0L
-            val date = connection.getHeaderFieldDate("Date", -1L)
-            return QuoteResponse.fromHttp(bytes.toString(Charsets.UTF_8), date, age)
-        } finally { connection.disconnect() }
+}
+
+/** The same transport is exercised by JVM tests, including HTTP 302 response handling. */
+internal object QuoteHttp {
+    private val redirectCodes = setOf(301, 302, 303, 307, 308)
+
+    fun request(url: String, open: (URI) -> HttpURLConnection = { it.toURL().openConnection() as HttpURLConnection }): QuoteResponse {
+        val origin = URI(url)
+        requireAllowed(origin, origin)
+        var target = origin
+        val visited = mutableSetOf<URI>()
+        repeat(4) { hop ->
+            if (!visited.add(target)) throw QuoteResponseException("redirecionamento circular")
+            val connection = open(target)
+            try {
+                connection.connectTimeout = 5000; connection.readTimeout = 5000
+                connection.instanceFollowRedirects = false // Follow only validated HTTPS destinations below.
+                connection.useCaches = false
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("Cache-Control", "no-cache")
+                connection.setRequestProperty("User-Agent", "MeuFinanceiro/Android")
+                val status = connection.responseCode
+                if (status in redirectCodes) {
+                    if (hop == 3) throw QuoteResponseException("limite de redirecionamentos excedido")
+                    val location = connection.getHeaderField("Location")?.takeIf { it.isNotBlank() }
+                        ?: throw QuoteResponseException("redirecionamento sem destino")
+                    val next = target.resolve(location)
+                    requireAllowed(origin, next)
+                    target = next
+                } else {
+                    if (status != 200) throw QuoteHttpException(status)
+                    val bytes = connection.inputStream.use { it.readNBytes(65537) }
+                    if (bytes.size > 65536) throw QuoteResponseException("resposta acima do limite")
+                    val body = bytes.toString(Charsets.UTF_8)
+                    val type = connection.contentType.orEmpty()
+                    if (type.contains("text/html", true) || body.trimStart().startsWith("<")) {
+                        throw QuoteResponseException("serviço devolveu página HTML em vez da cotação")
+                    }
+                    val age = connection.getHeaderField("Age")?.toLongOrNull() ?: 0L
+                    val date = connection.getHeaderFieldDate("Date", -1L)
+                    return QuoteResponse.fromHttp(body, date, age)
+                }
+            } finally { connection.disconnect() }
+        }
+        throw QuoteResponseException("limite de redirecionamentos excedido")
+    }
+
+    private fun requireAllowed(origin: URI, target: URI) {
+        val host = target.host?.lowercase().orEmpty()
+        val mercado = origin.host == "api.mercadobitcoin.net" || origin.host == "www.mercadobitcoin.net"
+        val allowed = if (mercado) listOf("mercadobitcoin.net", "mercadobitcoin.com.br").any { host == it || host.endsWith(".$it") }
+            else origin.host == "api.coinbase.com" && host == "api.coinbase.com"
+        if (target.scheme != "https" || target.userInfo != null || target.port !in listOf(-1,443) || !allowed) {
+            throw QuoteResponseException("destino de redirecionamento não permitido")
+        }
     }
 }

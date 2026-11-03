@@ -46,7 +46,7 @@ class BitcoinQuoteTest {
             if (url == BitcoinQuotes.MERCADO_URL) throw QuoteHttpException(503)
             QuoteResponse("""{"data":{"base":"BTC","currency":"BRL","amount":"500000.25"}}""", now)
         }
-        assertEquals(listOf(BitcoinQuotes.MERCADO_URL, BitcoinQuotes.COINBASE_URL), calls)
+        assertEquals(listOf(BitcoinQuotes.MERCADO_URL, BitcoinQuotes.MERCADO_LEGACY_URL, BitcoinQuotes.COINBASE_URL), calls)
         assertEquals("500000.25", quote.price)
         assertEquals("Coinbase · BTC/BRL", quote.source)
         assertEquals(now.toString(), quote.timestamp)
@@ -63,7 +63,7 @@ class BitcoinQuoteTest {
             QuoteResponse("""{"data":{"base":"BTC","currency":"USD","amount":"500000"}}""", now)
         } }
         val error = result.exceptionOrNull() as BitcoinQuoteUnavailable
-        assertEquals(2, error.failures.size)
+        assertEquals(3, error.failures.size)
         assertTrue(error.message!!.contains("DNS"))
     }
     @Test fun serverClockWinsOverWrongDeviceClockAndExpiredHttpCacheIsRejected() {

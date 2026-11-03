@@ -127,4 +127,13 @@ class BitcoinQuoteTest {
         assertEquals(10000000L,asset.satoshis)
         assertTrue(runCatching { BitcoinQuote.validated("BTC-BRL","1e-1000000000",now.epochSecond,now) }.isFailure)
     }
+    @Test fun optionalNullBaseUsesRequestedBtcPairWithAndroidJsonSemantics() {
+        assertEquals("null",org.json.JSONObject("""{"base":null}""").optString("base","BTC"))
+        val quote = BitcoinQuotes.fetch { url ->
+            if(url != BitcoinQuotes.COINBASE_URL) throw QuoteHttpException(502)
+            QuoteResponse("""{"data":{"base":null,"currency":"BRL","amount":"500123.123456789123456789123456789"}}""",now)
+        }
+        assertEquals("Coinbase · BTC/BRL",quote.source)
+        assertEquals("500123.123456789123456789123456789",quote.price)
+    }
 }

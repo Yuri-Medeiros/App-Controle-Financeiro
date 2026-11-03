@@ -11,7 +11,7 @@ internal data class BitcoinQuote(val price: String, val timestamp: String, val s
     companion object {
         fun validated(pair: String, value: String, date: Long, now: Instant = Instant.now(), source: String = "Mercado Bitcoin · BTC/BRL", allowReference: Boolean = false): BitcoinQuote {
             require(pair == "BTC-BRL" && value.length <= 128 && date > 0)
-            val price = BigDecimal(value).stripTrailingZeros()
+            val price = try { BigDecimal(value).stripTrailingZeros() } catch (_: NumberFormatException) { throw QuoteResponseException("preço não numérico") }
             if (price.signum() <= 0 || price >= BigDecimal("1000000000000") || price.scale() > 100) {
                 throw QuoteResponseException("preço fora do intervalo permitido")
             }
@@ -87,7 +87,8 @@ internal object BitcoinQuotes {
             val rows = JSONArray(response.body)
             (0 until rows.length()).map { rows.getJSONObject(it) }.single { it.optString("pair") == "BTC-BRL" }
         } else JSONObject(response.body).getJSONObject("ticker")
-        return BitcoinQuote.validated(row.optString("pair", "BTC-BRL"), row.getString("last"), row.getLong("date"), response.serverTime, allowReference = true)
+        val pair = if (row.isNull("pair")) "BTC-BRL" else row.getString("pair")
+        return BitcoinQuote.validated(pair, row.getString("last"), row.getLong("date"), response.serverTime, allowReference = true)
     }
 
     private fun coinbaseRates(response: QuoteResponse): BitcoinQuote {
@@ -99,7 +100,9 @@ internal object BitcoinQuotes {
 
     private fun coinbase(response: QuoteResponse): BitcoinQuote {
         val row = JSONObject(response.body).getJSONObject("data")
-        if (row.getString("currency") != "BRL" || row.optString("base", "BTC") != "BTC") {
+        // Android optString returns the literal "null" for JSONObject.NULL, not its fallback.
+        val base = if (row.isNull("base")) "BTC" else row.getString("base")
+        if (row.getString("currency") != "BRL" || base != "BTC") {
             throw QuoteResponseException("a resposta não corresponde ao par BTC/BRL")
         }
         // Spot has no trade timestamp: record the HTTP server's consultation time.

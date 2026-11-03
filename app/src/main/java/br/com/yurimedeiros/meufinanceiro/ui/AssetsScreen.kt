@@ -2,6 +2,11 @@ package br.com.yurimedeiros.meufinanceiro.ui
 
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -11,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.*
@@ -129,20 +135,113 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
     var name by remember { mutableStateOf("") }; var kind by remember { mutableStateOf(AssetKind.INVESTMENT) }
     var amount by remember { mutableStateOf("") }; var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
     var error by remember { mutableStateOf<String?>(null) }; val id = remember { UUID.randomUUID().toString() }
-    LedgerDialog("Adicionar patrimônio", state, close, confirm = {
-        try {
-            val cents = if (kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount)
-            val satoshis = if (kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0
-            model.saveLedger(LedgerAction.Asset(AssetChange.Register(AssetPosition(id, if (kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) assetLabel(kind) else name.trim(), kind, cents, satoshis, AppDates.parse(date)))), close)
-        } catch (_: Exception) { error = "Revise nome, valor/quantidade e data." }
-    }) {
-        if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) LedgerField("Nome", name) { name = it }
-        LedgerChoice("Tipo", assetLabel(kind), AssetKind.entries.filter { k -> k !in setOf(AssetKind.FGTS, AssetKind.BITCOIN) || state.ledger.assets.assets.none { it.kind == k } }.map { k -> assetLabel(k) to { kind = k; amount = "" } })
-        LedgerField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor confirmado", amount) { amount = it }
-        LedgerField("Data da confirmação", date) { date = it }
-        Text("Cadastrar um saldo não cria transferência bancária. Aportes, resgates e vendas serão vinculados ao extrato.", style = MaterialTheme.typography.bodySmall)
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    val availableKinds = AssetKind.entries.filter { candidate ->
+        candidate !in setOf(AssetKind.FGTS, AssetKind.BITCOIN) ||
+            state.ledger.assets.assets.none { it.kind == candidate }
     }
+    // Keep the draft above the interaction gate so an automatic lock preserves it.
+    if (LocalFinanceInteractive.current) Dialog(
+        onDismissRequest = { if (!state.syncing) close() },
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color(0xFF0C162B),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
+        ) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp)) {
+                Text("NOVO PATRIMÔNIO", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                Text("Adicionar patrimônio", style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(6.dp))
+                Text("Organize seus bens e investimentos.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(20.dp))
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Tipo de patrimônio", style = MaterialTheme.typography.labelLarge)
+                    // Two columns keep every type visible without a separate menu.
+                    availableKinds.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { option ->
+                                val selected = kind == option
+                                OutlinedButton(
+                                    onClick = { if (kind != option) { kind = option; amount = ""; error = null } },
+                                    enabled = !state.syncing,
+                                    shape = FinanceInputShape,
+                                    border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                            else Color.Transparent,
+                                        contentColor = if (selected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
+                                        this.selected = selected
+                                    },
+                                ) { Text(assetLabel(option), style = MaterialTheme.typography.labelLarge) }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                    if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
+                        AssetEntryField("Nome", name, !state.syncing) { name = it }
+                    }
+                    AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor confirmado",
+                        amount, !state.syncing) { amount = it }
+                    AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
+                    Text("Este registro não movimenta seu saldo bancário.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    (error ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall) }
+                }
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = {
+                        try {
+                            val cents = if (kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount)
+                            val satoshis = if (kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0
+                            model.saveLedger(LedgerAction.Asset(AssetChange.Register(AssetPosition(id,
+                                if (kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) assetLabel(kind) else name.trim(),
+                                kind, cents, satoshis, AppDates.parse(date)))), close)
+                        } catch (_: Exception) { error = "Revise nome, valor/quantidade e data." }
+                    },
+                    enabled = !state.syncing,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    shape = FinanceInputShape,
+                ) {
+                    if (state.syncing) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (state.syncing) "Salvando…" else "Adicionar patrimônio")
+                }
+                TextButton(onClick = close, enabled = !state.syncing, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetEntryField(label: String, value: String, enabled: Boolean, change: (String) -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = change, enabled = enabled,
+        label = { Text(label) }, modifier = Modifier.fillMaxWidth(),
+        shape = FinanceInputShape, singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = Color.White.copy(alpha = 0.025f),
+            focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        ),
+    )
 }
 
 @Composable

@@ -64,3 +64,11 @@ A validação também trata base/pair opcionais com valor JSON null como metadad
 ## Ação de cotação no cabeçalho — 0.9.6
 
 Remove o parágrafo explicativo dos provedores e o botão extenso acima dos cartões. A atualização agora fica à direita do título Patrimônio, em uma cápsula BTC com ícone de atualização, fundo ciano translúcido e contorno suave. Durante a consulta, um indicador ocupa o mesmo espaço do ícone e o botão fica desabilitado, sem mudar de largura. A descrição de acessibilidade informa a ação completa e a área de toque tem pelo menos 48 dp. O título pode quebrar linha com fonte ampliada. Validar no candidato o alinhamento, o carregamento e o toque para atualização manual; mensagens de erro e de referência antiga continuam sendo mostradas quando necessárias.
+
+## Cadastro de patrimônio — 0.9.7
+
+- Formulário com superfície azul escura, contorno ciano, hierarquia de texto e campos discretos.
+- Tipos visíveis em duas colunas, com destaque e semântica de seleção; FGTS e Bitcoin existentes continuam indisponíveis para novo cadastro.
+- Ação principal em largura total, estado de salvamento e cancelamento separado. Conteúdo rolável para telas menores e teclado aberto.
+- Preservados o rascunho durante bloqueio automático, os nomes implícitos e a data DD/MM/AAAA.
+- Roteiro no aparelho: abrir Adicionar patrimônio, alternar os tipos, conferir nome implícito, abrir teclado e alcançar os campos e ações; cadastrar e conferir o saldo. Validar também com fonte ampliada e após bloqueio automático.

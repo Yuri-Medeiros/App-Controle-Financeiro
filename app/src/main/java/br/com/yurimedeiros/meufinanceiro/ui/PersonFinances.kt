@@ -76,7 +76,7 @@ internal fun PersonFinances(personId: Long, state: FinanceUiState, model: Financ
         catch (_: Exception) { error = "Informe uma data válida e o motivo." }
     }) {
         Text("${d.title} · atual ${d.due}")
-        LedgerField("Nova data AAAA-MM-DD", newDue) { newDue = it }
+        LedgerField("Nova data", newDue) { newDue = it }
         LedgerField("Motivo", reason) { reason = it }
         Text("A alteração será adicionada ao histórico; pagamentos não serão apagados.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

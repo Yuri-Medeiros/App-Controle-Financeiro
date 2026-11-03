@@ -86,7 +86,7 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables)))) { goalOpen = false } }
             catch (_: Exception) { error = "Informe uma meta positiva." }
         }) {
-            LedgerField("Meta R$", target) { target = it }
+            LedgerField("Meta", target) { target = it }
             book.assets.forEach { asset -> OutlinedButton(onClick = { selectedIds = if (asset.id in selectedIds) selectedIds - asset.id else selectedIds + asset.id }) { Text("${if (asset.id in selectedIds) "✓ " else ""}${asset.name}") } }
             OutlinedButton(onClick = { bank = !bank }) { Text("${if (bank) "✓ " else ""}Saldo bancário") }
             OutlinedButton(onClick = { flashChosen = !flashChosen }) { Text("${if (flashChosen) "✓ " else ""}Flash") }
@@ -111,8 +111,8 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
     }) {
         if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) LedgerField("Nome", name) { name = it }
         LedgerChoice("Tipo", assetLabel(kind), AssetKind.entries.filter { k -> k !in setOf(AssetKind.FGTS, AssetKind.BITCOIN) || state.ledger.assets.assets.none { it.kind == k } }.map { k -> assetLabel(k) to { kind = k; amount = "" } })
-        LedgerField(if (kind == AssetKind.BITCOIN) "Quantidade BTC (até 8 casas)" else "Saldo ou valor confirmado R$", amount) { amount = it }
-        LedgerField("Data da confirmação AAAA-MM-DD", date) { date = it }
+        LedgerField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor confirmado", amount) { amount = it }
+        LedgerField("Data da confirmação", date) { date = it }
         Text("Cadastrar um saldo não cria transferência bancária. Aportes, resgates e vendas serão vinculados ao extrato.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
@@ -158,8 +158,8 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Confirm(asset.id, if (asset.kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount), if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0, LocalDate.parse(date)))) { action = "" } }
             catch (_: Exception) { error = "Revise valor e data da confirmação." }
         }) {
-            LedgerField(if (asset.kind == AssetKind.BITCOIN) "Quantidade BTC" else "Saldo real R$", amount) { amount = it }
-            LedgerField("Data AAAA-MM-DD", date) { date = it }
+            LedgerField(if (asset.kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Saldo real", amount) { amount = it }
+            LedgerField("Data", date) { date = it }
             Text("A confirmação cria uma nova base, preservando saldos anteriores e operações no histórico.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -172,7 +172,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             catch (_: Exception) { error = "Revise os dados informados." }
         }) {
             if (asset.kind == AssetKind.FGTS) {
-                LedgerField("Depósito mensal previsto R$", monthly) { monthly = it }
+                LedgerField("Depósito mensal previsto", monthly) { monthly = it }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Prever depósitos", Modifier.weight(1f)); Switch(deposits, { deposits = it }) }
                 Text("Depósitos previstos não são adicionados ao saldo real confirmado.", style = MaterialTheme.typography.bodySmall)
             } else {
@@ -204,8 +204,8 @@ private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, mod
         fun label(k: AssetTransferKind) = when (k) { AssetTransferKind.CONTRIBUTION -> "Aporte / compra"; AssetTransferKind.REDEMPTION -> "Resgate / venda parcial"; AssetTransferKind.SALE -> "Venda do veículo" }
         LedgerChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
         LedgerChoice("Extrato", source?.let { "${it.row.date} · ${ledgerMoney(it.row.cents)}" } ?: "Escolher", sources.map { m -> "${m.row.date} · ${ledgerMoney(m.row.cents)} · ${m.row.description}" to { movementId = m.id; included = kind != AssetTransferKind.SALE && m.row.date <= asset.confirmedDate } })
-        LedgerField("Custos incluídos na operação R$", fees) { fees = it }
-        if (asset.kind == AssetKind.BITCOIN) LedgerField("Quantidade efetiva BTC", quantity) { quantity = it }
+        LedgerField("Custos da operação", fees) { fees = it }
+        if (asset.kind == AssetKind.BITCOIN) LedgerField("Quantidade de bitcoin", quantity) { quantity = it }
         if (kind != AssetTransferKind.SALE) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Já incluída no saldo confirmado", Modifier.weight(1f)); Switch(included, { included = it }) }
         Text(if (kind == AssetTransferKind.SALE) "A venda retira o veículo do patrimônio e preserva avaliações anteriores. A entrada líquida será contada uma única vez, pelo extrato." else "A operação será vinculada ao extrato, sem criar outra entrada ou saída nem consumir orçamento como despesa comum.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -226,8 +226,8 @@ private fun FgtsTransferDialog(asset: AssetPosition, state: FinanceUiState, mode
         } catch (_: Exception) { error = "Revise valor e data." }
     }) {
         LedgerChoice("Operação", if (contribution) "Aporte" else "Saque", listOf("Aporte" to { contribution = true }, "Saque" to { contribution = false }))
-        LedgerField("Valor R$", amount) { amount = it }
-        LedgerField("Data AAAA-MM-DD", date) { date = it }
+        LedgerField("Valor", amount) { amount = it }
+        LedgerField("Data", date) { date = it }
         Text("Registra somente o FGTS. Uma entrada na conta será contabilizada pelo extrato bancário.")
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }

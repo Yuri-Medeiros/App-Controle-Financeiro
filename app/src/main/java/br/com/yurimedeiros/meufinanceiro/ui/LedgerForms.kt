@@ -138,9 +138,9 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 CategoryDropdown(category, { category = it }, !state.syncing)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(current, { current = it }, label = { Text("Parcela atual") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
-                    OutlinedTextField(count, { count = it }, label = { Text("Total") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
+                    OutlinedTextField(count, { count = it }, label = { Text("Total de parcelas") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
                 }
-                LedgerField("Primeiro vencimento nominal AAAA-MM-DD", firstDue) { firstDue = it }
+                LedgerField("Primeiro vencimento", firstDue) { firstDue = it }
                 Text("Dias úteis são ajustados pelo calendário validado. Confirme os vencimentos na prévia, especialmente os anos ainda não validados.", style = MaterialTheme.typography.bodySmall)
                 LedgerChoice("Adicionar responsável", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in participants }.map { person ->
                     personLabel(state, person) to { participants = participants + person }
@@ -149,11 +149,11 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     Text(personLabel(state, person)); TextButton(onClick = { if (participants.size > 1) participants = participants - person }) { Text("Remover") }
                 } }
                 if (participants.any { it > 0 }) {
-                    LedgerField("Conciliar familiares desde AAAA-MM-DD", familyStart) { familyStart = it }
+                    LedgerField("Início da conciliação", familyStart) { familyStart = it }
                     Text("Compras anteriores ficam como histórico a conciliar. A data não presume recebimentos nem quitação; revise as parcelas em aberto na prévia.", style = MaterialTheme.typography.bodySmall)
                 }
                 LedgerChoice("Divisão", listOf("Igual", "Percentuais", "Valores por parcela")[split], listOf("Igual", "Percentuais", "Valores por parcela").mapIndexed { i, label -> label to { split = i } })
-                if (split != 0) participants.forEach { person -> LedgerField("${personLabel(state, person)} ${if (split == 1) "%" else "R$"}", values[person].orEmpty()) { values[person] = it } }
+                if (split != 0) participants.forEach { person -> LedgerField(personLabel(state, person), values[person].orEmpty()) { values[person] = it } }
                 Text("Parcela importada: ${ledgerMoney(movement.row.cents)}", style = MaterialTheme.typography.bodySmall)
             }
         } else {
@@ -185,7 +185,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
                 }
                 var totalText by remember(i) { mutableStateOf(editMoney(part.cents)) }
-                LedgerField("Valor da parcela R$", totalText) { text ->
+                LedgerField("Valor da parcela", totalText) { text ->
                     totalText = text
                     val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                     invalidInputs["total:$i"] = cents == null || cents <= 0
@@ -195,7 +195,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     if (person > 0 && part.number in p.familyOpening) {
                         val openingKey = "${part.number}:$person"
                         var opening by remember(i, person, "opening", amounts[i]) { mutableStateOf(editMoney(p.openingBalances[openingKey] ?: amounts[i])) }
-                        LedgerField("${personLabel(state, person)} · saldo em aberto confirmado R$", opening) { text ->
+                        LedgerField("${personLabel(state, person)} · saldo em aberto", opening) { text ->
                             opening = text
                             val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                             invalidInputs["opening:$i:$person"] = cents == null
@@ -240,7 +240,10 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
         LedgerChoice("Transferência", source?.let { "${it.row.date} · ${ledgerMoney(abs(it.row.cents))}" } ?: "Escolher", sources.map { m -> "${m.row.date} · ${ledgerMoney(abs(m.row.cents))} · ${m.friendlyName.ifBlank { m.row.description }}" to { movementId = m.id } })
         Text("Distribua o valor entre as dívidas. Receber e pagar são controles separados.", style = MaterialTheme.typography.bodySmall)
         if (debts.isEmpty()) Text("Nenhuma dívida em aberto nesta direção.")
-        debts.forEach { d -> LedgerField("${d.title} · aberto ${ledgerMoney(d.remaining)}", allocations[d.id].orEmpty()) { allocations[d.id] = it } }
+        debts.forEach { d ->
+            Text("Em aberto: ${ledgerMoney(d.remaining)}", style = MaterialTheme.typography.bodySmall)
+            LedgerField(d.title, allocations[d.id].orEmpty()) { allocations[d.id] = it }
+        }
         localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
@@ -257,8 +260,8 @@ internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: Fina
     }) {
         Text(personLabel(state, personId))
         LedgerChoice("Direção", if (direction == DebtDirection.RECEIVE) "A receber" else "Eu devo", DebtDirection.entries.map { d -> (if (d == DebtDirection.RECEIVE) "A receber" else "Eu devo") to { direction = d } })
-        LedgerField("Origem / descrição", title) { title = it }; LedgerField("Valor R$", amount) { amount = it }
-        LedgerField("Vencimento AAAA-MM-DD", due) { due = it }
+        LedgerField("Descrição", title) { title = it }; LedgerField("Valor", amount) { amount = it }
+        LedgerField("Vencimento", due) { due = it }
         Text("Confirme a data, inclusive ajustes por dia útil. Não há juros nem compensação automática.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
@@ -290,7 +293,10 @@ internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model
             if (part.number in selectedParts) p.shares.forEach { (person, amounts) ->
                 val id = "${p.id}:${part.number}:$person"
                 val refunded = state.ledger.actions.filterIsInstance<LedgerAction.Refund>().sumOf { it.credits[id] ?: 0 }
-                if (amounts[part.number - 1] > refunded) LedgerField("${personLabel(state, person)} · limite ${ledgerMoney(amounts[part.number - 1] - refunded)}", credits[id].orEmpty()) { credits[id] = it }
+                if (amounts[part.number - 1] > refunded) {
+                    Text("Limite: ${ledgerMoney(amounts[part.number - 1] - refunded)}", style = MaterialTheme.typography.bodySmall)
+                    LedgerField(personLabel(state, person), credits[id].orEmpty()) { credits[id] = it }
+                }
             }
         }
         if (p != null && selectedParts.isNotEmpty()) OutlinedButton(onClick = {
@@ -316,7 +322,7 @@ internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiSta
         "refund" -> RefundDialog(movement, state, model, close)
         "other-credit" -> LedgerDialog("Outro crédito da fatura", state, close, confirm = { model.saveLedger(LedgerAction.CardCredit(movement.id, creditReason.trim()), close) }) {
             Text("${row.description} · ${ledgerMoney(-row.cents)}")
-            LedgerField("Natureza / motivo", creditReason) { creditReason = it }
+            LedgerField("Motivo", creditReason) { creditReason = it }
             Text("Não será tratado como estorno de compra nem alterará dívidas de familiares.", style = MaterialTheme.typography.bodySmall)
         }
         "payment" -> PaymentDialog(person, if (row.cents > 0) DebtDirection.RECEIVE else DebtDirection.PAY, state, model, close, movement.id)

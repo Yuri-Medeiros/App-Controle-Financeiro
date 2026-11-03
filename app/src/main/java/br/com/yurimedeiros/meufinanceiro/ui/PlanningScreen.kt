@@ -112,15 +112,15 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
                 model.saveLedger(LedgerAction.Planning(p.copy(balanceCents = signedAmount(balance), balanceDate = LocalDate.parse(date), salaryCents = FinanceLedger.money(salary), fixedReserve = fixedValue, reserveStart = start, salaryDates = salaryDates, invoiceDates = invoices))) { dialog = "" }
             } catch (_: Exception) { error = "Revise os valores e as datas." }
         }) {
-            LedgerField("Saldo bancário ao fim da data R$", balance) { balance = it }
-            LedgerField("Data do saldo AAAA-MM-DD", date) { date = it }
+            LedgerField("Saldo bancário", balance) { balance = it }
+            LedgerField("Data do saldo", date) { date = it }
             Text("Somente movimentações após essa data alteram o saldo. Confira se os extratos desse período estão completos.", style = MaterialTheme.typography.bodySmall)
-            LedgerField("Salário previsto R$", salary) { salary = it }
-            LedgerField("Reserva fixa por ciclo R$", fixed) { fixed = it }
+            LedgerField("Salário previsto", salary) { salary = it }
+            LedgerField("Reserva por ciclo", fixed) { fixed = it }
             Text("A reserva é somada uma vez em cada ciclo a partir da configuração. Para ajustar o ciclo atual, use Reservar ou liberar.", style = MaterialTheme.typography.bodySmall)
-            LedgerField("Confirmar salário de um mês (opcional)", salaryDate) { salaryDate = it }
-            LedgerField("Confirmar fatura de um mês (opcional)", invoiceDate) { invoiceDate = it }
-            Text("Datas AAAA-MM-DD. Por padrão: salário dia 5 e fatura dia 8, avançando ao dia útil validado.", style = MaterialTheme.typography.bodySmall)
+            LedgerField("Data do salário", salaryDate) { salaryDate = it }
+            LedgerField("Data da fatura", invoiceDate) { invoiceDate = it }
+            Text("Datas opcionais. Por padrão: salário dia 5 e fatura dia 8, com ajuste para dia útil.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
@@ -130,7 +130,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             try { require(category.isNotBlank()); model.saveLedger(LedgerAction.Planning(p.copy(budgets = p.budgets + (category.trim() to FinanceLedger.money(amount))))) { dialog = "" } }
             catch (_: Exception) { error = "Informe categoria e valor." }
         }) {
-            CategoryDropdown(category, { category = it }, !state.syncing); LedgerField("Limite R$", amount) { amount = it }
+            CategoryDropdown(category, { category = it }, !state.syncing); LedgerField("Limite", amount) { amount = it }
             Text("O limite da categoria inclui suas subcategorias. Evite limites sobrepostos entre a categoria e seus filhos. O histórico de configuração é preservado.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -143,7 +143,8 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             try { model.saveLedger(LedgerAction.Planning(p.copy(reserves = p.reserves + ReserveChange(id, title.trim(), signedAmount(amount), location, today)))) { dialog = "" } }
             catch (_: Exception) { error = "Revise nome e valor. Use sinal negativo para liberar." }
         }) {
-            LedgerField("Nome da reserva", title) { title = it }; LedgerField("Valor R$ (negativo para liberar)", amount) { amount = it }
+            LedgerField("Nome da reserva", title) { title = it }; LedgerField("Valor", amount) { amount = it }
+            Text("Use um valor negativo para liberar a reserva.", style = MaterialTheme.typography.bodySmall)
             LedgerChoice("Local", if (location == ReserveLocation.BANK) "Na conta" else "Em investimentos", ReserveLocation.entries.map { l -> (if (l == ReserveLocation.BANK) "Na conta" else "Em investimentos") to { location = l } })
             Text("Para liberar, use exatamente o nome e o local da reserva existente. A liberação não realiza resgate bancário.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -158,7 +159,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             catch (_: Exception) { error = "Revise descrição, categoria, valor e data." }
         }) {
             LedgerField("Descrição", title) { title = it }; CategoryDropdown(category, { category = it }, !state.syncing)
-            LedgerField("Valor previsto R$", amount) { amount = it }; LedgerField("Primeiro vencimento AAAA-MM-DD", date) { date = it }
+            LedgerField("Valor previsto", amount) { amount = it }; LedgerField("Primeiro vencimento", date) { date = it }
             LedgerChoice("Frequência", frequencyLabel(frequency), ExpenseFrequency.entries.map { f -> frequencyLabel(f) to { frequency = f } })
             Text("A previsão só deixa de ser obrigação ao vincular o lançamento real. Diferenças de valor são confirmadas nesse vínculo.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -172,7 +173,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         } catch (_: Exception) { error = "Informe uma data válida." }
     }) {
         Text(occurrence.expense.title)
-        LedgerField("Vencimento AAAA-MM-DD", confirmedDate) { confirmedDate = it }
+        LedgerField("Vencimento", confirmedDate) { confirmedDate = it }
         Text("A confirmação vale apenas para esta ocorrência e fica no histórico.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     } }

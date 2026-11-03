@@ -204,7 +204,7 @@ internal fun MovementsScreen(
                     Text(statement.source.filename, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(
                         reference, { reference = it },
-                        label = { Text("Referência AAAA-MM-DD") },
+                        label = { Text("Data de referência") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = FinanceInputShape,
                         singleLine = true,
@@ -577,7 +577,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
             text = {
                 OutlinedTextField(
                     custom, { custom = it }, modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Categoria ou Categoria / Subcategoria") }, shape = FinanceInputShape, singleLine = true,
+                    label = { Text("Categoria") }, shape = FinanceInputShape, singleLine = true,
                 )
             },
             confirmButton = {

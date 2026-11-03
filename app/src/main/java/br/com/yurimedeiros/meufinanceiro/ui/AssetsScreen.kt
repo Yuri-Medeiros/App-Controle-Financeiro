@@ -2,11 +2,16 @@ package br.com.yurimedeiros.meufinanceiro.ui
 
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.*
 import br.com.yurimedeiros.meufinanceiro.importing.*
@@ -22,6 +27,30 @@ private fun assetEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainString()
 
 @Composable
+internal fun BitcoinQuoteButton(loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val accent = NeonPalette[0]
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = Modifier.heightIn(min = 48.dp).semantics {
+            contentDescription = if (loading) "Atualizando cotação do Bitcoin" else "Atualizar cotação do Bitcoin"
+        },
+        shape = CircleShape,
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = accent.copy(alpha = 0.12f), contentColor = accent,
+            disabledContainerColor = accent.copy(alpha = 0.06f), disabledContentColor = accent.copy(alpha = 0.6f),
+        ),
+    ) {
+        if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accent, strokeWidth = 2.dp)
+        else Icon(RefreshIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("BTC", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     LaunchedEffect(state.unlocked, state.visible, state.ledger.assets.assets.map { it.id }) {
         if (state.unlocked && state.visible) {
@@ -31,12 +60,6 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     state.bitcoinNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-    if (state.ledger.assets.assets.any { it.kind == AssetKind.BITCOIN }) {
-        OutlinedButton(onClick = { model.refreshBitcoin(manual = true) }, enabled = state.unlocked && !state.quoting) {
-            Text(if (state.quoting) "Consultando Bitcoin…" else "Atualizar cotação BTC/BRL")
-        }
-        Text("Cotação em reais via Mercado Bitcoin ou Coinbase. Confira a fonte e a data da avaliação.", style = MaterialTheme.typography.bodySmall)
-    }
     val book = state.ledger.assets
     var adding by remember { mutableStateOf(false) }
     var goalOpen by remember { mutableStateOf(false) }

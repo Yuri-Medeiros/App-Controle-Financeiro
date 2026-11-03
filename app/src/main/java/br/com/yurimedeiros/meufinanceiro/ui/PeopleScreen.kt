@@ -88,7 +88,7 @@ internal fun PeopleScreen(state: FinanceUiState, model: FinanceViewModel) {
         }
     }
     if (adding) {
-        AlertDialog(
+        if (LocalFinanceInteractive.current) AlertDialog(
             onDismissRequest = { if (!state.syncing) adding = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),

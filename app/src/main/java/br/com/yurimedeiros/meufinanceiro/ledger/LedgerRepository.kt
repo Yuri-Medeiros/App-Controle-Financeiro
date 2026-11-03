@@ -11,6 +11,7 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
 
     fun append(action: LedgerAction) = db.runInTransaction {
         val snapshot = snapshot()
+        (action as? LedgerAction.Asset)?.let { AssetRules.validateNew(snapshot.assets, it.change) }
         val people = db.people().all().map { it.id }.toSet()
         val movements = MovementRepository(db).all().associateBy { it.id }
         fun movement(id: Long): ReviewMovement = checkNotNull(movements[id]) { "Movimentação não encontrada." }.also {
@@ -25,6 +26,10 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             is LedgerAction.CardCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.NUBANK_CARD && m.row.cents < 0 && !PaymentMatching.isPayment(m.row)) }
             is LedgerAction.FlashCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.FLASH && m.row.cents == 15000L && m.row.date == action.sunday) }
             is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { transfer ->
+                if (transfer.movementId == 0L) {
+                    require(snapshot.assets.assets.single { it.id == transfer.id }.kind == AssetKind.FGTS)
+                    return@let
+                }
                 val m = movement(transfer.movementId)
                 require(m.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(m.row))
                 require(if (transfer.kind == AssetTransferKind.CONTRIBUTION) m.row.cents < 0 else m.row.cents > 0)
@@ -79,7 +84,7 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
         when (action) {
             is LedgerAction.CardCredit -> mark(action.movementId, "CARD_CREDIT")
             is LedgerAction.FlashCredit -> mark(action.movementId, "FLASH_CREDIT")
-            is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { mark(it.movementId, "ASSET_TRANSFER") }
+            is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { if (it.movementId > 0) mark(it.movementId, "ASSET_TRANSFER") }
             is LedgerAction.ResolveConflict -> mark(action.movementId, if (action.keepDistinct) "PENDING" else "IGNORED")
             is LedgerAction.ForecastMatch -> mark(action.movementId, "CONFIRMED", snapshot.planning.expenses.single { it.id == action.expenseId }.category)
             is LedgerAction.Purchase -> action.plan.parts.filter { it.movementId > 0 }.forEach { mark(it.movementId, "CONFIRMED", action.plan.category) }

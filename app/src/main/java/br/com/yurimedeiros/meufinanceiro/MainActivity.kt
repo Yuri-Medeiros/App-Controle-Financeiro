@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private var cancellation: CancellationSignal? = null
     private var autoPrompt = true
     private var authorizingGoogle = false
+    private var investmentsOnly = false
     private var deviceSecure by mutableStateOf(false)
 
     private val googleAuthorization = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -39,12 +40,13 @@ class MainActivity : ComponentActivity() {
             model.showImportError("Autorização Google cancelada. Seus registros foram preservados.")
         } else try {
             val authorization = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(checkNotNull(result.data))
-            authorization.accessToken?.let(model::syncGmail) ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
+            authorization.accessToken?.let { model.syncGmail(it, investmentsOnly) } ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
         } catch (_: Exception) { model.showImportError("Não foi possível autorizar o Gmail. Tente novamente.") }
     }
 
-    private fun authorizeGmail() {
+    private fun authorizeGmail(onlyInvestments: Boolean = false) {
         if (!model.state.value.unlocked || model.state.value.syncing || authorizingGoogle) return
+        investmentsOnly = onlyInvestments
         authorizingGoogle = true
         val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/gmail.readonly"))).build()
         Identity.getAuthorizationClient(this).authorize(request)
@@ -54,7 +56,7 @@ class MainActivity : ComponentActivity() {
                     result.pendingIntent?.let { googleAuthorization.launch(IntentSenderRequest.Builder(it).build()) }
                 } else {
                     authorizingGoogle = false
-                    result.accessToken?.let(model::syncGmail) ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
+                    result.accessToken?.let { model.syncGmail(it, investmentsOnly) } ?: model.showImportError("O Google não concedeu acesso de leitura ao Gmail.")
                 }
             }
             .addOnFailureListener { authorizingGoogle = false; model.showImportError("Não foi possível autorizar o Gmail. Confira a configuração Google e tente novamente.") }
@@ -92,6 +94,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        investmentsOnly = savedInstanceState?.getBoolean("investmentsOnly") ?: false
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -101,12 +104,18 @@ class MainActivity : ComponentActivity() {
             FinanceApp(
                 model = model,
                 onUnlock = ::authenticate,
-                onRefresh = ::authorizeGmail,
+                onRefresh = { authorizeGmail() },
+                onRefreshInvestments = { authorizeGmail(onlyInvestments = true) },
                 onBackupAuthorize = ::authorizeDrive,
                 onSecuritySettings = { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) },
                 deviceSecure = deviceSecure,
             )
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("investmentsOnly", investmentsOnly)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {

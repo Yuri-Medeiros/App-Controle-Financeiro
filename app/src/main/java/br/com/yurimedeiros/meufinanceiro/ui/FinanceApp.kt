@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -62,6 +64,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -73,8 +79,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.text.DateFormat
-import java.util.Date
+
+internal val LocalFinanceInteractive = androidx.compose.runtime.compositionLocalOf { true }
 
 private data class Section(val title: String, val navigation: String, val description: String, val icon: ImageVector)
 private fun symbol(name: String, path: String): ImageVector = ImageVector.Builder(
@@ -86,7 +92,7 @@ private val ListIcon = symbol("Movimentações", "M4,4H20V6H4ZM4,11H20V13H4ZM4,1
 private val PeopleIcon = symbol("Pessoas", "M9,3A4,4 0,1 0,9,11A4,4 0,1 0,9,3M2,21V18C2,14 16,14 16,18V21ZM17,4A4,4 0,0 1,17,12V10A2,2 0,0 0,17,6ZM18,15C21,15 23,16 23,18V21H20V18C20,17 19,16 18,16Z")
 private val PlanIcon = symbol("Planejamento", "M6,2H8V4H16V2H18V4H21V22H3V4H6ZM5,9V20H19V9ZM7,12H11V16H7Z")
 private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V16ZM13,16V7H16V16ZM18,16V3H21V16Z")
-private val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A7,7 0,1 1,16.5,5.5L14,8H20Z")
+internal val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A7,7 0,1 1,16.5,5.5L14,8H20Z")
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")
 private val Sections = listOf(
     Section("Resumo", "Resumo", "Seu dinheiro, com clareza.", HomeIcon),
@@ -101,11 +107,17 @@ internal fun FinanceApp(
     model: FinanceViewModel,
     onUnlock: () -> Unit,
     onRefresh: () -> Unit,
+    onRefreshInvestments: () -> Unit,
     onBackupAuthorize: () -> Unit,
     onSecuritySettings: () -> Unit,
     deviceSecure: Boolean,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(state.unlocked, state.visible) {
+        if (!state.unlocked || !state.visible) { focusManager.clearFocus(force = true); keyboard?.hide() }
+    }
     val pager = rememberPagerState(pageCount = { Sections.size })
     val navigationScope = rememberCoroutineScope()
     val selected = pager.currentPage
@@ -116,13 +128,13 @@ internal fun FinanceApp(
     var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
     var batchCategoryOpen by remember { mutableStateOf(false) }
     LaunchedEffect(selected, settings, state.unlocked, state.visible) {
-        if (selected != 1 || settings || !state.unlocked || !state.visible) {
+        if (selected != 1 || settings) {
             selectedMovementIds = emptySet()
             batchCategoryOpen = false
         }
     }
-    BackHandler(enabled = settings) { settings = false; model.cancelRestore() }
-    BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen) {
+    BackHandler(enabled = settings && state.unlocked && state.visible) { settings = false; model.cancelRestore() }
+    BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen && state.unlocked && state.visible) {
         selectedMovementIds = emptySet()
     }
     LaunchedEffect(state.movements) {
@@ -138,14 +150,16 @@ internal fun FinanceApp(
     var navigationPosition by remember { mutableStateOf(Offset.Zero) }
     val customCategories = (state.movements.map { it.category } + state.ledger.purchases.map { it.category } +
         state.ledger.planning.budgets.keys + state.ledger.planning.expenses.map { it.category }).filter { it.isNotBlank() }.distinct().sorted()
-    CompositionLocalProvider(LocalCustomCategories provides customCategories) {
+    CompositionLocalProvider(LocalCustomCategories provides customCategories, LocalFinanceInteractive provides (state.unlocked && state.visible)) {
         FinanceTheme {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 when {
-                    !state.visible -> Box(Modifier.fillMaxSize())
-                    !state.unlocked -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
-                    else -> Scaffold(
-                        modifier = Modifier.background(Color(0xFF070D20)),
+                    !state.unlocked && !state.resumeAvailable -> LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                    else -> Box(Modifier.fillMaxSize()) {
+                    Scaffold(
+                        modifier = Modifier.background(Color(0xFF070D20)).focusProperties { canFocus = state.unlocked && state.visible }.then(
+                            if (!state.unlocked || !state.visible) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier
+                        ),
                         containerColor = Color.Transparent,
                         bottomBar = {
                             if (!settings) {
@@ -271,7 +285,7 @@ internal fun FinanceApp(
                                     } else {
                                         val section = Sections[page]
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text(section.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                            Text(section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                             if (page == 1) {
                                                 IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
                                                     Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
@@ -279,6 +293,23 @@ internal fun FinanceApp(
                                             } else if (page == 0) {
                                                 IconButton(onClick = { settings = true }) {
                                                     Icon(SettingsIcon, contentDescription = "Configurações")
+                                                }
+                                            } else if (page == 4) {
+                                                Spacer(Modifier.width(12.dp))
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    AssetRefreshButton(
+                                                        loading = state.syncing,
+                                                        enabled = state.unlocked && state.visible && state.statements.isEmpty() && state.custody.isEmpty(),
+                                                        label = "Invest.", description = "investimentos pelo Gmail",
+                                                        onClick = onRefreshInvestments,
+                                                    )
+                                                    if (state.ledger.assets.assets.any { it.kind == br.com.yurimedeiros.meufinanceiro.assets.AssetKind.BITCOIN && !it.disposed }) {
+                                                        AssetRefreshButton(
+                                                            loading = state.quoting,
+                                                            enabled = state.unlocked && state.visible,
+                                                            onClick = { model.refreshBitcoin(manual = true) },
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -327,6 +358,10 @@ internal fun FinanceApp(
                                     },
                                 )
                             }
+                            state.custody.firstOrNull()?.let { statement ->
+                                CustodyReviewScreen(statement, state, onCancel = model::dismissCustody,
+                                    onConfirm = model::confirmCustody)
+                            }
                             state.importNotification?.let { notification ->
                                 ImportNotificationPopup(
                                     notification = notification,
@@ -337,6 +372,14 @@ internal fun FinanceApp(
                                 )
                             }
                         }
+                    }
+                    if (!state.unlocked || !state.visible) Surface(Modifier.fillMaxSize().then(Modifier.pointerInput(Unit) {
+                        // Keep the overlay in hit testing without consuming events from the unlock button.
+                        awaitPointerEventScope { while (true) awaitPointerEvent() }
+                    })) {
+                        if (state.visible) LockedScreen(state, deviceSecure, onUnlock, onSecuritySettings)
+                        else Box(Modifier.fillMaxSize())
+                    }
                     }
                 }
             }
@@ -361,7 +404,7 @@ private fun SecurityCard(createdAtMillis: Long?) {
             Text("Armazenamento criptografado neste aparelho", style = MaterialTheme.typography.bodyMedium)
             Text("Novo desbloqueio após 1 minuto fora do app", style = MaterialTheme.typography.bodyMedium)
             createdAtMillis?.let {
-                Text("Espaço criado em ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Espaço criado em ${AppDates.createdDate(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

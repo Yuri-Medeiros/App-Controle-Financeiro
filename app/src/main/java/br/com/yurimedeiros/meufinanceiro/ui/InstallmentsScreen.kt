@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,7 +20,7 @@ internal fun InstallmentsDialog(state: FinanceUiState, close: () -> Unit) {
     LedgerDialog("Faturas e parcelas", state, close) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { month = month.minusMonths(1) }) { Text("Anterior") }
-            Text(month.toString())
+            Text(AppDates.month(month))
             TextButton(onClick = { month = month.plusMonths(1) }) { Text("Próxima") }
         }
         val imported = state.movements.filter { it.row.kind == DocumentKind.NUBANK_CARD && it.row.statement?.let(YearMonth::from) == month && it.status != "CONFLICT" }
@@ -41,7 +43,7 @@ internal fun InstallmentsDialog(state: FinanceUiState, close: () -> Unit) {
             TextButton(onClick = { expanded = if (expanded == "${p.id}:${part.number}") null else "${p.id}:${part.number}" }) {
                 Text("${p.title} · ${part.number}/${p.parts.size} · ${ledgerMoney(part.cents)}")
             }
-            Text("${part.due} · ${if (part.movementId == 0L) "Prevista, aguardando extrato" else "Vinculada ao extrato"}${if (part.number !in p.familyOpening && p.shares.keys.any { it > 0 }) " · histórico familiar a conciliar" else ""}", style = MaterialTheme.typography.bodySmall)
+            Text("${AppDates.date(part.due)} · ${if (part.movementId == 0L) "Prevista, aguardando extrato" else "Vinculada ao extrato"}${if (part.number !in p.familyOpening && p.shares.keys.any { it > 0 }) " · histórico familiar a conciliar" else ""}", style = MaterialTheme.typography.bodySmall)
             if (expanded == "${p.id}:${part.number}") p.shares.forEach { (person, amounts) ->
                 val key = "${p.id}:${part.number}:$person"
                 val credits = actions.sumOf { it.credits[key] ?: 0 }

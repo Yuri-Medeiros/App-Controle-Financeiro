@@ -1,11 +1,12 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import br.com.yurimedeiros.meufinanceiro.importing.DocumentKind
 import br.com.yurimedeiros.meufinanceiro.importing.FriendlyDescriptions
 import br.com.yurimedeiros.meufinanceiro.importing.ReviewMovement
 import java.time.LocalTime
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 
 internal object MovementFilters {
     fun friendlyNames(movements: List<ReviewMovement>): Map<Long, String> {
@@ -25,14 +26,13 @@ internal object MovementFilters {
         descriptions: Map<Long, String> = friendlyNames(movements),
     ): List<ReviewMovement> {
         val term = query.trim()
-        val dateFormat = DateTimeFormatter.ofPattern("dd/MM/uuuu")
         return movements.filter {
             YearMonth.from(it.row.date) == period &&
                 (account == null || it.row.kind == account) &&
                 (term.isBlank() || it.row.description.contains(term, ignoreCase = true) ||
                     it.friendlyName.contains(term, ignoreCase = true) ||
                     descriptions[it.id].orEmpty().contains(term, ignoreCase = true) ||
-                    it.row.date.format(dateFormat).contains(term) || it.row.date.toString().contains(term))
+                    AppDates.date(it.row.date).contains(term) || it.row.date.toString().contains(term))
         }.sortedWith(compareByDescending<ReviewMovement> { it.row.date }
             .thenByDescending { it.row.time ?: LocalTime.MIN }
             .thenByDescending { it.id })

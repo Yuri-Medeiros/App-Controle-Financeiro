@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -29,7 +31,7 @@ internal fun PersonFinances(personId: Long, state: FinanceUiState, model: Financ
     val shareDebts = if (reference.isBlank()) debts.filter { it.remaining > 0 && it.due <= today.withDayOfMonth(today.lengthOfMonth()) } else debts.filter { it.due.toString() == reference }
     val shareText = buildString {
         appendLine("Meu Financeiro · ${personLabel(state, personId)}")
-        appendLine(if (reference.isBlank()) "Resumo atual e vencido" else "Demonstrativo · $reference")
+        appendLine(if (reference.isBlank()) "Resumo atual e vencido" else "Demonstrativo · ${AppDates.storedDate(reference)}")
         if (reference.isNotBlank()) shareDebts.forEach { appendLine("${it.title}: ${ledgerMoney(it.remaining)} · ${if (it.direction == DebtDirection.RECEIVE) "a receber" else "a pagar"}") }
         appendLine("A receber: ${ledgerMoney(shareDebts.filter { it.direction == DebtDirection.RECEIVE }.sumOf { it.remaining })}")
         appendLine("A pagar: ${ledgerMoney(shareDebts.filter { it.direction == DebtDirection.PAY }.sumOf { it.remaining })}")
@@ -54,29 +56,29 @@ internal fun PersonFinances(personId: Long, state: FinanceUiState, model: Financ
             shown.sortedBy { it.due }.take(limit).forEach { d ->
                 HorizontalDivider()
                 Text(d.title)
-                Text("${d.due} · ${if (d.direction == DebtDirection.RECEIVE) "A receber" else "A pagar"} ${ledgerMoney(d.remaining)}")
+                Text("${AppDates.date(d.due)} · ${if (d.direction == DebtDirection.RECEIVE) "A receber" else "A pagar"} ${ledgerMoney(d.remaining)}")
                 if (d.paidCents > 0 || d.creditedCents > 0) Text("Pagamentos ${ledgerMoney(d.paidCents)} · estornos ${ledgerMoney(d.creditedCents)}", style = MaterialTheme.typography.bodySmall)
-                if (d.purchaseId == null && d.remaining > 0) TextButton(onClick = { postpone = d; newDue = d.due.toString(); reason = "" }) { Text("Alterar vencimento") }
+                if (d.purchaseId == null && d.remaining > 0) TextButton(onClick = { postpone = d; newDue = AppDates.date(d.due); reason = "" }) { Text("Alterar vencimento") }
             }
             if (shown.size > limit) TextButton(onClick = { limit += 30 }) { Text("Ver mais") }
             if (tab == 1) {
                 Text("Pagamentos e alterações", style = MaterialTheme.typography.titleSmall)
                 state.ledger.actions.takeLast(limit).forEach { a -> when (a) {
-                    is LedgerAction.Payment -> if (a.personId == personId) Text("${a.date} · ${if (a.direction == DebtDirection.RECEIVE) "Recebido" else "Pago"} ${ledgerMoney(a.allocations.values.sum())}", style = MaterialTheme.typography.bodySmall)
-                    is LedgerAction.Postpone -> if (debts.any { it.id == a.debtId }) Text("Vencimento alterado para ${a.due} · ${a.reason}", style = MaterialTheme.typography.bodySmall)
+                    is LedgerAction.Payment -> if (a.personId == personId) Text("${AppDates.date(a.date)} · ${if (a.direction == DebtDirection.RECEIVE) "Recebido" else "Pago"} ${ledgerMoney(a.allocations.values.sum())}", style = MaterialTheme.typography.bodySmall)
+                    is LedgerAction.Postpone -> if (debts.any { it.id == a.debtId }) Text("Vencimento alterado para ${AppDates.date(a.due)} · ${a.reason}", style = MaterialTheme.typography.bodySmall)
                     else -> Unit
                 } }
             }
-            LedgerChoice("Compartilhar", if (reference.isBlank()) "Resumo" else reference, listOf("Resumo atual e vencido" to { reference = "" }) + dates.map { date -> date.toString() to { reference = date.toString() } })
+            LedgerChoice("Compartilhar", if (reference.isBlank()) "Resumo" else AppDates.storedDate(reference), listOf("Resumo atual e vencido" to { reference = "" }) + dates.map { date -> AppDates.date(date) to { reference = date.toString() } })
             OutlinedButton(onClick = { sharing = true }) { Text("Prévia do demonstrativo") }
         }
     }
     postpone?.let { d -> LedgerDialog("Alterar vencimento", state, { postpone = null }, confirm = {
-        try { model.saveLedger(LedgerAction.Postpone(d.id, LocalDate.parse(newDue), reason.trim())) { postpone = null } }
+        try { model.saveLedger(LedgerAction.Postpone(d.id, AppDates.parse(newDue), reason.trim())) { postpone = null } }
         catch (_: Exception) { error = "Informe uma data válida e o motivo." }
     }) {
-        Text("${d.title} · atual ${d.due}")
-        LedgerField("Nova data AAAA-MM-DD", newDue) { newDue = it }
+        Text("${d.title} · atual ${AppDates.date(d.due)}")
+        LedgerField("Nova data", newDue) { newDue = it }
         LedgerField("Motivo", reason) { reason = it }
         Text("A alteração será adicionada ao histórico; pagamentos não serão apagados.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

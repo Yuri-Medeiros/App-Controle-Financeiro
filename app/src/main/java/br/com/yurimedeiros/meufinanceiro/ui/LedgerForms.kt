@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -32,7 +34,7 @@ internal fun LedgerChoice(label: String, value: String, options: List<Pair<Strin
     var open by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape) { Text("$label: $value") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open && LocalFinanceInteractive.current, onDismissRequest = { open = false }) {
             options.forEach { (text, action) -> DropdownMenuItem(text = { Text(text) }, onClick = { action(); open = false }) }
         }
     }
@@ -44,7 +46,7 @@ internal fun LedgerDialog(
     confirmLabel: String = "Confirmar", confirm: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    AlertDialog(
+    if (LocalFinanceInteractive.current) AlertDialog(
         onDismissRequest = { if (!state.syncing) close() }, title = { Text(title) },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             content()
@@ -63,8 +65,8 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
     var current by remember { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
     var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
     var category by remember { mutableStateOf(movement.category) }
-    var firstDue by remember { mutableStateOf((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1).toString()) }
-    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.toString().orEmpty()) }
+    var firstDue by remember { mutableStateOf(AppDates.date((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1))) }
+    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.let(AppDates::date).orEmpty()) }
     var participants by remember { mutableStateOf(listOf(0L)) }
     var split by remember { mutableIntStateOf(0) }
     val values = remember { mutableStateMapOf<Long, String>() }
@@ -81,8 +83,8 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
             val n = count.toInt(); val number = current.toInt()
             require(n in 1..120 && number in 1..n) { "Revise o número da parcela e a quantidade (até 120)." }
             require(category.isNotBlank() && title.isNotBlank()) { "Informe categoria e descrição." }
-            val date = LocalDate.parse(firstDue)
-            val cutoff = if (participants.any { it > 0 }) LocalDate.parse(familyStart) else null
+            val date = AppDates.parse(firstDue)
+            val cutoff = if (participants.any { it > 0 }) AppDates.parse(familyStart) else null
             val shares = when (split) {
                 0 -> PurchaseSplit.equally(movement.row.cents, participants.size)
                 1 -> PurchaseSplit.byPercentages(movement.row.cents, participants.map { BigDecimal(values[it].orEmpty().replace(',', '.')) })
@@ -111,7 +113,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 val options = state.ledger.purchases.flatMap { p -> p.parts.filter { it.movementId == 0L }.map { p to it } }
                 if (options.isEmpty()) Text("Nenhuma parcela prevista para vincular.")
                 options.forEach { (p, part) -> OutlinedButton(onClick = {
-                    chosenLink = p to part; linkDue = part.due.toString(); linkAmounts.clear()
+                    chosenLink = p to part; linkDue = AppDates.date(part.due); linkAmounts.clear()
                     val people = p.shares.keys.toList()
                     val suggested = PurchaseSplit.proportionally(movement.row.cents, people.map { p.shares.getValue(it)[part.number - 1] })
                     people.forEachIndexed { i, person -> linkAmounts[person] = editMoney(suggested[i]) }
@@ -125,7 +127,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     Button(onClick = {
                         try {
                             val amounts = p.shares.keys.associateWith { FinanceLedger.money(linkAmounts[it].orEmpty()) }
-                            val due = LocalDate.parse(linkDue)
+                            val due = AppDates.parse(linkDue)
                             val unchanged = movement.row.cents == part.cents && due == part.due && amounts.all { (person, cents) -> p.shares.getValue(person)[part.number - 1] == cents }
                             val action = if (unchanged) LedgerAction.Link(p.id, part.number, movement.id) else LedgerAction.AdjustLink(p.id, part.number, movement.id, movement.row.cents, due, amounts)
                             model.saveLedger(action, close)
@@ -138,9 +140,9 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 CategoryDropdown(category, { category = it }, !state.syncing)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(current, { current = it }, label = { Text("Parcela atual") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
-                    OutlinedTextField(count, { count = it }, label = { Text("Total") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
+                    OutlinedTextField(count, { count = it }, label = { Text("Total de parcelas") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
                 }
-                LedgerField("Primeiro vencimento nominal AAAA-MM-DD", firstDue) { firstDue = it }
+                LedgerField("Primeiro vencimento", firstDue) { firstDue = it }
                 Text("Dias úteis são ajustados pelo calendário validado. Confirme os vencimentos na prévia, especialmente os anos ainda não validados.", style = MaterialTheme.typography.bodySmall)
                 LedgerChoice("Adicionar responsável", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in participants }.map { person ->
                     personLabel(state, person) to { participants = participants + person }
@@ -149,11 +151,11 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     Text(personLabel(state, person)); TextButton(onClick = { if (participants.size > 1) participants = participants - person }) { Text("Remover") }
                 } }
                 if (participants.any { it > 0 }) {
-                    LedgerField("Conciliar familiares desde AAAA-MM-DD", familyStart) { familyStart = it }
+                    LedgerField("Início da conciliação", familyStart) { familyStart = it }
                     Text("Compras anteriores ficam como histórico a conciliar. A data não presume recebimentos nem quitação; revise as parcelas em aberto na prévia.", style = MaterialTheme.typography.bodySmall)
                 }
                 LedgerChoice("Divisão", listOf("Igual", "Percentuais", "Valores por parcela")[split], listOf("Igual", "Percentuais", "Valores por parcela").mapIndexed { i, label -> label to { split = i } })
-                if (split != 0) participants.forEach { person -> LedgerField("${personLabel(state, person)} ${if (split == 1) "%" else "R$"}", values[person].orEmpty()) { values[person] = it } }
+                if (split != 0) participants.forEach { person -> LedgerField(personLabel(state, person), values[person].orEmpty()) { values[person] = it } }
                 Text("Parcela importada: ${ledgerMoney(movement.row.cents)}", style = MaterialTheme.typography.bodySmall)
             }
         } else {
@@ -177,15 +179,15 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                         )
                     })
                 }
-                var dueText by remember(i) { mutableStateOf(part.due.toString()) }
+                var dueText by remember(i) { mutableStateOf(AppDates.date(part.due)) }
                 LedgerField("Vencimento", dueText) { text ->
                     dueText = text
-                    val date = runCatching { LocalDate.parse(text) }.getOrNull()
+                    val date = runCatching { AppDates.parse(text) }.getOrNull()
                     invalidInputs["due:$i"] = date == null
                     if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
                 }
                 var totalText by remember(i) { mutableStateOf(editMoney(part.cents)) }
-                LedgerField("Valor da parcela R$", totalText) { text ->
+                LedgerField("Valor da parcela", totalText) { text ->
                     totalText = text
                     val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                     invalidInputs["total:$i"] = cents == null || cents <= 0
@@ -195,7 +197,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     if (person > 0 && part.number in p.familyOpening) {
                         val openingKey = "${part.number}:$person"
                         var opening by remember(i, person, "opening", amounts[i]) { mutableStateOf(editMoney(p.openingBalances[openingKey] ?: amounts[i])) }
-                        LedgerField("${personLabel(state, person)} · saldo em aberto confirmado R$", opening) { text ->
+                        LedgerField("${personLabel(state, person)} · saldo em aberto", opening) { text ->
                             opening = text
                             val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                             invalidInputs["opening:$i:$person"] = cents == null
@@ -237,10 +239,13 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
         } catch (e: Exception) { localError = e.message ?: "Revise os valores." }
     }) {
         Text(personLabel(state, personId))
-        LedgerChoice("Transferência", source?.let { "${it.row.date} · ${ledgerMoney(abs(it.row.cents))}" } ?: "Escolher", sources.map { m -> "${m.row.date} · ${ledgerMoney(abs(m.row.cents))} · ${m.friendlyName.ifBlank { m.row.description }}" to { movementId = m.id } })
+        LedgerChoice("Transferência", source?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(abs(it.row.cents))}" } ?: "Escolher", sources.map { m -> "${AppDates.date(m.row.date)} · ${ledgerMoney(abs(m.row.cents))} · ${m.friendlyName.ifBlank { m.row.description }}" to { movementId = m.id } })
         Text("Distribua o valor entre as dívidas. Receber e pagar são controles separados.", style = MaterialTheme.typography.bodySmall)
         if (debts.isEmpty()) Text("Nenhuma dívida em aberto nesta direção.")
-        debts.forEach { d -> LedgerField("${d.title} · aberto ${ledgerMoney(d.remaining)}", allocations[d.id].orEmpty()) { allocations[d.id] = it } }
+        debts.forEach { d ->
+            Text("Em aberto: ${ledgerMoney(d.remaining)}", style = MaterialTheme.typography.bodySmall)
+            LedgerField(d.title, allocations[d.id].orEmpty()) { allocations[d.id] = it }
+        }
         localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
@@ -248,17 +253,17 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
 @Composable
 internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     var title by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }
-    var due by remember { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.toString()) }
+    var due by remember { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.let(AppDates::date)) }
     var direction by remember { mutableStateOf(DebtDirection.RECEIVE) }; var error by remember { mutableStateOf<String?>(null) }
     val id = remember { UUID.randomUUID().toString() }
     LedgerDialog("Nova dívida", state, close, confirm = {
-        try { model.saveLedger(LedgerAction.Debt(id, personId, direction, title.trim(), FinanceLedger.money(amount), LocalDate.parse(due)), close) }
+        try { model.saveLedger(LedgerAction.Debt(id, personId, direction, title.trim(), FinanceLedger.money(amount), AppDates.parse(due)), close) }
         catch (_: Exception) { error = "Revise descrição, valor e vencimento." }
     }) {
         Text(personLabel(state, personId))
         LedgerChoice("Direção", if (direction == DebtDirection.RECEIVE) "A receber" else "Eu devo", DebtDirection.entries.map { d -> (if (d == DebtDirection.RECEIVE) "A receber" else "Eu devo") to { direction = d } })
-        LedgerField("Origem / descrição", title) { title = it }; LedgerField("Valor R$", amount) { amount = it }
-        LedgerField("Vencimento AAAA-MM-DD", due) { due = it }
+        LedgerField("Descrição", title) { title = it }; LedgerField("Valor", amount) { amount = it }
+        LedgerField("Vencimento", due) { due = it }
         Text("Confirme a data, inclusive ajustes por dia útil. Não há juros nem compensação automática.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
@@ -285,12 +290,15 @@ internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model
         Text("Selecione expressamente as parcelas afetadas. As próximas parcelas não são canceladas automaticamente.", style = MaterialTheme.typography.bodySmall)
         p?.parts?.forEach { part ->
             OutlinedButton(onClick = { if (part.number in selectedParts) { selectedParts.remove(part.number); p.shares.keys.forEach { credits.remove("${p.id}:${part.number}:$it") } } else selectedParts.add(part.number) }) {
-                Text("${if (part.number in selectedParts) "✓ " else ""}${part.number}/${p.parts.size} · ${part.due}")
+                Text("${if (part.number in selectedParts) "✓ " else ""}${part.number}/${p.parts.size} · ${AppDates.date(part.due)}")
             }
             if (part.number in selectedParts) p.shares.forEach { (person, amounts) ->
                 val id = "${p.id}:${part.number}:$person"
                 val refunded = state.ledger.actions.filterIsInstance<LedgerAction.Refund>().sumOf { it.credits[id] ?: 0 }
-                if (amounts[part.number - 1] > refunded) LedgerField("${personLabel(state, person)} · limite ${ledgerMoney(amounts[part.number - 1] - refunded)}", credits[id].orEmpty()) { credits[id] = it }
+                if (amounts[part.number - 1] > refunded) {
+                    Text("Limite: ${ledgerMoney(amounts[part.number - 1] - refunded)}", style = MaterialTheme.typography.bodySmall)
+                    LedgerField(personLabel(state, person), credits[id].orEmpty()) { credits[id] = it }
+                }
             }
         }
         if (p != null && selectedParts.isNotEmpty()) OutlinedButton(onClick = {
@@ -316,13 +324,13 @@ internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiSta
         "refund" -> RefundDialog(movement, state, model, close)
         "other-credit" -> LedgerDialog("Outro crédito da fatura", state, close, confirm = { model.saveLedger(LedgerAction.CardCredit(movement.id, creditReason.trim()), close) }) {
             Text("${row.description} · ${ledgerMoney(-row.cents)}")
-            LedgerField("Natureza / motivo", creditReason) { creditReason = it }
+            LedgerField("Motivo", creditReason) { creditReason = it }
             Text("Não será tratado como estorno de compra nem alterará dívidas de familiares.", style = MaterialTheme.typography.bodySmall)
         }
         "payment" -> PaymentDialog(person, if (row.cents > 0) DebtDirection.RECEIVE else DebtDirection.PAY, state, model, close, movement.id)
         else -> LedgerDialog("Detalhes da movimentação", state, close) {
             Text(movement.friendlyName.ifBlank { row.description })
-            Text("${row.date} · ${ledgerMoney(row.cents)}")
+            Text("${AppDates.date(row.date)} · ${ledgerMoney(row.cents)}")
             Text("Original: ${row.description}", style = MaterialTheme.typography.bodySmall)
             val plan = state.ledger.purchases.firstOrNull { p -> p.parts.any { it.movementId == movement.id } }
             when {
@@ -359,7 +367,7 @@ internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiSta
                     val account = if (row.kind == DocumentKind.NUBANK_ACCOUNT) movement else other
                     val card = if (row.kind == DocumentKind.NUBANK_CARD) movement else other
                     card.row.statement?.let { model.saveLedger(LedgerAction.InvoicePaid(it, account.id, card.id), close) }
-                }, enabled = !state.syncing) { Text("Conciliar com ${other.row.date} · ${ledgerMoney(abs(other.row.cents))}") } }
+                }, enabled = !state.syncing) { Text("Conciliar com ${AppDates.date(other.row.date)} · ${ledgerMoney(abs(other.row.cents))}") } }
             }
         }
     }

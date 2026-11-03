@@ -70,4 +70,5 @@ dependencies {
     annotationProcessor("androidx.room:room-compiler:2.8.3")
     implementation("net.zetetic:sqlcipher-android:4.19.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.vaadin.external.google:android-json:0.0.20131108.vaadin1")
 }

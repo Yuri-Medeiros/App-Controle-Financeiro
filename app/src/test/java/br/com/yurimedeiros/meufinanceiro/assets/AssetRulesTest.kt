@@ -51,4 +51,20 @@ class AssetRulesTest {
         assertFalse(book.goal.includeReceivables)
         assertEquals(setOf("a"), book.goal.selectedAssets)
     }
+    @Test fun singletonNamesAndNewWritesAreRestrictedWithoutBreakingOldHistory() {
+        for (kind in listOf(AssetKind.BITCOIN, AssetKind.FGTS)) {
+            val book = AssetRules.apply(AssetBook(), AssetChange.Register(asset(kind)))
+            assertEquals(if (kind == AssetKind.FGTS) "FGTS" else "Bitcoin", book.assets.single().name)
+            assertTrue(runCatching { AssetRules.validateNew(book, AssetChange.Register(asset(kind).copy(id = "b"))) }.isFailure)
+            assertTrue(runCatching { AssetRules.validateNew(book, AssetChange.Confirm("a", 200000, 1, date)) }.isFailure)
+        }
+    }
+    @Test fun fgtsContributionsAndWithdrawalsDoNotRequireOrConsumeBankMovements() {
+        var book = AssetRules.apply(AssetBook(), AssetChange.Register(asset(AssetKind.FGTS)))
+        book = AssetRules.apply(book, AssetChange.Transfer("a", 0, AssetTransferKind.CONTRIBUTION, 20000, 0, 0, date, false))
+        book = AssetRules.apply(book, AssetChange.Transfer("a", 0, AssetTransferKind.REDEMPTION, 5000, 0, 0, date, false))
+        assertEquals(115000L, book.assets.single().cents)
+        assertTrue(runCatching { AssetRules.apply(book, AssetChange.Transfer("a", 0, AssetTransferKind.REDEMPTION, 200000, 0, 0, date, false)) }.isFailure)
+        assertTrue(runCatching { AssetRules.apply(AssetBook(listOf(asset())), AssetChange.Transfer("a", 0, AssetTransferKind.CONTRIBUTION, 1, 0, 0, date, false)) }.isFailure)
+    }
 }

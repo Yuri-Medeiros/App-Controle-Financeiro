@@ -30,6 +30,7 @@ internal data class FinanceUiState(
     val resumeAvailable: Boolean = false,
     val custody: List<CustodyStatement> = emptyList(),
     val quoting: Boolean = false,
+    val bitcoinError: String? = null,
     val opening: Boolean = false,
     val visible: Boolean = true,
     val createdAtMillis: Long? = null,
@@ -225,25 +226,32 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun refreshBitcoin() {
+    fun refreshBitcoin(manual: Boolean = false) {
         if (!state.value.unlocked || !state.value.visible || state.value.quoting) return
         val asset = state.value.ledger.assets.assets.firstOrNull { it.kind == AssetKind.BITCOIN && !it.disposed } ?: return
         val now = SystemClock.elapsedRealtime()
-        if (quoteAttemptAt?.let { now - it in 0..59_999L } == true) return
+        if (!manual && quoteAttemptAt?.let { now - it in 0..59_999L } == true) return
         quoteAttemptAt = now
         val attempt = generation
-        mutableState.value = state.value.copy(quoting = true, error = null)
+        mutableState.value = state.value.copy(quoting = true, bitcoinError = null)
         viewModelScope.launch {
             try {
                 val quote = withContext(Dispatchers.IO) { BitcoinQuotes.fetch() }
                 withContext(Dispatchers.IO) { synchronized(databaseGuard) {
                     check(attempt == generation)
                     LedgerRepository(checkNotNull(session).database).append(LedgerAction.Asset(
-                        AssetChange.Quote(asset.id, 0, quote.price, quote.timestamp, "Mercado Bitcoin · BTC/BRL")))
+                        AssetChange.Quote(asset.id, 0, quote.price, quote.timestamp, quote.source)))
                 } }
                 if (attempt == generation) refresh()
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { if (attempt == generation) showError("Cotação do Bitcoin indisponível. A última avaliação foi preservada com sua data.") }
+            catch (error: Exception) {
+                if (attempt == generation) {
+                    quoteAttemptAt = null
+                    val details = (error as? BitcoinQuoteUnavailable)?.failures?.joinToString(". ")
+                    val preserved = if (asset.btcPrice != null) "A última avaliação foi mantida." else "Ainda não foi possível calcular seu saldo em reais."
+                    mutableState.value = state.value.copy(bitcoinError = "Não foi possível atualizar o Bitcoin. $preserved${details?.let { " $it." }.orEmpty()} Toque em atualizar para tentar novamente.")
+                }
+            }
             finally { if (attempt == generation) mutableState.value = state.value.copy(quoting = false) }
         }
     }

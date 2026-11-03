@@ -21,3 +21,14 @@ A fixture de teste contém somente as tabelas, sem CPF, endereço, e-mail, nome 
 5. Autorizar Gmail, revisar o PDF de custódia e confirmar seis posições. Conferir os totais, atualizar novamente e conferir ausência de duplicações. Repetir com PDF incompleto e extrato anterior. A extração nativa, OAuth, lifecycle e instalação exigem teste real no Android; testes JVM não os comprovam.
 
 Nenhuma alteração no esquema Room ou nas identidades de assinatura. Publicação definitiva depende do teste e aprovação do candidato conforme PIPELINE.md.
+
+
+## Correção da cotação — 0.9.2
+
+A leitura passa a aceitar timestamps em segundos, milissegundos, microssegundos e nanossegundos. A validação usa a data HTTP do servidor quando disponível, incluindo Age e rejeitando cache HTTP de cinco minutos ou mais, para não depender do relógio do aparelho. Valores decimais com zeros adicionais são aceitos sem conversão para ponto flutuante.
+
+O Mercado Bitcoin continua como fonte principal; falha de rede, HTTP, JSON, par ou data provoca tentativa automática no endpoint público `https://api.coinbase.com/v2/prices/BTC-BRL/spot`. A resposta precisa informar BRL (e BTC quando o campo base estiver presente). A [documentação de preços da Coinbase](https://main.d39g7xymw2r1c0.amplifyapp.com/sign-in-with-coinbase/docs/api-prices) descreve esse endpoint sem autenticação. Como o spot não fornece data da negociação, sua avaliação registra a hora da consulta HTTP. O histórico exibe a fonte que efetivamente respondeu. Nenhuma quantidade é enviada ou recalculada: a avaliação continua sendo preço em reais multiplicado pelos satoshis cadastrados.
+
+O botão permite nova tentativa após falhas, sem o bloqueio silencioso de um minuto. Erros de cotação ficam separados dos erros dos formulários e identificam as fontes que falharam (HTTP, DNS, timeout, TLS ou resposta inválida). Quando ainda não há avaliação, o aviso não afirma que existe uma cotação anterior.
+
+Os testes usam transporte controlado e JSON real para verificar failover, schemas, unidades de timestamp, relógio do celular incorreto, cache expirado, moeda errada e a avaliação exata de uma quantidade de BTC. Acesso real aos endpoints foi tentado, mas o proxy deste ambiente retornou 403 Forbidden antes de conectar aos três hosts consultados; isso não identifica a causa no aparelho. Validação de rede no S23 ainda é necessária no novo candidato.

@@ -27,11 +27,12 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
         }
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     if (state.ledger.assets.assets.any { it.kind == AssetKind.BITCOIN }) {
-        OutlinedButton(onClick = { model.refreshBitcoin() }, enabled = state.unlocked && !state.quoting) {
+        OutlinedButton(onClick = { model.refreshBitcoin(manual = true) }, enabled = state.unlocked && !state.quoting) {
             Text(if (state.quoting) "Consultando Bitcoin…" else "Atualizar cotação BTC/BRL")
         }
-        Text("Cotação de referência do Mercado Bitcoin. Confira a data da última avaliação.", style = MaterialTheme.typography.bodySmall)
+        Text("Cotação em reais via Mercado Bitcoin ou Coinbase. Confira a fonte e a data da avaliação.", style = MaterialTheme.typography.bodySmall)
     }
     val book = state.ledger.assets
     var adding by remember { mutableStateOf(false) }

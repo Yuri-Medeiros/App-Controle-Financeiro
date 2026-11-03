@@ -72,3 +72,11 @@ Remove o parágrafo explicativo dos provedores e o botão extenso acima dos cart
 - Ação principal em largura total, estado de salvamento e cancelamento separado. Conteúdo rolável para telas menores e teclado aberto.
 - Preservados o rascunho durante bloqueio automático, os nomes implícitos e a data DD/MM/AAAA.
 - Roteiro no aparelho: abrir Adicionar patrimônio, alternar os tipos, conferir nome implícito, abrir teclado e alcançar os campos e ações; cadastrar e conferir o saldo. Validar também com fonte ampliada e após bloqueio automático.
+
+## Detalhes, operações e meta — 0.9.8
+
+- Diálogos patrimoniais com superfície azul escura, contorno ciano, títulos hierarquizados, conteúdo rolável e ações em largura total.
+- Detalhes destacam saldo/data em cartão e separam o histórico. Ao abrir uma operação, os detalhes deixam de sobrepor outro diálogo.
+- Operações identificam o patrimônio, separam rótulos e seletores e mostram claramente a opção de inclusão no saldo confirmado.
+- Meta agrupa patrimônios e outros componentes em linhas selecionáveis com caixas de seleção e semântica acessível.
+- Roteiro no aparelho: conferir as três telas com teclado e fonte ampliada; selecionar/desmarcar componentes e salvar; vincular movimentação elegível sem duplicar o extrato; cancelar e retornar aos detalhes; bloquear automaticamente com um formulário aberto e retomar o rascunho.

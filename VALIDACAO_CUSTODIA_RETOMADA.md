@@ -89,3 +89,11 @@ Remove o parágrafo explicativo dos provedores e o botão extenso acima dos cart
 - Mensagem específica quando não há posição nova. O modo de autorização é preservado na recriação da Activity.
 - Testes simulam respostas Gmail misturadas, filtragem do anexo e sessão encerrada. Os testes existentes verificam os totais do PDF, reimportação e rejeição de posição antiga.
 - Roteiro no aparelho: tocar Invest., autorizar leitura, revisar PDF atualizado e confirmar; repetir e conferir ausência de duplicação; conferir que extratos bancários não foram importados; testar ausência de e-mail novo, cancelamento da autorização e erro de conexão.
+
+## Revisão de custódia em tela inteira — 0.9.10
+
+- Substitui o diálogo pequeno por uma revisão em tela inteira, respeitando as barras do sistema.
+- Resumo inicial com total líquido destacado e bruto separado; lista virtualizada de cartões por investimento, com valores rotulados em linhas próprias.
+- Impostos, quantidade, vencimento e descrição ficam nos detalhes expansíveis de cada cartão, sem misturar tudo em um parágrafo.
+- Confirmar e cancelar permanecem fixos fora da lista. Rascunho, expansão e rolagem são mantidos durante o bloqueio automático; gravação continua transacional e somente após confirmação.
+- Roteiro no aparelho: conferir todos os investimentos e totais, abrir detalhes de caixinha/Tesouro/ETF, rolar até o último cartão, testar fonte ampliada, cancelar sem alterar o saldo e confirmar atualização. Conferir retomada após bloqueio automático.

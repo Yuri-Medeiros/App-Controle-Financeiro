@@ -359,16 +359,8 @@ internal fun FinanceApp(
                                 )
                             }
                             state.custody.firstOrNull()?.let { statement ->
-                                AssetDialog("Revisar investimentos", state, { model.dismissCustody() }, subtitle = "Posição em ${AppDates.date(statement.date)}", confirmLabel = "Atualizar investimentos", confirm = { model.confirmCustody() }) {
-                                    Text("Saldo líquido estimado será usado no patrimônio. Não cria movimentações bancárias.")
-                                    statement.positions.forEach { p ->
-                                        Text(p.name, style = MaterialTheme.typography.titleSmall)
-                                        Text(p.description)
-                                        Text("Bruto ${ledgerMoney(p.gross)} · líquido ${ledgerMoney(p.net)}")
-                                    }
-                                    Text("Total bruto ${ledgerMoney(statement.gross)} · líquido ${ledgerMoney(statement.net)}")
-                                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                                }
+                                CustodyReviewScreen(statement, state, onCancel = model::dismissCustody,
+                                    onConfirm = model::confirmCustody)
                             }
                             state.importNotification?.let { notification ->
                                 ImportNotificationPopup(

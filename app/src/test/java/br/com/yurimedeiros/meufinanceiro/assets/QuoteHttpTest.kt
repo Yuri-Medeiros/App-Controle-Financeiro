@@ -63,7 +63,7 @@ class QuoteHttpTest {
         assertEquals(4, opened)
         assertTrue(runCatching { QuoteHttp.request(BitcoinQuotes.MERCADO_URL) { uri -> ok(uri, "<html>Login</html>") } }.exceptionOrNull()!!.message!!.contains("HTML"))
         assertTrue(runCatching { QuoteHttp.request(BitcoinQuotes.COINBASE_URL) { uri ->
-            Response(uri,200,"{}",mapOf("Age" to "600"))
+            Response(uri,200,"{}",mapOf("Age" to "86401"))
         } }.exceptionOrNull()!!.message!!.contains("cache"))
     }
 
@@ -75,5 +75,11 @@ class QuoteHttpTest {
         } } }
         assertEquals("500000.25", quote.price)
         assertEquals("Mercado Bitcoin · BTC/BRL", quote.source)
+    }
+    @Test fun acceptsJsonBodyEvenIfProviderMislabelsContentType() {
+        val response = QuoteHttp.request(BitcoinQuotes.COINBASE_URL) { uri ->
+            Response(uri,200,"""{"data":{"currency":"BRL","amount":"500000"}}""",mapOf("Content-Type" to "text/html", "Date" to "Tue, 03 Nov 2026 12:00:00 GMT"))
+        }
+        assertTrue(response.body.startsWith("{"))
     }
 }

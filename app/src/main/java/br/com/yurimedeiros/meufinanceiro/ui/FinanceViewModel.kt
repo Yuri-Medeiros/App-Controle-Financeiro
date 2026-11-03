@@ -33,6 +33,7 @@ internal data class FinanceUiState(
     val custody: List<CustodyStatement> = emptyList(),
     val quoting: Boolean = false,
     val bitcoinError: String? = null,
+    val bitcoinNotice: String? = null,
     val opening: Boolean = false,
     val visible: Boolean = true,
     val createdAtMillis: Long? = null,
@@ -235,16 +236,29 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         if (!manual && quoteAttemptAt?.let { now - it in 0..59_999L } == true) return
         quoteAttemptAt = now
         val attempt = generation
-        mutableState.value = state.value.copy(quoting = true, bitcoinError = null)
+        mutableState.value = state.value.copy(quoting = true, bitcoinError = null, bitcoinNotice = null)
         viewModelScope.launch {
             try {
                 val quote = withContext(Dispatchers.IO) { BitcoinQuotes.fetch() }
-                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                val keptNewer = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
                     check(attempt == generation)
-                    LedgerRepository(checkNotNull(session).database).append(LedgerAction.Asset(
-                        AssetChange.Quote(asset.id, 0, quote.price, quote.timestamp, quote.source)))
+                    val repository = LedgerRepository(checkNotNull(session).database)
+                    val current = repository.snapshot().assets.assets.single { it.id == asset.id }
+                    val savedAt = current.quotedAt?.let(java.time.Instant::parse)
+                    if (savedAt != null && java.time.Instant.parse(quote.timestamp).isBefore(savedAt)) true else {
+                        repository.append(LedgerAction.Asset(
+                            AssetChange.Quote(asset.id, 0, quote.price, quote.timestamp, quote.source + if (quote.stale) " · referência anterior" else "")))
+                        false
+                    }
                 } }
-                if (attempt == generation) refresh()
+                if (attempt == generation) {
+                    mutableState.value = state.value.copy(bitcoinNotice = when {
+                        keptNewer -> "Mantida a avaliação salva: ela é mais recente que a resposta do serviço."
+                        quote.stale -> "Saldo estimado pela última cotação disponível, de ${AppDates.timestamp(quote.timestamp)}. A fonte ainda não disponibilizou uma cotação recente."
+                        else -> null
+                    })
+                    refresh()
+                }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 if (attempt == generation) {

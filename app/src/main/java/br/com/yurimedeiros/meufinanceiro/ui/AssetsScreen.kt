@@ -30,6 +30,7 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.bitcoinNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
     if (state.ledger.assets.assets.any { it.kind == AssetKind.BITCOIN }) {
         OutlinedButton(onClick = { model.refreshBitcoin(manual = true) }, enabled = state.unlocked && !state.quoting) {
             Text(if (state.quoting) "Consultando Bitcoin…" else "Atualizar cotação BTC/BRL")

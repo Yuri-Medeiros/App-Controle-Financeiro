@@ -36,6 +36,11 @@ internal object AssetRules {
                 require(book.assets.none { it.kind == change.asset.kind }) { "Já existe um cadastro desse tipo. Use aportes e saques." }
             }
             is AssetChange.Confirm -> require(book.assets.single { it.id == change.id }.kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) { "Use aportes e saques para alterar o saldo." }
+            is AssetChange.Quote -> {
+                val asset = book.assets.single { it.id == change.id }
+                val previous = if (asset.kind == AssetKind.BITCOIN) asset.quotedAt else null
+                require(previous == null || !Instant.parse(change.timestamp).isBefore(Instant.parse(previous))) { "A avaliação salva é mais recente. Seu saldo foi preservado." }
+            }
             else -> Unit
         }
     }

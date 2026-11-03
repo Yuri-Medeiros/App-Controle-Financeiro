@@ -7,9 +7,9 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.time.Instant
 
-internal data class BitcoinQuote(val price: String, val timestamp: String, val source: String = "Mercado Bitcoin · BTC/BRL") {
+internal data class BitcoinQuote(val price: String, val timestamp: String, val source: String = "Mercado Bitcoin · BTC/BRL", val stale: Boolean = false) {
     companion object {
-        fun validated(pair: String, value: String, date: Long, now: Instant = Instant.now(), source: String = "Mercado Bitcoin · BTC/BRL"): BitcoinQuote {
+        fun validated(pair: String, value: String, date: Long, now: Instant = Instant.now(), source: String = "Mercado Bitcoin · BTC/BRL", allowReference: Boolean = false): BitcoinQuote {
             require(pair == "BTC-BRL" && value.length <= 128 && date > 0)
             val price = BigDecimal(value).stripTrailingZeros()
             require(price.signum() > 0 && price < BigDecimal("1000000000000") && price.scale() <= 18)
@@ -19,8 +19,9 @@ internal data class BitcoinQuote(val price: String, val timestamp: String, val s
                 date >= 100_000_000_000L -> Instant.ofEpochMilli(date)
                 else -> Instant.ofEpochSecond(date)
             }
-            require(!timestamp.isAfter(now.plusSeconds(60)) && !timestamp.isBefore(now.minusSeconds(300))) { "Cotação antiga ou com data inválida." }
-            return BitcoinQuote(price.toPlainString(), timestamp.toString(), source)
+            val maxAge = if (allowReference) 86400L else 300L
+            require(!timestamp.isAfter(now.plusSeconds(60)) && !timestamp.isBefore(now.minusSeconds(maxAge))) { "Cotação antiga ou com data inválida." }
+            return BitcoinQuote(price.toPlainString(), timestamp.toString(), source, timestamp.isBefore(now.minusSeconds(300)))
         }
     }
 }
@@ -29,12 +30,12 @@ internal class QuoteResponseException(message: String) : IllegalArgumentExceptio
 
 internal class QuoteHttpException(val status: Int) : java.io.IOException("HTTP $status")
 
-internal data class QuoteResponse(val body: String, val serverTime: Instant) {
+internal data class QuoteResponse(val body: String, val serverTime: Instant, val priceTime: Instant = serverTime) {
     companion object {
         fun fromHttp(body: String, dateMillis: Long, ageSeconds: Long, receivedAt: Instant = Instant.now()): QuoteResponse {
-            if (ageSeconds !in 0..299) throw QuoteResponseException("cache do serviço expirado")
-            val serverTime = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).plusSeconds(ageSeconds) else receivedAt
-            return QuoteResponse(body, serverTime)
+            if (ageSeconds !in 0..86400) throw QuoteResponseException("cache do serviço com data inválida ou superior a 24 horas")
+            val priceTime = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis) else receivedAt.minusSeconds(ageSeconds)
+            return QuoteResponse(body, priceTime.plusSeconds(ageSeconds), priceTime)
         }
     }
 }
@@ -42,16 +43,24 @@ internal class BitcoinQuoteUnavailable(val failures: List<String>) : IllegalStat
 
 /** Requests contain only the public BTC/BRL pair, never credentials or holdings. */
 internal object BitcoinQuotes {
+    const val COINBASE_RATES_URL = "https://api.coinbase.com/v2/exchange-rates?currency=BTC"
     const val MERCADO_URL = "https://api.mercadobitcoin.net/api/v4/tickers?symbols=BTC-BRL"
     const val MERCADO_LEGACY_URL = "https://www.mercadobitcoin.net/api/BTC/ticker/"
     const val COINBASE_URL = "https://api.coinbase.com/v2/prices/BTC-BRL/spot"
 
     fun fetch(request: (String) -> QuoteResponse = { QuoteHttp.request(it) }): BitcoinQuote {
         val failures = mutableListOf<String>()
-        for ((name, url) in listOf("Mercado Bitcoin" to MERCADO_URL, "Mercado Bitcoin (público)" to MERCADO_LEGACY_URL, "Coinbase" to COINBASE_URL)) {
+        var reference: BitcoinQuote? = null
+        for ((name, url) in listOf("Mercado Bitcoin" to MERCADO_URL, "Mercado Bitcoin (público)" to MERCADO_LEGACY_URL, "Coinbase" to COINBASE_URL, "Coinbase (conversão)" to COINBASE_RATES_URL)) {
             try {
                 val response = request(url)
-                return if (url != COINBASE_URL) mercado(response) else coinbase(response)
+                val quote = when (url) {
+                    COINBASE_URL -> coinbase(response)
+                    COINBASE_RATES_URL -> coinbaseRates(response)
+                    else -> mercado(response)
+                }
+                if (!quote.stale) return quote
+                if (reference == null || Instant.parse(quote.timestamp) > Instant.parse(reference.timestamp)) reference = quote
             } catch (error: Exception) {
                 val reason = when (error) {
                     is QuoteResponseException -> error.message ?: "resposta inválida"
@@ -66,7 +75,7 @@ internal object BitcoinQuotes {
                 failures += "$name: $reason"
             }
         }
-        throw BitcoinQuoteUnavailable(failures)
+        return reference ?: throw BitcoinQuoteUnavailable(failures)
     }
 
     private fun mercado(response: QuoteResponse): BitcoinQuote {
@@ -74,14 +83,21 @@ internal object BitcoinQuotes {
             val rows = JSONArray(response.body)
             (0 until rows.length()).map { rows.getJSONObject(it) }.single { it.optString("pair") == "BTC-BRL" }
         } else JSONObject(response.body).getJSONObject("ticker")
-        return BitcoinQuote.validated(row.optString("pair", "BTC-BRL"), row.getString("last"), row.getLong("date"), response.serverTime)
+        return BitcoinQuote.validated(row.optString("pair", "BTC-BRL"), row.getString("last"), row.getLong("date"), response.serverTime, allowReference = true)
+    }
+
+    private fun coinbaseRates(response: QuoteResponse): BitcoinQuote {
+        val row = JSONObject(response.body).getJSONObject("data")
+        require(row.getString("currency") == "BTC") { "Base de conversão diferente de BTC." }
+        val amount = row.getJSONObject("rates").getString("BRL")
+        return BitcoinQuote.validated("BTC-BRL", amount, response.priceTime.epochSecond, response.serverTime, "Coinbase · BTC/BRL", allowReference = true)
     }
 
     private fun coinbase(response: QuoteResponse): BitcoinQuote {
         val row = JSONObject(response.body).getJSONObject("data")
         require(row.getString("currency") == "BRL" && row.optString("base", "BTC") == "BTC")
         // Spot has no trade timestamp: record the HTTP server's consultation time.
-        return BitcoinQuote.validated("BTC-BRL", row.getString("amount"), response.serverTime.epochSecond, response.serverTime, "Coinbase · BTC/BRL")
+        return BitcoinQuote.validated("BTC-BRL", row.getString("amount"), response.priceTime.epochSecond, response.serverTime, "Coinbase · BTC/BRL", allowReference = true)
     }
 
 }
@@ -115,11 +131,12 @@ internal object QuoteHttp {
                     target = next
                 } else {
                     if (status != 200) throw QuoteHttpException(status)
-                    val bytes = connection.inputStream.use { it.readNBytes(65537) }
-                    if (bytes.size > 65536) throw QuoteResponseException("resposta acima do limite")
+                    val bodyLimit = if (origin.path == "/v2/exchange-rates") 262144 else 65536
+                    val bytes = connection.inputStream.use { it.readNBytes(bodyLimit + 1) }
+                    if (bytes.size > bodyLimit) throw QuoteResponseException("resposta acima do limite")
                     val body = bytes.toString(Charsets.UTF_8)
-                    val type = connection.contentType.orEmpty()
-                    if (type.contains("text/html", true) || body.trimStart().startsWith("<")) {
+                    // Some public endpoints label valid JSON as text/html; validate the body itself.
+                    if (body.trimStart().startsWith("<")) {
                         throw QuoteResponseException("serviço devolveu página HTML em vez da cotação")
                     }
                     val age = connection.getHeaderField("Age")?.toLongOrNull() ?: 0L
@@ -136,7 +153,7 @@ internal object QuoteHttp {
         val mercado = origin.host == "api.mercadobitcoin.net" || origin.host == "www.mercadobitcoin.net"
         val allowed = if (mercado) listOf("mercadobitcoin.net", "mercadobitcoin.com.br").any { host == it || host.endsWith(".$it") }
             else origin.host == "api.coinbase.com" && host == "api.coinbase.com"
-        if (target.scheme != "https" || target.userInfo != null || target.port !in listOf(-1,443) || !allowed) {
+        if (!target.scheme.equals("https", ignoreCase = true) || target.userInfo != null || target.port !in listOf(-1,443) || !allowed) {
             throw QuoteResponseException("destino de redirecionamento não permitido")
         }
     }

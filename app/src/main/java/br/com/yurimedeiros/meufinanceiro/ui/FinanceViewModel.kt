@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import br.com.yurimedeiros.meufinanceiro.assets.*
 import br.com.yurimedeiros.meufinanceiro.ledger.*
 import br.com.yurimedeiros.meufinanceiro.backup.*
@@ -258,8 +260,8 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
 
     fun confirmStatement(reference: String) {
         val review = state.value.statements.firstOrNull() ?: return
-        val date = runCatching { LocalDate.parse(reference) }.getOrNull()
-        if (date == null) { showError("Informe a referência como AAAA-MM-DD."); return }
+        val date = runCatching { AppDates.parse(reference) }.getOrNull()
+        if (date == null) { showError("Informe a referência como DD/MM/AAAA."); return }
         val attempt = generation
         if (state.value.syncing) return
         mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)

@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -80,7 +82,7 @@ internal fun OverviewScreen(state: FinanceUiState, onMovements: () -> Unit) {
             }
         }
         Text(if (!visible) "••••" else planning.available?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = if ((planning.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
-        Text(planning.warnings.firstOrNull() ?: "Antes de ${planning.nextSalary}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD8EDFF))
+        Text(planning.warnings.firstOrNull() ?: planning.nextSalary?.let { "Antes de ${AppDates.date(it)}" } ?: "Data a confirmar", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD8EDFF))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Metric("Orçamento adicional", if (!visible) "••••" else if (state.ledger.planning.budgets.isEmpty()) "—" else ledgerMoney(planning.extraBudget), Modifier.weight(1f), "Não coberto por obrigações")
@@ -89,7 +91,7 @@ internal fun OverviewScreen(state: FinanceUiState, onMovements: () -> Unit) {
         val own = state.ledger.purchases.sumOf { p -> p.parts.filter { java.time.YearMonth.from(it.due) == month }.sumOf { part ->
             (p.shares[0L]?.get(part.number - 1) ?: 0) - refunds.sumOf { it.credits["${p.id}:${part.number}:0"] ?: 0 }
         } }
-        Metric("Minha parte confirmada", if (!visible) "••••" else if (state.ledger.purchases.isEmpty()) "—" else ledgerMoney(own), Modifier.weight(1f), "Vencimentos de $month")
+        Metric("Minha parte confirmada", if (!visible) "••••" else if (state.ledger.purchases.isEmpty()) "—" else ledgerMoney(own), Modifier.weight(1f), "Vencimentos de ${AppDates.month(month)}")
     }
     val receivables = state.ledger.debts.filter { it.direction == br.com.yurimedeiros.meufinanceiro.ledger.DebtDirection.RECEIVE }
     if (state.ledger.debts.isNotEmpty()) GlassPanel {

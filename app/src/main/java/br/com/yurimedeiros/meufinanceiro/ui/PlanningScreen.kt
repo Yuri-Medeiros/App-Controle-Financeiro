@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,7 +36,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
     GlassPanel(highlighted = true) {
         Text("Até o próximo salário", style = MaterialTheme.typography.titleSmall)
         Text(view.available?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.headlineLarge, color = if ((view.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
-        Text(view.nextSalary?.let { "Antes de $it" } ?: "Datas a confirmar", style = MaterialTheme.typography.bodySmall)
+        Text(view.nextSalary?.let { "Antes de ${AppDates.date(it)}" } ?: "Datas a confirmar", style = MaterialTheme.typography.bodySmall)
         if (view.warnings.isNotEmpty()) Text(view.warnings.first(), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { dialog = "settings" }) { Text("Configurar saldo e salário") }
     }
@@ -57,10 +59,10 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             if (occurrences.isEmpty()) Text("Nenhuma previsão em aberto.")
             occurrences.take(60).forEach { occurrence -> GlassPanel {
                 Text(occurrence.expense.title, style = MaterialTheme.typography.titleSmall)
-                Text("${occurrence.due ?: "Data a confirmar"} · ${ledgerMoney(occurrence.expense.cents)}")
+                Text("${occurrence.due?.let(AppDates::date) ?: "Data a confirmar"} · ${ledgerMoney(occurrence.expense.cents)}")
                 Row {
                     TextButton(onClick = { match = occurrence; matchingId = 0 }) { Text("Vincular ao extrato") }
-                    TextButton(onClick = { dateConfirmation = occurrence; confirmedDate = (occurrence.due ?: occurrence.nominal).toString() }) { Text("Vencimento") }
+                    TextButton(onClick = { dateConfirmation = occurrence; confirmedDate = AppDates.date(occurrence.due ?: occurrence.nominal) }) { Text("Vencimento") }
                 }
             } }
             p.expenses.filter { it.active }.forEach { expense -> TextButton(onClick = {
@@ -74,14 +76,14 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             OutlinedButton(onClick = { dialog = "reserve" }) { Text("Reservar ou liberar") }
             Text("Reserva fixa por ciclo · ${ledgerMoney(p.fixedReserve)}", style = MaterialTheme.typography.bodySmall)
             Text("Reservas acumulam até o uso ou liberação. Reservar não transfere dinheiro nem realiza um aporte.", style = MaterialTheme.typography.bodySmall)
-            p.reserves.takeLast(20).reversed().forEach { Text("${it.date} · ${it.title} · ${ledgerMoney(it.cents)}", style = MaterialTheme.typography.bodySmall) }
+            p.reserves.takeLast(20).reversed().forEach { Text("${AppDates.date(it.date)} · ${it.title} · ${ledgerMoney(it.cents)}", style = MaterialTheme.typography.bodySmall) }
         }
     }
     val projections = PlanningRules.project(p, state.ledger, state.movements, today)
     if (projections.isNotEmpty()) GlassPanel {
         Text("Próximos ciclos", style = MaterialTheme.typography.titleSmall)
         projections.forEach { future ->
-            Text("${future.start} · ${future.available?.let(::ledgerMoney) ?: "Datas ou vínculos a confirmar"}", color = if ((future.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
+            Text("${AppDates.date(future.start)} · ${future.available?.let(::ledgerMoney) ?: "Datas ou vínculos a confirmar"}", color = if ((future.available ?: 0) < 0) ExpenseColor else MaterialTheme.colorScheme.onSurface)
         }
         Text("Projeção conservadora: considera salário futuro apenas no respectivo ciclo, uso dos limites e novas reservas. Não antecipa recebimentos de familiares.", style = MaterialTheme.typography.bodySmall)
     }
@@ -91,12 +93,12 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
         Text("− Obrigações ${ledgerMoney(view.obligations)}\n− Reservas na conta ${ledgerMoney(view.reserved)}\n− Orçamento adicional ${ledgerMoney(view.extraBudget)}")
         Text("Flash, investimentos e recebimentos familiares futuros não são somados ao dinheiro disponível. O próximo salário pertence ao próximo ciclo; valores negativos continuam visíveis.")
         view.warnings.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
-        Text("Calendário Ribeirão Preto / bancário: ano 2026, consultado ${BankCalendar.SOURCE_DATE}. Anos não validados exigem confirmação das datas. Pontos facultativos municipais não são tratados automaticamente como feriados.", style = MaterialTheme.typography.bodySmall)
+        Text("Calendário Ribeirão Preto / bancário: ano 2026, consultado ${AppDates.storedDate(BankCalendar.SOURCE_DATE)}. Anos não validados exigem confirmação das datas. Pontos facultativos municipais não são tratados automaticamente como feriados.", style = MaterialTheme.typography.bodySmall)
         Text("Fontes: ${BankCalendar.MUNICIPAL_SOURCE}\n${BankCalendar.BANK_SOURCE}", style = MaterialTheme.typography.bodySmall)
     }
     if (dialog == "settings") {
         var balance by remember { mutableStateOf(planningAmount(p.balanceCents)) }
-        var date by remember { mutableStateOf((p.balanceDate ?: today.minusDays(1)).toString()) }
+        var date by remember { mutableStateOf(AppDates.date(p.balanceDate ?: today.minusDays(1))) }
         var salary by remember { mutableStateOf(planningAmount(p.salaryCents)) }
         var fixed by remember { mutableStateOf(planningAmount(p.fixedReserve)) }
         var salaryDate by remember { mutableStateOf("") }
@@ -105,11 +107,11 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             try {
                 val fixedValue = FinanceLedger.money(fixed)
                 val salaryDates = p.salaryDates.toMutableMap()
-                if (salaryDate.isNotBlank()) LocalDate.parse(salaryDate).let { salaryDates[YearMonth.from(it).toString()] = it }
+                if (salaryDate.isNotBlank()) AppDates.parse(salaryDate).let { salaryDates[YearMonth.from(it).toString()] = it }
                 val invoices = p.invoiceDates.toMutableMap()
-                if (invoiceDate.isNotBlank()) LocalDate.parse(invoiceDate).let { invoices[YearMonth.from(it).toString()] = it }
+                if (invoiceDate.isNotBlank()) AppDates.parse(invoiceDate).let { invoices[YearMonth.from(it).toString()] = it }
                 val start = if (fixedValue != p.fixedReserve && fixedValue > 0) YearMonth.from(PlanningRules.cycle(p.copy(salaryDates = salaryDates), today)?.start ?: today).toString() else p.reserveStart
-                model.saveLedger(LedgerAction.Planning(p.copy(balanceCents = signedAmount(balance), balanceDate = LocalDate.parse(date), salaryCents = FinanceLedger.money(salary), fixedReserve = fixedValue, reserveStart = start, salaryDates = salaryDates, invoiceDates = invoices))) { dialog = "" }
+                model.saveLedger(LedgerAction.Planning(p.copy(balanceCents = signedAmount(balance), balanceDate = AppDates.parse(date), salaryCents = FinanceLedger.money(salary), fixedReserve = fixedValue, reserveStart = start, salaryDates = salaryDates, invoiceDates = invoices))) { dialog = "" }
             } catch (_: Exception) { error = "Revise os valores e as datas." }
         }) {
             LedgerField("Saldo bancário", balance) { balance = it }
@@ -152,10 +154,10 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
     }
     if (dialog == "expense") {
         var title by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }; var category by remember { mutableStateOf("") }
-        var date by remember { mutableStateOf(today.toString()) }; var frequency by remember { mutableStateOf(ExpenseFrequency.ONCE) }
+        var date by remember { mutableStateOf(AppDates.date(today)) }; var frequency by remember { mutableStateOf(ExpenseFrequency.ONCE) }
         val id = remember { UUID.randomUUID().toString() }
         LedgerDialog("Nova previsão", state, { dialog = ""; error = null }, confirm = {
-            try { model.saveLedger(LedgerAction.Planning(p.copy(expenses = p.expenses + PlannedExpense(id, title.trim(), FinanceLedger.money(amount), LocalDate.parse(date), frequency, category.trim())))) { dialog = "" } }
+            try { model.saveLedger(LedgerAction.Planning(p.copy(expenses = p.expenses + PlannedExpense(id, title.trim(), FinanceLedger.money(amount), AppDates.parse(date), frequency, category.trim())))) { dialog = "" } }
             catch (_: Exception) { error = "Revise descrição, categoria, valor e data." }
         }) {
             LedgerField("Descrição", title) { title = it }; CategoryDropdown(category, { category = it }, !state.syncing)
@@ -167,7 +169,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
     }
     dateConfirmation?.let { occurrence -> LedgerDialog("Confirmar vencimento", state, { dateConfirmation = null; error = null }, confirm = {
         try {
-            val date = LocalDate.parse(confirmedDate)
+            val date = AppDates.parse(confirmedDate)
             val expenses = p.expenses.map { if (it.id != occurrence.expense.id) it else it.copy(confirmedDates = it.confirmedDates + (occurrence.nominal.toString() to date)) }
             model.saveLedger(LedgerAction.Planning(p.copy(expenses = expenses))) { dateConfirmation = null }
         } catch (_: Exception) { error = "Informe uma data válida." }
@@ -185,7 +187,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             else error = "Selecione uma saída no extrato."
         }) {
             Text("${occurrence.expense.title} · previsto ${ledgerMoney(occurrence.expense.cents)}")
-            LedgerChoice("Lançamento real", chosen?.let { "${it.row.date} · ${ledgerMoney(-it.row.cents)}" } ?: "Escolher", sources.map { source -> "${source.row.date} · ${ledgerMoney(-source.row.cents)} · ${source.row.description}" to { matchingId = source.id } })
+            LedgerChoice("Lançamento real", chosen?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(-it.row.cents)}" } ?: "Escolher", sources.map { source -> "${AppDates.date(source.row.date)} · ${ledgerMoney(-source.row.cents)} · ${source.row.description}" to { matchingId = source.id } })
             Text("O valor real do extrato prevalece. A previsão vinculada não será descontada novamente.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }

@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -63,8 +65,8 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
     var current by remember { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
     var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
     var category by remember { mutableStateOf(movement.category) }
-    var firstDue by remember { mutableStateOf((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1).toString()) }
-    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.toString().orEmpty()) }
+    var firstDue by remember { mutableStateOf(AppDates.date((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1))) }
+    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.let(AppDates::date).orEmpty()) }
     var participants by remember { mutableStateOf(listOf(0L)) }
     var split by remember { mutableIntStateOf(0) }
     val values = remember { mutableStateMapOf<Long, String>() }
@@ -81,8 +83,8 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
             val n = count.toInt(); val number = current.toInt()
             require(n in 1..120 && number in 1..n) { "Revise o número da parcela e a quantidade (até 120)." }
             require(category.isNotBlank() && title.isNotBlank()) { "Informe categoria e descrição." }
-            val date = LocalDate.parse(firstDue)
-            val cutoff = if (participants.any { it > 0 }) LocalDate.parse(familyStart) else null
+            val date = AppDates.parse(firstDue)
+            val cutoff = if (participants.any { it > 0 }) AppDates.parse(familyStart) else null
             val shares = when (split) {
                 0 -> PurchaseSplit.equally(movement.row.cents, participants.size)
                 1 -> PurchaseSplit.byPercentages(movement.row.cents, participants.map { BigDecimal(values[it].orEmpty().replace(',', '.')) })
@@ -111,7 +113,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 val options = state.ledger.purchases.flatMap { p -> p.parts.filter { it.movementId == 0L }.map { p to it } }
                 if (options.isEmpty()) Text("Nenhuma parcela prevista para vincular.")
                 options.forEach { (p, part) -> OutlinedButton(onClick = {
-                    chosenLink = p to part; linkDue = part.due.toString(); linkAmounts.clear()
+                    chosenLink = p to part; linkDue = AppDates.date(part.due); linkAmounts.clear()
                     val people = p.shares.keys.toList()
                     val suggested = PurchaseSplit.proportionally(movement.row.cents, people.map { p.shares.getValue(it)[part.number - 1] })
                     people.forEachIndexed { i, person -> linkAmounts[person] = editMoney(suggested[i]) }
@@ -125,7 +127,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     Button(onClick = {
                         try {
                             val amounts = p.shares.keys.associateWith { FinanceLedger.money(linkAmounts[it].orEmpty()) }
-                            val due = LocalDate.parse(linkDue)
+                            val due = AppDates.parse(linkDue)
                             val unchanged = movement.row.cents == part.cents && due == part.due && amounts.all { (person, cents) -> p.shares.getValue(person)[part.number - 1] == cents }
                             val action = if (unchanged) LedgerAction.Link(p.id, part.number, movement.id) else LedgerAction.AdjustLink(p.id, part.number, movement.id, movement.row.cents, due, amounts)
                             model.saveLedger(action, close)
@@ -177,10 +179,10 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                         )
                     })
                 }
-                var dueText by remember(i) { mutableStateOf(part.due.toString()) }
+                var dueText by remember(i) { mutableStateOf(AppDates.date(part.due)) }
                 LedgerField("Vencimento", dueText) { text ->
                     dueText = text
-                    val date = runCatching { LocalDate.parse(text) }.getOrNull()
+                    val date = runCatching { AppDates.parse(text) }.getOrNull()
                     invalidInputs["due:$i"] = date == null
                     if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
                 }
@@ -237,7 +239,7 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
         } catch (e: Exception) { localError = e.message ?: "Revise os valores." }
     }) {
         Text(personLabel(state, personId))
-        LedgerChoice("Transferência", source?.let { "${it.row.date} · ${ledgerMoney(abs(it.row.cents))}" } ?: "Escolher", sources.map { m -> "${m.row.date} · ${ledgerMoney(abs(m.row.cents))} · ${m.friendlyName.ifBlank { m.row.description }}" to { movementId = m.id } })
+        LedgerChoice("Transferência", source?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(abs(it.row.cents))}" } ?: "Escolher", sources.map { m -> "${AppDates.date(m.row.date)} · ${ledgerMoney(abs(m.row.cents))} · ${m.friendlyName.ifBlank { m.row.description }}" to { movementId = m.id } })
         Text("Distribua o valor entre as dívidas. Receber e pagar são controles separados.", style = MaterialTheme.typography.bodySmall)
         if (debts.isEmpty()) Text("Nenhuma dívida em aberto nesta direção.")
         debts.forEach { d ->
@@ -251,11 +253,11 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
 @Composable
 internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     var title by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }
-    var due by remember { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.toString()) }
+    var due by remember { mutableStateOf(LocalDate.now().withDayOfMonth(8).let { if (it < LocalDate.now()) it.plusMonths(1) else it }.let { BankCalendar.propose(it) }.let(AppDates::date)) }
     var direction by remember { mutableStateOf(DebtDirection.RECEIVE) }; var error by remember { mutableStateOf<String?>(null) }
     val id = remember { UUID.randomUUID().toString() }
     LedgerDialog("Nova dívida", state, close, confirm = {
-        try { model.saveLedger(LedgerAction.Debt(id, personId, direction, title.trim(), FinanceLedger.money(amount), LocalDate.parse(due)), close) }
+        try { model.saveLedger(LedgerAction.Debt(id, personId, direction, title.trim(), FinanceLedger.money(amount), AppDates.parse(due)), close) }
         catch (_: Exception) { error = "Revise descrição, valor e vencimento." }
     }) {
         Text(personLabel(state, personId))
@@ -288,7 +290,7 @@ internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model
         Text("Selecione expressamente as parcelas afetadas. As próximas parcelas não são canceladas automaticamente.", style = MaterialTheme.typography.bodySmall)
         p?.parts?.forEach { part ->
             OutlinedButton(onClick = { if (part.number in selectedParts) { selectedParts.remove(part.number); p.shares.keys.forEach { credits.remove("${p.id}:${part.number}:$it") } } else selectedParts.add(part.number) }) {
-                Text("${if (part.number in selectedParts) "✓ " else ""}${part.number}/${p.parts.size} · ${part.due}")
+                Text("${if (part.number in selectedParts) "✓ " else ""}${part.number}/${p.parts.size} · ${AppDates.date(part.due)}")
             }
             if (part.number in selectedParts) p.shares.forEach { (person, amounts) ->
                 val id = "${p.id}:${part.number}:$person"
@@ -328,7 +330,7 @@ internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiSta
         "payment" -> PaymentDialog(person, if (row.cents > 0) DebtDirection.RECEIVE else DebtDirection.PAY, state, model, close, movement.id)
         else -> LedgerDialog("Detalhes da movimentação", state, close) {
             Text(movement.friendlyName.ifBlank { row.description })
-            Text("${row.date} · ${ledgerMoney(row.cents)}")
+            Text("${AppDates.date(row.date)} · ${ledgerMoney(row.cents)}")
             Text("Original: ${row.description}", style = MaterialTheme.typography.bodySmall)
             val plan = state.ledger.purchases.firstOrNull { p -> p.parts.any { it.movementId == movement.id } }
             when {
@@ -365,7 +367,7 @@ internal fun MovementFinanceDialog(movement: ReviewMovement, state: FinanceUiSta
                     val account = if (row.kind == DocumentKind.NUBANK_ACCOUNT) movement else other
                     val card = if (row.kind == DocumentKind.NUBANK_CARD) movement else other
                     card.row.statement?.let { model.saveLedger(LedgerAction.InvoicePaid(it, account.id, card.id), close) }
-                }, enabled = !state.syncing) { Text("Conciliar com ${other.row.date} · ${ledgerMoney(abs(other.row.cents))}") } }
+                }, enabled = !state.syncing) { Text("Conciliar com ${AppDates.date(other.row.date)} · ${ledgerMoney(abs(other.row.cents))}") } }
             }
         }
     }

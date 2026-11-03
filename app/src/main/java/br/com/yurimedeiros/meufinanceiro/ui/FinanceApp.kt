@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -77,8 +79,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.text.DateFormat
-import java.util.Date
 
 internal val LocalFinanceInteractive = androidx.compose.runtime.compositionLocalOf { true }
 
@@ -341,7 +341,7 @@ internal fun FinanceApp(
                                 )
                             }
                             state.custody.firstOrNull()?.let { statement ->
-                                LedgerDialog("Revisar investimentos · ${statement.date}", state, { model.dismissCustody() }, confirm = { model.confirmCustody() }) {
+                                LedgerDialog("Revisar investimentos · ${AppDates.date(statement.date)}", state, { model.dismissCustody() }, confirm = { model.confirmCustody() }) {
                                     Text("Saldo líquido estimado será usado no patrimônio. Não cria movimentações bancárias.")
                                     statement.positions.forEach { p ->
                                         Text(p.name, style = MaterialTheme.typography.titleSmall)
@@ -394,7 +394,7 @@ private fun SecurityCard(createdAtMillis: Long?) {
             Text("Armazenamento criptografado neste aparelho", style = MaterialTheme.typography.bodyMedium)
             Text("Novo desbloqueio após 1 minuto fora do app", style = MaterialTheme.typography.bodyMedium)
             createdAtMillis?.let {
-                Text("Espaço criado em ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Espaço criado em ${AppDates.createdDate(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

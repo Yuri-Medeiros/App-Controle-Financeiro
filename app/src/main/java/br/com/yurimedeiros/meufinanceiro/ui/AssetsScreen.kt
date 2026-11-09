@@ -236,14 +236,8 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
         ) {
             Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp)) {
-                Text("NOVO PATRIMÔNIO", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(8.dp))
                 Text("Adicionar patrimônio", style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Text("Organize seus bens e investimentos.", style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
                 Column(
                     Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
@@ -279,12 +273,9 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
                     if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
                         AssetEntryField("Nome", name, !state.syncing) { name = it }
                     }
-                    AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor confirmado",
+                    AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor",
                         amount, !state.syncing) { amount = it }
                     AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
-                    Text("Este registro não movimenta seu saldo bancário.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     (error ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall) }
                 }

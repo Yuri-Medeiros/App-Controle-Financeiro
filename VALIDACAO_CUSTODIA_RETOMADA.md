@@ -115,3 +115,7 @@ A listagem principal tem uma linha por tipo cadastrado, com total dos registros 
 Validar: abrir/fechar os grupos com um e vários registros; abrir um item e voltar para o grupo; tocar Bitcoin/FGTS; conferir totais com posições vendidas e sem cotação; retornar após bloqueio automático; testar TalkBack e fonte ampliada. As capturas de prévia usam componentes Compose e dados de demonstração, sem acessar o banco pessoal.
 
 Validação: 34 testes Python; 162 testes JVM em cada variante; checks Gradle de release/candidate e compilação do teste instrumentado. Três prévias nativas foram renderizadas com Paparazzi em cópia temporária, sem adicionar dependências ao app: tela completa, listagem por tipo e registros de investimentos. As prévias não representam captura no S23 nem validação de biometria/autorização Google.
+
+## Cadastro de patrimônio simplificado — 0.10.2
+
+Remove o cabeçalho verde “NOVO PATRIMÔNIO”, a descrição abaixo de “Adicionar patrimônio” e o informativo sobre saldo bancário. O campo monetário passa a se chamar “Valor”; Bitcoin mantém “Quantidade de bitcoin”. Conferir no aparelho os tipos disponíveis, campos, teclado e ações de salvar/cancelar. A prévia do conteúdo do modal foi renderizada em Compose em cópia temporária, com Bitcoin e FGTS já cadastrados como no exemplo do usuário.

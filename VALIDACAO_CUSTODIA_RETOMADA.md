@@ -143,3 +143,19 @@ Validação: 34 testes Python; 166 testes JVM em cada variante, incluindo agrega
 ## Lista compacta de patrimônios — 0.11.2
 
 A listagem fica em um único card “Patrimônios”. Cada tipo mostra nome e total na mesma linha, com seta discreta e área de toque mínima de 48 dp; contagem de registros e datas deixam a listagem principal. O toque continua abrindo a lista de Investimentos/Veículos ou os detalhes de Bitcoin/FGTS. Registros vendidos continuam acessíveis pelos detalhes e não entram no total. Cotação ausente aparece como traço, sem inventar valor zero. Conferir legibilidade, fonte ampliada e navegação no aparelho.
+
+## Consulta FIPE de veículos — 0.12.0
+
+Em Patrimônios → Veículos → registro → Editar veículo, selecione tipo (carro/moto/caminhão), marca, modelo e ano-modelo/combustível. Os seletores permitem busca por nome; mudar um nível limpa os dependentes. Salvar persiste a identificação e solicita a cotação. A opção “Atualizar pela FIPE” pode ser desativada sem apagar o último valor. Configuração FGTS mantém seu fluxo próprio.
+
+Integra a Parallelum/FipeAPI v2 sem cadastro, token ou cobrança. Catálogos e preço usam HTTPS com destinos de redirecionamento restritos e resposta limitada. Identificadores já existentes no formato português continuam legíveis e são convertidos para os caminhos da v2. O evento de cotação guarda mês de referência, identificação consultada, preço e fonte. Campos novos no JSON são opcionais para leitura dos registros anteriores; sem mudança de esquema Room.
+
+O botão único atualiza Bitcoin, investimentos e veículos. Enquanto a tela está ativa, o app verifica se o mês mudou; uma referência já salva no mês atual evita novas consultas. Falhas automáticas têm intervalo de uma hora; HTTP 429 suspende novas consultas por 24 horas no processo. Cada veículo é atualizado independentemente: falha preserva seu valor, sem desfazer sucessos dos demais. Respostas para identificação diferente, mês anterior/futuro, tipo/ano/combustível incompatível ou preço inválido são rejeitadas. Reconfigurar preserva o valor e invalida a referência associada à identificação anterior. Confirmação manual também limpa a identificação de cotação do valor exibido.
+
+A gravação relê o registro sob bloqueio do banco, valida que não mudou durante a consulta e verifica a geração da sessão. Consulta interrompida pelo bloqueio não grava depois da autenticação. Valores não movimentam conta bancária. Detalhes mostram fonte/mês/código FIPE; o histórico e o gráfico registram a data da atualização efetiva.
+
+Roteiro no S23: editar o veículo existente; buscar e selecionar opções; salvar e conferir preço/referência; atualizar de novo no mesmo mês (sem duplicação); desligar rede e preservar valor; trocar modelo/ano e atualizar; alternar combustível; cancelar edição; bloquear durante carregamento e autenticar novamente; conferir salvar, rolagem e teclado com fonte ampliada. A validação contra um veículo real exige acesso ao provedor no aparelho.
+
+Validação local: 34 testes Python e 178 testes JVM por variante, cobrindo parsing BRL, tipo/ano/combustível, referência mensal, troca de identificação, venda, aporte já incluído, confirmação manual, compatibilidade do JSON antigo, redirecionamentos HTTPS, resposta excessiva e HTTP 429. Acesso direto ao provedor bloqueado pelo proxy do ambiente (HTTP 403 no túnel); preço real e navegação dos seletores devem ser conferidos no aparelho. A API de Actions também retornou Forbidden ao consultar o workflow de distribuição: gerar candidato pelo workflow existente, branch work, mode=test, pr=11, após o CI do commit passar.
+
+Documentação do provedor: https://fipe.api.br/docs/comece-aqui e https://fipe.api.br/docs/consultando-a-api. Não é uma API oficial da Fundação FIPE; a integração usa a modalidade pública sem token da Parallelum.

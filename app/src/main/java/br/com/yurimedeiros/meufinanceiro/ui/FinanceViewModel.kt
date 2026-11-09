@@ -32,6 +32,9 @@ internal data class FinanceUiState(
     val resumeAvailable: Boolean = false,
     val custody: List<CustodyStatement> = emptyList(),
     val quoting: Boolean = false,
+    val quotingVehicles: Boolean = false,
+    val vehicleError: String? = null,
+    val vehicleNotice: String? = null,
     val bitcoinError: String? = null,
     val bitcoinNotice: String? = null,
     val opening: Boolean = false,
@@ -60,6 +63,8 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     private var cacheJob: Job? = null
     private val resumeWindow = br.com.yurimedeiros.meufinanceiro.security.ResumeWindow()
     private var quoteAttemptAt: Long? = null
+    private var vehicleAttemptAt: Long? = null
+    private var vehicleRateLimitedUntil = 0L
     private var session: SecureDatabaseSession? = null
     @Volatile private var generation = 0L
     private val databaseGuard = Any()
@@ -271,6 +276,88 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                 }
             }
             finally { if (attempt == generation) mutableState.value = state.value.copy(quoting = false) }
+        }
+    }
+
+    fun configureVehicle(id: String, path: String, onSaved: () -> Unit) {
+        if (!state.value.unlocked || state.value.syncing || state.value.quotingVehicles) return
+        val attempt = generation
+        mutableState.value = state.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                val snapshot = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    val repository = LedgerRepository(checkNotNull(session).database)
+                    val current = repository.snapshot().assets.assets.single { it.id == id }
+                    require(current.kind == AssetKind.VEHICLE && !current.disposed)
+                    repository.append(LedgerAction.Asset(AssetChange.Configure(id, path, current.monthlyFgts, current.fgtsDepositsActive)))
+                    repository.snapshot()
+                } }
+                if (attempt == generation) {
+                    mutableState.value = state.value.copy(ledger = snapshot, syncing = false, vehicleError = null, vehicleNotice = null)
+                    onSaved()
+                    if (path.isNotBlank()) refreshVehicles(manual = true)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (attempt == generation) showError("Não foi possível salvar o veículo. Seus dados foram preservados.") }
+            finally { if (attempt == generation) { mutableState.value = state.value.copy(syncing = false); refresh() } }
+        }
+    }
+
+    fun refreshVehicles(manual: Boolean = false) {
+        if (!state.value.unlocked || !state.value.visible || state.value.syncing || state.value.quotingVehicles) return
+        val today = LocalDate.now()
+        val configured = state.value.ledger.assets.assets.filter { it.kind == AssetKind.VEHICLE && !it.disposed && it.vehiclePath.isNotBlank() }
+        if (configured.isEmpty()) return
+        val pending = configured.filter { FipeQuotes.due(it, today) }
+        if (pending.isEmpty()) {
+            if (manual) mutableState.value = state.value.copy(vehicleError = null, vehicleNotice = "FIPE já atualizada para o mês atual.")
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now < vehicleRateLimitedUntil) {
+            if (manual) mutableState.value = state.value.copy(vehicleError = "Limite gratuito da FIPE atingido. Tente novamente amanhã.")
+            return
+        }
+        if (!manual && vehicleAttemptAt?.let { now - it in 0..3_599_999L } == true) return
+        vehicleAttemptAt = now
+        val attempt = generation
+        mutableState.value = state.value.copy(quotingVehicles = true, vehicleError = null, vehicleNotice = null)
+        viewModelScope.launch {
+            var updated = 0
+            val failures = mutableListOf<String>()
+            try {
+                for (asset in pending) {
+                    if (attempt != generation || !state.value.unlocked) return@launch
+                    try {
+                        val quote = withContext(Dispatchers.IO) { FipeQuotes.fetch(asset.vehiclePath, today) }
+                        withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                            check(attempt == generation)
+                            val repository = LedgerRepository(checkNotNull(session).database)
+                            val current = repository.snapshot().assets.assets.single { it.id == asset.id }
+                            repository.append(LedgerAction.Asset(FipeQuotes.action(asset, current, quote, LocalDate.now())))
+                        } }
+                        updated++
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        if (attempt != generation) return@launch
+                        failures += "${asset.name}: ${FipeQuotes.failure(error)}"
+                        if (error is QuoteHttpException && error.status == 429) {
+                            vehicleRateLimitedUntil = SystemClock.elapsedRealtime() + 86_400_000L
+                            break
+                        }
+                    }
+                }
+                if (attempt == generation) mutableState.value = state.value.copy(
+                    vehicleNotice = if (updated > 0) "FIPE: $updated ${if (updated == 1) "veículo atualizado" else "veículos atualizados"}." else null,
+                    vehicleError = failures.takeIf { it.isNotEmpty() }?.joinToString("\n")?.plus(" O último valor dos veículos não atualizados foi mantido."),
+                )
+            } finally {
+                if (attempt == generation) {
+                    mutableState.value = state.value.copy(quotingVehicles = false)
+                    if (updated > 0) refresh()
+                }
+            }
         }
     }
 
@@ -621,6 +708,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
 
     fun lock(preserveAction: Boolean = false) {
         generation++
+        vehicleAttemptAt = null
         clearBackupSecrets()
         expirationJob?.cancel()
         val previous = session

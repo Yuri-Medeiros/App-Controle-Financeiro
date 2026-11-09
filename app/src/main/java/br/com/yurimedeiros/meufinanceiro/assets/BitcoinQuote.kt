@@ -140,7 +140,7 @@ internal object QuoteHttp {
                     target = next
                 } else {
                     if (status != 200) throw QuoteHttpException(status)
-                    val bodyLimit = if (origin.path == "/v2/exchange-rates") 262144 else 65536
+                    val bodyLimit = if (origin.host in setOf("fipe.parallelum.com.br", "parallelum.com.br")) 524288 else if (origin.path == "/v2/exchange-rates") 262144 else 65536
                     val bytes = connection.inputStream.use { it.readNBytes(bodyLimit + 1) }
                     if (bytes.size > bodyLimit) throw QuoteResponseException("resposta acima do limite")
                     val body = bytes.toString(Charsets.UTF_8)
@@ -161,6 +161,7 @@ internal object QuoteHttp {
         val host = target.host?.lowercase().orEmpty()
         val mercado = origin.host == "api.mercadobitcoin.net" || origin.host == "www.mercadobitcoin.net"
         val allowed = if (mercado) listOf("mercadobitcoin.net", "mercadobitcoin.com.br").any { host == it || host.endsWith(".$it") }
+            else if (origin.host in setOf("fipe.parallelum.com.br", "parallelum.com.br")) host in setOf("fipe.parallelum.com.br", "parallelum.com.br")
             else origin.host == "api.coinbase.com" && host == "api.coinbase.com"
         if (!target.scheme.equals("https", ignoreCase = true) || target.userInfo != null || target.port !in listOf(-1,443) || !allowed) {
             throw QuoteResponseException("destino de redirecionamento não permitido")

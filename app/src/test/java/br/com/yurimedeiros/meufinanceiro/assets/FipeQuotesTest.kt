@@ -148,7 +148,7 @@ class FipeQuotesTest {
         assertEquals(2, calls)
     }
 
-    @Test fun neverRetriesDenialsQuotaOrInvalidPayloadOnAnotherEndpoint() {
+    @Test fun neverRetriesDenialsQuotaOrBeyondTheSecondEndpoint() {
         for (status in listOf(401, 403, 404, 429)) {
             var calls = 0
             val failure = runCatching { FipeQuotes.catalog("motorcycles/brands") {
@@ -161,7 +161,7 @@ class FipeQuotesTest {
         assertTrue(runCatching { FipeQuotes.catalog("motorcycles/brands") {
             calls++; "not json"
         } }.isFailure)
-        assertEquals(1, calls)
+        assertEquals(2, calls)
         calls = 0
         val failure = runCatching { FipeQuotes.catalog("motorcycles/brands") {
             calls++; throw java.net.SocketTimeoutException()
@@ -176,7 +176,47 @@ class FipeQuotesTest {
         assertTrue(FipeQuotes.failure(java.net.UnknownHostException()).contains("DNS"))
         assertTrue(FipeQuotes.failure(java.net.SocketTimeoutException()).contains("demorou"))
         assertTrue(FipeQuotes.failure(javax.net.ssl.SSLException("TLS")).contains("segura"))
-        assertTrue(FipeQuotes.failure(org.json.JSONException("bad payload")).contains("resposta inválida"))
+        assertTrue(FipeQuotes.failure(org.json.JSONException("bad payload")).contains("JSON fora do formato"))
+    }
+
+    @Test fun invalidPrimaryJsonTriggersAlternativeAndReturnsOnlyValidatedCatalog() {
+        val replies = listOf("not json", "{}", "<html>unavailable</html>")
+        for (reply in replies) {
+            val urls = mutableListOf<String>()
+            val result = FipeQuotes.catalog("motorcycles/brands") { url ->
+                urls += url
+                if (urls.size == 1) reply else """[{"codigo":"80","nome":"Honda"}]"""
+            }
+            assertEquals(listOf(FipeOption("80", "Honda")), result)
+            assertEquals(listOf("${FipeQuotes.BASE}/motorcycles/brands", "https://parallelum.com.br/fipe/api/v1/motos/marcas"), urls)
+        }
+    }
+
+    @Test fun htmlDetectedByHttpTransportAlsoTriggersAlternative() {
+        var calls = 0
+        val result = FipeQuotes.catalog("motorcycles/brands") {
+            if (++calls == 1) throw QuoteResponseException("serviço devolveu página HTML em vez da cotação")
+            """[{"codigo":"80","nome":"Honda"}]"""
+        }
+        assertEquals("Honda", result.single().name)
+        assertEquals(2, calls)
+        assertTrue(FipeQuotes.failure(QuoteResponseException("serviço devolveu página HTML em vez da cotação")).contains("HTML"))
+    }
+
+    @Test fun redirectsAndInvalidFinancialValuesAreNotRetriedAndBomIsAccepted() {
+        var calls = 0
+        assertTrue(runCatching { FipeQuotes.catalog("motorcycles/brands") {
+            calls++; throw QuoteResponseException("destino de redirecionamento não permitido")
+        } }.isFailure)
+        assertEquals(1, calls)
+        calls = 0
+        assertTrue(runCatching { FipeQuotes.fetch(vehicle.path, today) {
+            calls++; json().put("price", "R$ 0,00").toString()
+        } }.isFailure)
+        assertEquals(1, calls)
+        assertEquals("80", FipeQuotes.catalog("motorcycles/brands") {
+            "\uFEFF" + """[{"code":"80","name":"Honda"}]"""
+        }.single().code)
     }
 
 }

@@ -36,13 +36,20 @@ internal object FipeQuotes {
     const val BASE = "https://fipe.parallelum.com.br/api/v2"
     private const val LEGACY_BASE = "https://parallelum.com.br/fipe/api/v1"
 
-    // Only transport/server failures permit a second request. Never bypass a quota or access denial.
-    private fun readWithFallback(path: String, legacyPath: String, read: (String) -> String): Pair<String, Boolean> {
-        try { return read("$BASE/$path") to false }
-        catch (error: IOException) {
-            if (error is QuoteHttpException && error.status !in 500..599) throw error
-            try { return read("$LEGACY_BASE/$legacyPath") to true }
-            catch (fallback: Exception) { fallback.addSuppressed(error); throw fallback }
+    // Parse inside the attempt: HTTP 200 can still contain HTML or malformed JSON.
+    // A second endpoint cannot repair an invalid vehicle/price, quota or access denial.
+    private fun <T> withFallback(path: String, legacyPath: String, read: (String) -> String, decode: (String, Boolean) -> T): T {
+        try { return decode(read("$BASE/$path").removePrefix("\uFEFF"), false) }
+        catch (error: Exception) {
+            val retryable = when (error) {
+                is QuoteHttpException -> error.status in 500..599
+                is IOException, is JSONException -> true
+                is QuoteResponseException -> error.message == "serviço devolveu página HTML em vez da cotação"
+                else -> false
+            }
+            if (!retryable) throw error
+            try { return decode(read("$LEGACY_BASE/$legacyPath").removePrefix("\uFEFF"), true) }
+            catch (fallback: Exception) { if (fallback !== error) fallback.addSuppressed(error); throw fallback }
         }
     }
 
@@ -56,36 +63,38 @@ internal object FipeQuotes {
         val type = FipeType.entries.single { it.apiKey == path.substringBefore('/') }
         val legacyPath = path.replaceBefore('/', type.key).replace("/brands", "/marcas")
             .replace("/models", "/modelos").replace("/years", "/anos")
-        val (body, legacy) = readWithFallback(path, legacyPath, read)
-        val rows = if (legacy && path.endsWith("/models")) JSONObject(body).getJSONArray("modelos") else JSONArray(body)
-        val codeKey = if (legacy) "codigo" else "code"
-        val nameKey = if (legacy) "nome" else "name"
-        require(rows.length() in 1..10000) { "Lista FIPE indisponível." }
-        val options = (0 until rows.length()).map { index ->
-            val row = rows.getJSONObject(index)
-            require(!row.isNull(codeKey) && !row.isNull(nameKey)) { "Lista FIPE inválida." }
-            val code = row.get(codeKey).toString()
-            require((if (years) Regex("(?:[0-9]{4}|32000)-[0-9]+") else Regex("[0-9]+")).matches(code))
-            FipeOption(code, row.getString(nameKey).trim().also { require(it.isNotBlank() && it.length <= 300) })
+        return withFallback(path, legacyPath, read) { body, legacy ->
+            val rows = if (legacy && path.endsWith("/models")) JSONObject(body).getJSONArray("modelos") else JSONArray(body)
+            val codeKey = if (legacy) "codigo" else "code"
+            val nameKey = if (legacy) "nome" else "name"
+            require(rows.length() in 1..10000) { "Lista FIPE indisponível." }
+            val options = (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                require(!row.isNull(codeKey) && !row.isNull(nameKey)) { "Lista FIPE inválida." }
+                val code = row.get(codeKey).toString()
+                require((if (years) Regex("(?:[0-9]{4}|32000)-[0-9]+") else Regex("[0-9]+")).matches(code))
+                FipeOption(code, row.getString(nameKey).trim().also { require(it.isNotBlank() && it.length <= 300) })
+            }
+            require(options.map { it.code }.distinct().size == options.size)
+            options
         }
-        require(options.map { it.code }.distinct().size == options.size)
-        return options
     }
 
     fun fetch(path: String, today: LocalDate = LocalDate.now(), read: (String) -> String = { QuoteHttp.request(it).body }): FipeQuote {
         val vehicle = requireNotNull(FipeVehicle.parse(path)) { "Configure a identificação FIPE do veículo." }
-        val (body, legacy) = readWithFallback(vehicle.apiPath, vehicle.path, read)
-        val normalized = if (legacy) {
-            val original = JSONObject(body)
-            val row = JSONObject()
-            mapOf("TipoVeiculo" to "vehicleType", "Valor" to "price", "Marca" to "brand",
-                "Modelo" to "model", "AnoModelo" to "modelYear", "SiglaCombustivel" to "fuelAcronym",
-                "CodigoFipe" to "codeFipe", "MesReferencia" to "referenceMonth").forEach { (from, to) ->
-                row.put(to, original.get(from))
-            }
-            row.toString()
-        } else body
-        return parse(normalized, vehicle, today)
+        return withFallback(vehicle.apiPath, vehicle.path, read) { body, legacy ->
+            val normalized = if (legacy) {
+                val original = JSONObject(body)
+                val row = JSONObject()
+                mapOf("TipoVeiculo" to "vehicleType", "Valor" to "price", "Marca" to "brand",
+                    "Modelo" to "model", "AnoModelo" to "modelYear", "SiglaCombustivel" to "fuelAcronym",
+                    "CodigoFipe" to "codeFipe", "MesReferencia" to "referenceMonth").forEach { (from, to) ->
+                    row.put(to, original.get(from))
+                }
+                row.toString()
+            } else body
+            parse(normalized, vehicle, today)
+        }
     }
 
     fun parse(body: String, vehicle: FipeVehicle, today: LocalDate, now: Instant = Instant.now()): FipeQuote {
@@ -135,7 +144,13 @@ internal object FipeQuotes {
         error is UnknownHostException -> "Não foi possível localizar o serviço FIPE. Confira sua conexão e o DNS."
         error is SocketTimeoutException -> "O serviço FIPE demorou para responder. Tente novamente."
         error is SSLException -> "Não foi possível estabelecer uma conexão segura com a FIPE."
-        error is JSONException || error is QuoteResponseException -> "O serviço FIPE retornou uma resposta inválida. Tente novamente mais tarde."
+        error is JSONException -> "A FIPE retornou JSON fora do formato esperado. Não foi possível carregar os dados."
+        error is QuoteResponseException -> when (error.message) {
+            "serviço devolveu página HTML em vez da cotação" -> "A FIPE retornou uma página HTML em vez dos dados. Tente novamente mais tarde."
+            "resposta acima do limite" -> "A resposta da FIPE excedeu o tamanho permitido."
+            "destino de redirecionamento não permitido" -> "A FIPE redirecionou para um endereço não permitido."
+            else -> "Resposta FIPE inválida: ${error.message ?: "falha de transporte"}."
+        }
         error is FipeValidationException -> error.message ?: "Referência FIPE inválida."
         else -> "Não foi possível consultar a FIPE. Confira sua conexão e tente novamente."
     }

@@ -131,3 +131,11 @@ O botão “Alterar” abre “Meta”, sem cabeçalho verde nem descrição ini
 Conferir no aparelho: expandir/recolher, seleção total/parcial/nenhuma, valor por tipo e por registro, salvar/reabrir, cancelar, retomada, rolagem e fonte ampliada. Prévias nativas usam dados de demonstração.
 
 Validação local: 34 testes Python, 162 testes JVM por variante, checks Gradle de release/candidate e compilação do APK de testes instrumentados. As duas prévias do modal (recolhido e expandido com seleção parcial) foram renderizadas com os componentes Compose em cópia temporária, sem acrescentar dependências ao aplicativo. Interação no S23 ainda precisa ser conferida.
+
+## Evolução por tipo — 0.11.1
+
+O card contém apenas “Evolução” e o gráfico de linhas por tipo, sem total destacado ou parágrafos. Usa até as oito datas mais recentes do histórico, em posições proporcionais aos dias. Datas intermediárias sem espaço são omitidas do rótulo do eixo, preservando os pontos e a data mais recente. Cada linha tem nome e último valor junto à sua extremidade; o espaço das legendas é reservado fora da área das curvas, com separação vertical e altura adaptada à fonte. Valores desconhecidos interrompem somente a série correspondente; não são tratados como zero. Venda leva a série do tipo a zero quando não há outros ativos dele. Cores correspondem à Distribuição. Removido o card de Aportes e retiradas.
+
+Validar datas próximas, valores próximos, fonte ampliada, uma única atualização, falta de cotação e venda. Testes cobrem a separação das legendas e a reconstrução por tipo.
+
+Validação: 34 testes Python; 166 testes JVM em cada variante, incluindo agregação por tipo com cotação ausente e posicionamento de legendas próximas/fonte ampliada; checks Gradle de release/candidate e APK do teste instrumentado. Duas prévias nativas com dados de demonstração foram renderizadas: card de evolução e tela completa sem Aportes e retiradas. A interação e aparência no S23 ainda precisam de conferência.

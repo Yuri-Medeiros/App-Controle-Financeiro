@@ -5,7 +5,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-internal data class AssetHistoryPoint(val date: LocalDate, val cents: Long, val partial: Boolean)
+internal data class AssetHistoryPoint(val date: LocalDate, val cents: Long, val partial: Boolean,
+    val byKind: Map<AssetKind, Long?> = emptyMap())
 internal data class AssetMonthFlow(val month: YearMonth, val contributions: Long, val withdrawals: Long)
 
 internal object AssetInsights {
@@ -28,7 +29,10 @@ internal object AssetInsights {
                 val day = reference?.let { maxOf(it, date) } ?: date
                 reference = day
                 val live = replay.assets.filter { !it.disposed }
-                points[day] = AssetHistoryPoint(day, live.mapNotNull { it.valueCents }.sum(), live.any { it.valueCents == null })
+                val byKind = replay.assets.groupBy { it.kind }.mapValues { (_, assets) ->
+                    if (assets.any { it.valueCents == null }) null else assets.sumOf { it.valueCents ?: 0L }
+                }
+                points[day] = AssetHistoryPoint(day, live.mapNotNull { it.valueCents }.sum(), live.any { it.valueCents == null }, byKind)
             }
         }
         return points.values.toList()

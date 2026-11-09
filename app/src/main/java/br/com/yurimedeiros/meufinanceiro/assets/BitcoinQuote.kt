@@ -140,7 +140,8 @@ internal object QuoteHttp {
                     target = next
                 } else {
                     if (status != 200) throw QuoteHttpException(status)
-                    val bodyLimit = if (origin.host in setOf("fipe.parallelum.com.br", "parallelum.com.br")) 524288 else if (origin.path == "/v2/exchange-rates") 262144 else 65536
+                    val fipe = origin.host in setOf("fipe.parallelum.com.br", "parallelum.com.br")
+                    val bodyLimit = if (fipe) 524288 else if (origin.path == "/v2/exchange-rates") 262144 else 65536
                     val bytes = connection.inputStream.use { it.readNBytes(bodyLimit + 1) }
                     if (bytes.size > bodyLimit) throw QuoteResponseException("resposta acima do limite")
                     val body = bytes.toString(Charsets.UTF_8)
@@ -148,6 +149,9 @@ internal object QuoteHttp {
                     if (body.trimStart().startsWith("<")) {
                         throw QuoteResponseException("serviço devolveu página HTML em vez da cotação")
                     }
+                    // FIPE catalogs may be cached for days. Prices are validated against the
+                    // current reference month in FipeQuotes; BTC freshness uses HTTP metadata.
+                    if (fipe) return QuoteResponse(body, Instant.now())
                     val age = connection.getHeaderField("Age")?.toLongOrNull() ?: 0L
                     val date = connection.getHeaderFieldDate("Date", -1L)
                     return QuoteResponse.fromHttp(body, date, age)

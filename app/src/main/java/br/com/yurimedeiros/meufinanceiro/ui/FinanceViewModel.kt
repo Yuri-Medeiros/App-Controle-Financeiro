@@ -298,24 +298,24 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun configureVehicle(id: String, path: String, onSaved: () -> Unit) {
+    fun configureVehicle(id: String, name: String, path: String, onSaved: () -> Unit) {
         if (!state.value.unlocked || state.value.syncing || state.value.quotingVehicles) return
         val attempt = generation
         mutableState.value = state.value.copy(syncing = true, error = null)
         viewModelScope.launch {
             try {
-                val snapshot = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                val (snapshot, identityChanged) = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
                     check(attempt == generation)
                     val repository = LedgerRepository(checkNotNull(session).database)
                     val current = repository.snapshot().assets.assets.single { it.id == id }
-                    require(current.kind == AssetKind.VEHICLE && !current.disposed && FipeVehicle.parse(path) != null)
-                    repository.append(LedgerAction.Asset(AssetChange.Configure(id, path, current.monthlyFgts, current.fgtsDepositsActive)))
-                    repository.snapshot()
+                    require(current.kind == AssetKind.VEHICLE && !current.disposed && FipeVehicle.parse(path) != null && name.isNotBlank())
+                    repository.append(LedgerAction.Asset(AssetChange.Configure(id, path, current.monthlyFgts, current.fgtsDepositsActive, name.trim())))
+                    repository.snapshot() to (current.vehiclePath != path)
                 } }
                 if (attempt == generation) {
                     mutableState.value = state.value.copy(ledger = snapshot, syncing = false, vehicleError = null, vehicleNotice = null)
                     onSaved()
-                    if (path.isNotBlank()) refreshVehicles(manual = true)
+                    if (identityChanged) refreshVehicles(manual = true)
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Não foi possível salvar o veículo. Seus dados foram preservados.") }

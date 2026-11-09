@@ -47,13 +47,15 @@ internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, mode
         finally { if (ticket == lookupGeneration) loading = false }
     }
     val complete = type != null && brands.any { it.code == brand } && models.any { it.code == vehicleModel } && years.any { it.code == year }
+    val identityUnchanged = !isNew && initial != null && type == initial.type && brand == initial.brand &&
+        vehicleModel == initial.model && year == initial.year
     AssetDialog(if (isNew) "Adicionar veículo" else "Editar veículo", state, close, eyebrow = null, confirmLabel = if (isNew) "Adicionar veículo" else "Salvar",
-        confirmEnabled = !loading && !state.quotingVehicles && complete && (!isNew || name.isNotBlank()), confirm = {
+        confirmEnabled = (!loading || identityUnchanged) && !state.quotingVehicles && (complete || identityUnchanged) && name.isNotBlank(), confirm = {
             val path = FipeVehicle(checkNotNull(type), brand, vehicleModel, year).path
             if (isNew) model.registerVehicle(asset.id, name.trim(), path, close)
-            else model.configureVehicle(asset.id, path, close)
+            else model.configureVehicle(asset.id, name.trim(), path, close)
         }) {
-        if (isNew) OutlinedTextField(name, { name = it }, label = { Text("Nome") },
+        OutlinedTextField(name, { name = it }, label = { Text("Nome") },
             enabled = !state.syncing, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FipeOptionField("Tipo", type?.key.orEmpty(), FipeType.entries.map { FipeOption(it.key, it.label) }, !state.syncing && !loading) { code ->

@@ -23,7 +23,7 @@ internal data class GoalSettings(val targetCents: Long = 10000000, val selectedA
 internal sealed interface AssetChange {
     data class Register(val asset: AssetPosition) : AssetChange
     data class Confirm(val id: String, val cents: Long, val satoshis: Long, val date: LocalDate) : AssetChange
-    data class Configure(val id: String, val vehiclePath: String, val monthlyFgts: Long, val depositsActive: Boolean) : AssetChange
+    data class Configure(val id: String, val vehiclePath: String, val monthlyFgts: Long, val depositsActive: Boolean, val name: String? = null) : AssetChange
     data class Transfer(val id: String, val movementId: Long, val kind: AssetTransferKind, val bankCents: Long, val feesCents: Long,
         val satoshis: Long, val date: LocalDate, val includedInBalance: Boolean) : AssetChange
     data class Quote(val id: String, val cents: Long, val btcPrice: String?, val timestamp: String, val source: String,
@@ -89,8 +89,9 @@ internal object AssetRules {
             }
             is AssetChange.Configure -> {
                 val a = assets.single { it.id == change.id }; require(!a.disposed && change.monthlyFgts >= 0)
+                require(change.name == null || (a.kind == AssetKind.VEHICLE && change.name.isNotBlank())) { "Informe o nome do veículo." }
                 require(change.vehiclePath.isBlank() || Regex("(carros|motos|caminhoes)/marcas/[0-9]+/modelos/[0-9]+/anos/(?:[0-9]{4}|32000)-[0-9]+").matches(change.vehiclePath))
-                assets = assets.map { if (it.id != a.id) it else it.copy(vehiclePath = change.vehiclePath, monthlyFgts = change.monthlyFgts, fgtsDepositsActive = change.depositsActive,
+                assets = assets.map { if (it.id != a.id) it else it.copy(name = change.name?.trim() ?: it.name, vehiclePath = change.vehiclePath, monthlyFgts = change.monthlyFgts, fgtsDepositsActive = change.depositsActive,
                     fipeReference = if (it.kind == AssetKind.VEHICLE && it.vehiclePath != change.vehiclePath) null else it.fipeReference,
                     quotedAt = if (it.kind == AssetKind.VEHICLE && it.vehiclePath != change.vehiclePath) null else it.quotedAt,
                     quoteSource = if (it.kind == AssetKind.VEHICLE && it.vehiclePath != change.vehiclePath) null else it.quoteSource) }

@@ -127,7 +127,11 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
         TextButton(onClick = { goalOpen = true }) { Text("Alterar") }
     }
     AssetCharts(book)
-    AssetGroupList(book, onGroup = { selectedType = it }, onAsset = { selected = it })
+    AssetGroupList(book, onGroup = { kind ->
+        val vehicles = book.assets.filter { it.kind == AssetKind.VEHICLE }
+        if (kind == AssetKind.VEHICLE && vehicles.size == 1) selected = vehicles.single().id
+        else selectedType = kind
+    }, onAsset = { selected = it })
     selectedType?.let { kind ->
         if (selected == null) AssetDialog(assetGroupLabel(kind), state, { selectedType = null },
             subtitle = "Selecione um patrimônio para ver os detalhes.") {

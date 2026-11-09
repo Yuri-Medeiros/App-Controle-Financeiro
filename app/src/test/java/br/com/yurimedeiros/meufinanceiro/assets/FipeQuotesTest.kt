@@ -257,4 +257,26 @@ class FipeQuotesTest {
         assertFalse(FipeQuotes.due(saved.copy(kind = AssetKind.INVESTMENT), today, manual = true))
     }
 
+    @Test fun renamingVehiclePreservesFipeValuationHistoryAndLegacyConfiguration() {
+        val original = asset()
+        val quoted = AssetRules.apply(AssetBook(listOf(original)), FipeQuotes.action(original, original, quote(), today))
+        val before = quoted.assets.single()
+        val rename = AssetChange.Configure(before.id, before.vehiclePath, before.monthlyFgts, before.fgtsDepositsActive, "  Minha Fazer  ")
+        assertEquals(rename, AssetCodec.decode(AssetCodec.encode(rename)))
+        val renamed = AssetRules.apply(quoted, rename)
+        assertEquals(before.copy(name = "Minha Fazer"), renamed.assets.single())
+        assertEquals(quoted.history + rename, renamed.history)
+        assertTrue(runCatching { AssetRules.apply(quoted, rename.copy(name = "  ")) }.isFailure)
+        val legacyJson = AssetCodec.encode(rename).apply { remove("name") }
+        val legacy = AssetCodec.decode(legacyJson) as AssetChange.Configure
+        assertNull(legacy.name)
+        assertEquals(before, AssetRules.apply(quoted, legacy).assets.single())
+        val newIdentity = rename.copy(vehiclePath = "motos/marcas/80/modelos/999/anos/2020-1")
+        val reconfigured = AssetRules.apply(quoted, newIdentity).assets.single()
+        assertEquals("Minha Fazer", reconfigured.name)
+        assertEquals(before.cents, reconfigured.cents)
+        assertNull(reconfigured.fipeReference)
+        assertNull(reconfigured.quotedAt)
+    }
+
 }

@@ -35,17 +35,17 @@ private fun assetEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainString()
 
 @Composable
-internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, label: String = "BTC", description: String = "cotação do Bitcoin", onClick: () -> Unit) {
+internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val accent = NeonPalette[0]
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled && !loading,
-        modifier = Modifier.heightIn(min = 48.dp).semantics {
-            contentDescription = if (loading) "Atualizando $description" else "Atualizar $description"
+        modifier = Modifier.size(48.dp).semantics {
+            contentDescription = if (loading) "Atualizando Bitcoin e investimentos" else "Atualizar Bitcoin e investimentos"
         },
         shape = CircleShape,
         border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(0.dp),
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = accent.copy(alpha = 0.12f), contentColor = accent,
             disabledContainerColor = accent.copy(alpha = 0.06f), disabledContentColor = accent.copy(alpha = 0.6f),
@@ -53,21 +53,16 @@ internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, label: Strin
     ) {
         if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accent, strokeWidth = 2.dp)
         else Icon(RefreshIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
+internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefreshInvestments: () -> Unit) {
     LaunchedEffect(state.unlocked, state.visible, state.ledger.assets.assets.map { it.id }) {
         if (state.unlocked && state.visible) {
             while (true) { model.refreshBitcoin(); kotlinx.coroutines.delay(300_000L) }
         }
     }
-    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    state.bitcoinNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
     val book = state.ledger.assets
     var adding by remember { mutableStateOf(false) }
     var goalOpen by remember { mutableStateOf(false) }
@@ -75,11 +70,31 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     val live = book.assets.filter { !it.disposed }
     val known = live.mapNotNull { it.valueCents }.sum()
     val incomplete = live.any { it.valueCents == null }
-    GlassPanel(highlighted = true) {
-        Text("Patrimônio registrado", style = MaterialTheme.typography.titleSmall)
-        Text(ledgerMoney(known), style = MaterialTheme.typography.headlineLarge)
-        Text(if (incomplete) "Parcial: há ativos sem cotação." else "Fora do saldo bancário e do Flash", style = MaterialTheme.typography.bodySmall)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Patrimônio", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold)
+        AssetRefreshButton(
+            loading = state.syncing || state.quoting,
+            enabled = state.unlocked && state.visible && state.statements.isEmpty() && state.custody.isEmpty(),
+            onClick = {
+                model.refreshBitcoin(manual = true)
+                onRefreshInvestments()
+            },
+        )
+        FilledTonalIconButton(onClick = { adding = true }, enabled = !state.syncing,
+            modifier = Modifier.size(48.dp), shape = CircleShape,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = NeonPalette[0].copy(alpha = 0.12f), contentColor = NeonPalette[0]),
+        ) {
+            Icon(AddAssetIcon, contentDescription = "Adicionar patrimônio", modifier = Modifier.size(22.dp))
+        }
     }
+    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.bitcoinNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    Text(ledgerMoney(known), style = MaterialTheme.typography.headlineLarge)
+    if (incomplete) Text("Parcial: há ativos sem cotação.", style = MaterialTheme.typography.bodySmall)
     val planning = PlanningRules.view(state.ledger.planning, state.ledger, state.movements, LocalDate.now())
     val selectedValues = live.filter { it.id in book.goal.selectedAssets }.map { it.valueCents }
     val flashRows = state.movements.filter { it.row.kind == DocumentKind.FLASH }
@@ -92,13 +107,20 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
     )
     val goalPartial = selectedValues.any { it == null } || (book.goal.includeBank && planning.balance == null) || (book.goal.includeFlash && flash == null)
     val progress = goalValues.filterNotNull().sum()
-    GlassPanel {
-        Text("Sua meta · ${ledgerMoney(book.goal.targetCents)}", style = MaterialTheme.typography.titleSmall)
-        Text("${ledgerMoney(progress)}${if (goalPartial) " · parcial" else ""}")
-        LinearProgressIndicator(progress = { (progress.toDouble() / book.goal.targetCents).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LinearProgressIndicator(
+                progress = { (progress.toDouble() / book.goal.targetCents).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.weight(1f),
+            )
+            Text(ledgerMoney(book.goal.targetCents), style = MaterialTheme.typography.labelLarge)
+        }
+        Text("${ledgerMoney(progress)} da meta${if (goalPartial) " · parcial" else ""}",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         TextButton(onClick = { goalOpen = true }) { Text("Escolher componentes") }
     }
-    OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar patrimônio") }
+    AssetCharts(book)
     if (book.assets.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
     book.assets.forEach { asset -> GlassPanel {
         Text(asset.name, style = MaterialTheme.typography.titleMedium)

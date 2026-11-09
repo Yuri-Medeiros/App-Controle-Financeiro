@@ -120,4 +120,63 @@ class FipeQuotesTest {
         assertNull(book.assets.single().fipeReference)
         assertNull(book.assets.single().quoteSource)
     }
+    @Test fun fallsBackToDocumentedV1AcrossTheWholeSelectionAndPriceFlow() {
+        val cases = listOf(
+            Triple("motorcycles/brands", "motos/marcas", """[{"codigo":"80","nome":"Honda"}]"""),
+            Triple("motorcycles/brands/80/models", "motos/marcas/80/modelos", """{"modelos":[{"codigo":1234,"nome":"Modelo de teste"}],"anos":[]}"""),
+            Triple("motorcycles/brands/80/models/1234/years", "motos/marcas/80/modelos/1234/anos", """[{"codigo":"2020-1","nome":"2020 Gasolina"}]""")
+        )
+        for ((path, legacyPath, body) in cases) {
+            val urls = mutableListOf<String>()
+            val result = FipeQuotes.catalog(path) { url ->
+                urls += url
+                if (urls.size == 1) throw java.net.UnknownHostException("v2 unavailable")
+                assertEquals("https://parallelum.com.br/fipe/api/v1/$legacyPath", url)
+                body
+            }
+            assertEquals(2, urls.size)
+            assertEquals(1, result.size)
+        }
+        var calls = 0
+        val quote = FipeQuotes.fetch(vehicle.path, today) { url ->
+            if (++calls == 1) throw QuoteHttpException(503)
+            assertEquals("https://parallelum.com.br/fipe/api/v1/${vehicle.path}", url)
+            """{"TipoVeiculo":2,"Valor":"R$ 15.432,10","Marca":"Honda","Modelo":"Modelo de teste","AnoModelo":2020,"SiglaCombustivel":"G","CodigoFipe":"811000-1","MesReferencia":"novembro de 2026"}"""
+        }
+        assertEquals(1543210L, quote.cents)
+        assertEquals(vehicle.path, quote.vehiclePath)
+        assertEquals(2, calls)
+    }
+
+    @Test fun neverRetriesDenialsQuotaOrInvalidPayloadOnAnotherEndpoint() {
+        for (status in listOf(401, 403, 404, 429)) {
+            var calls = 0
+            val failure = runCatching { FipeQuotes.catalog("motorcycles/brands") {
+                calls++; throw QuoteHttpException(status)
+            } }.exceptionOrNull()
+            assertEquals(1, calls)
+            assertEquals(status, (failure as QuoteHttpException).status)
+        }
+        var calls = 0
+        assertTrue(runCatching { FipeQuotes.catalog("motorcycles/brands") {
+            calls++; "not json"
+        } }.isFailure)
+        assertEquals(1, calls)
+        calls = 0
+        val failure = runCatching { FipeQuotes.catalog("motorcycles/brands") {
+            calls++; throw java.net.SocketTimeoutException()
+        } }.exceptionOrNull()
+        assertEquals(2, calls)
+        assertTrue(failure is java.net.SocketTimeoutException)
+    }
+
+    @Test fun catalogAcceptsNumericCodesAndErrorsIdentifyTheActualFailure() {
+        assertEquals("80", FipeQuotes.catalog("motorcycles/brands") { """[{"code":80,"name":"Honda"}]""" }.single().code)
+        assertTrue(FipeQuotes.failure(QuoteHttpException(403)).contains("HTTP 403"))
+        assertTrue(FipeQuotes.failure(java.net.UnknownHostException()).contains("DNS"))
+        assertTrue(FipeQuotes.failure(java.net.SocketTimeoutException()).contains("demorou"))
+        assertTrue(FipeQuotes.failure(javax.net.ssl.SSLException("TLS")).contains("segura"))
+        assertTrue(FipeQuotes.failure(org.json.JSONException("bad payload")).contains("resposta inválida"))
+    }
+
 }

@@ -2,6 +2,11 @@ package br.com.yurimedeiros.meufinanceiro.assets
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
+import org.json.JSONException
 import java.math.BigDecimal
 import java.text.Normalizer
 import java.time.Instant
@@ -29,6 +34,18 @@ internal class FipeValidationException(message: String) : IllegalArgumentExcepti
 
 internal object FipeQuotes {
     const val BASE = "https://fipe.parallelum.com.br/api/v2"
+    private const val LEGACY_BASE = "https://parallelum.com.br/fipe/api/v1"
+
+    // Only transport/server failures permit a second request. Never bypass a quota or access denial.
+    private fun readWithFallback(path: String, legacyPath: String, read: (String) -> String): Pair<String, Boolean> {
+        try { return read("$BASE/$path") to false }
+        catch (error: IOException) {
+            if (error is QuoteHttpException && error.status !in 500..599) throw error
+            try { return read("$LEGACY_BASE/$legacyPath") to true }
+            catch (fallback: Exception) { fallback.addSuppressed(error); throw fallback }
+        }
+    }
+
     private val months = listOf("janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
     fun normalize(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT)
@@ -36,14 +53,20 @@ internal object FipeQuotes {
     fun catalog(path: String, read: (String) -> String = { QuoteHttp.request(it).body }): List<FipeOption> {
         require(Regex("(cars|motorcycles|trucks)/brands(?:/[0-9]+/models(?:/[0-9]+/years)?)?").matches(path))
         val years = path.endsWith("/years")
-        val rows = JSONArray(read("$BASE/$path"))
+        val type = FipeType.entries.single { it.apiKey == path.substringBefore('/') }
+        val legacyPath = path.replaceBefore('/', type.key).replace("/brands", "/marcas")
+            .replace("/models", "/modelos").replace("/years", "/anos")
+        val (body, legacy) = readWithFallback(path, legacyPath, read)
+        val rows = if (legacy && path.endsWith("/models")) JSONObject(body).getJSONArray("modelos") else JSONArray(body)
+        val codeKey = if (legacy) "codigo" else "code"
+        val nameKey = if (legacy) "nome" else "name"
         require(rows.length() in 1..10000) { "Lista FIPE indisponível." }
         val options = (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            require(!row.isNull("code") && !row.isNull("name")) { "Lista FIPE inválida." }
-            val code = row.getString("code")
+            require(!row.isNull(codeKey) && !row.isNull(nameKey)) { "Lista FIPE inválida." }
+            val code = row.get(codeKey).toString()
             require((if (years) Regex("(?:[0-9]{4}|32000)-[0-9]+") else Regex("[0-9]+")).matches(code))
-            FipeOption(code, row.getString("name").trim().also { require(it.isNotBlank() && it.length <= 300) })
+            FipeOption(code, row.getString(nameKey).trim().also { require(it.isNotBlank() && it.length <= 300) })
         }
         require(options.map { it.code }.distinct().size == options.size)
         return options
@@ -51,7 +74,18 @@ internal object FipeQuotes {
 
     fun fetch(path: String, today: LocalDate = LocalDate.now(), read: (String) -> String = { QuoteHttp.request(it).body }): FipeQuote {
         val vehicle = requireNotNull(FipeVehicle.parse(path)) { "Configure a identificação FIPE do veículo." }
-        return parse(read("$BASE/${vehicle.apiPath}"), vehicle, today)
+        val (body, legacy) = readWithFallback(vehicle.apiPath, vehicle.path, read)
+        val normalized = if (legacy) {
+            val original = JSONObject(body)
+            val row = JSONObject()
+            mapOf("TipoVeiculo" to "vehicleType", "Valor" to "price", "Marca" to "brand",
+                "Modelo" to "model", "AnoModelo" to "modelYear", "SiglaCombustivel" to "fuelAcronym",
+                "CodigoFipe" to "codeFipe", "MesReferencia" to "referenceMonth").forEach { (from, to) ->
+                row.put(to, original.get(from))
+            }
+            row.toString()
+        } else body
+        return parse(normalized, vehicle, today)
     }
 
     fun parse(body: String, vehicle: FipeVehicle, today: LocalDate, now: Instant = Instant.now()): FipeQuote {
@@ -96,6 +130,12 @@ internal object FipeQuotes {
     fun failure(error: Exception): String = when {
         error is QuoteHttpException && error.status == 429 -> "Limite gratuito da FIPE atingido. Tente novamente amanhã."
         error is QuoteHttpException && error.status == 404 -> "Veículo não encontrado na FIPE. Confira marca, modelo, ano e combustível."
+        error is QuoteHttpException && error.status in listOf(401, 403) -> "A FIPE recusou o acesso (HTTP ${error.status}). Tente novamente mais tarde."
+        error is QuoteHttpException -> "Serviço FIPE indisponível (HTTP ${error.status}). Tente novamente mais tarde."
+        error is UnknownHostException -> "Não foi possível localizar o serviço FIPE. Confira sua conexão e o DNS."
+        error is SocketTimeoutException -> "O serviço FIPE demorou para responder. Tente novamente."
+        error is SSLException -> "Não foi possível estabelecer uma conexão segura com a FIPE."
+        error is JSONException || error is QuoteResponseException -> "O serviço FIPE retornou uma resposta inválida. Tente novamente mais tarde."
         error is FipeValidationException -> error.message ?: "Referência FIPE inválida."
         else -> "Não foi possível consultar a FIPE. Confira sua conexão e tente novamente."
     }

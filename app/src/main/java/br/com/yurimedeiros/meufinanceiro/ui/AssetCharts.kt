@@ -29,26 +29,29 @@ internal fun AssetCharts(book: AssetBook) {
         Text("Distribuição", style = MaterialTheme.typography.titleMedium)
         if (total == 0L) Text("Ainda não há valores disponíveis para comparar.")
         else {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Canvas(Modifier.weight(0.38f).aspectRatio(1f).padding(10.dp).semantics {
-                    contentDescription = "Distribuição do patrimônio por tipo; valores e percentuais na legenda ao lado"
-                }) {
-                    var start = -90f
-                    composition.entries.forEach { (kind, cents) ->
-                        val sweep = (cents.toDouble() / total * 360).toFloat()
-                        drawArc(colors.getValue(kind), start, sweep, false, style = Stroke(size.minDimension * 0.16f))
-                        start += sweep
+            BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val chartSize = (maxWidth * 0.38f).coerceAtMost(132.dp)
+                val legendWidth = (maxWidth - chartSize - 16.dp).coerceAtLeast(0.dp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Canvas(Modifier.size(chartSize).padding(10.dp).semantics {
+                        contentDescription = "Distribuição do patrimônio por tipo; valores e percentuais na legenda ao lado"
+                    }) {
+                        var start = -90f
+                        composition.entries.forEach { (kind, cents) ->
+                            val sweep = (cents.toDouble() / total * 360).toFloat()
+                            drawArc(colors.getValue(kind), start, sweep, false, style = Stroke(size.minDimension * 0.16f))
+                            start += sweep
+                        }
                     }
-                }
-                Column(Modifier.weight(0.62f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    composition.entries.forEach { (kind, cents) ->
-                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Canvas(Modifier.padding(top = 5.dp).size(6.dp)) { drawCircle(colors.getValue(kind)) }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(labels.getValue(kind), style = MaterialTheme.typography.bodySmall)
-                                Text(ledgerMoney(cents) + " · " + String.format(Locale.forLanguageTag("pt-BR"), "%.1f%%", cents.toDouble() / total * 100),
-                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.widthIn(max = legendWidth).width(IntrinsicSize.Max), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        composition.entries.forEach { (kind, cents) ->
+                            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Canvas(Modifier.padding(top = 5.dp).size(6.dp)) { drawCircle(colors.getValue(kind)) }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(labels.getValue(kind), style = MaterialTheme.typography.bodySmall)
+                                    Text(ledgerMoney(cents) + " · " + String.format(Locale.forLanguageTag("pt-BR"), "%.1f%%", cents.toDouble() / total * 100),
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }

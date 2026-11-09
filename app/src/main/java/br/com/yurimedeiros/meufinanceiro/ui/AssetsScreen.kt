@@ -153,7 +153,7 @@ internal fun GoalDialog(state: FinanceUiState, model: FinanceViewModel, close: (
         catch (_: Exception) { error = "Informe uma meta positiva." }
     }) {
         AssetEntryField("Meta", target, !state.syncing) { target = it }
-        Text("Composição do patrimônio", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Composição do patrimônio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         GoalAssetTree(book, selectedIds, expandedTypes, !state.syncing,
             onSelectionChange = { selectedIds = it }, onExpandedChange = { expandedTypes = it })
         Text("Outros componentes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)

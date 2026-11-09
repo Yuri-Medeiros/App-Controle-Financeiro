@@ -119,3 +119,7 @@ Validação: 34 testes Python; 162 testes JVM em cada variante; checks Gradle de
 ## Cadastro de patrimônio simplificado — 0.10.2
 
 Remove o cabeçalho verde “NOVO PATRIMÔNIO”, a descrição abaixo de “Adicionar patrimônio” e o informativo sobre saldo bancário. O campo monetário passa a se chamar “Valor”; Bitcoin mantém “Quantidade de bitcoin”. Conferir no aparelho os tipos disponíveis, campos, teclado e ações de salvar/cancelar. A prévia do conteúdo do modal foi renderizada em Compose em cópia temporária, com Bitcoin e FGTS já cadastrados como no exemplo do usuário.
+
+## Distribuição compacta — 0.10.3
+
+Remove a linha de valor/progresso parcial abaixo da barra da meta. O card passa a se chamar “Distribuição”, com o gráfico à esquerda, sem texto no centro, e legenda de cores, valores e percentuais à direita. A legenda pode quebrar linhas com fonte ampliada. Validar a legibilidade e o alinhamento no aparelho, incluindo quatro tipos e valores longos.

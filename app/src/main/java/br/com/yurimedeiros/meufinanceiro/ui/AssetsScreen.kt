@@ -107,7 +107,6 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
         if (book.goal.includeFlash) flash else null,
         if (book.goal.includeReceivables) state.ledger.debts.filter { it.direction == DebtDirection.RECEIVE }.sumOf { it.remaining } else null,
     )
-    val goalPartial = selectedValues.any { it == null } || (book.goal.includeBank && planning.balance == null) || (book.goal.includeFlash && flash == null)
     val progress = goalValues.filterNotNull().sum()
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -118,8 +117,6 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
             )
             Text(ledgerMoney(book.goal.targetCents), style = MaterialTheme.typography.labelLarge)
         }
-        Text("${ledgerMoney(progress)} da meta${if (goalPartial) " · parcial" else ""}",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         TextButton(onClick = { goalOpen = true }) { Text("Escolher componentes") }
     }
     AssetCharts(book)

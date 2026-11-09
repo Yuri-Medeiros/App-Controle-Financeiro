@@ -33,31 +33,31 @@ internal fun AssetCharts(book: AssetBook) {
         AssetKind.FGTS to "FGTS", AssetKind.VEHICLE to "Veículo")
 
     GlassPanel {
-        Text("Composição do patrimônio", style = MaterialTheme.typography.titleMedium)
+        Text("Distribuição", style = MaterialTheme.typography.titleMedium)
         if (total == 0L) Text("Ainda não há valores disponíveis para comparar.")
         else {
-            Box(Modifier.fillMaxWidth().height(164.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(152.dp).padding(12.dp).semantics {
-                    contentDescription = "Distribuição do patrimônio por tipo; valores e percentuais na legenda"
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Canvas(Modifier.weight(0.38f).aspectRatio(1f).padding(10.dp).semantics {
+                    contentDescription = "Distribuição do patrimônio por tipo; valores e percentuais na legenda ao lado"
                 }) {
                     var start = -90f
                     composition.entries.forEachIndexed { index, (_, cents) ->
                         val sweep = (cents.toDouble() / total * 360).toFloat()
-                        drawArc(NeonPalette[index], start, sweep, false, style = Stroke(18.dp.toPx()))
+                        drawArc(NeonPalette[index], start, sweep, false, style = Stroke(size.minDimension * 0.16f))
                         start += sweep
                     }
                 }
-                Text("Por tipo", style = MaterialTheme.typography.labelLarge)
-            }
-            composition.entries.forEachIndexed { index, (kind, cents) ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Canvas(Modifier.size(8.dp)) { drawCircle(NeonPalette[index]) }
-                    Text(labels.getValue(kind), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(ledgerMoney(cents), style = MaterialTheme.typography.bodyMedium)
-                        Text(String.format(Locale.forLanguageTag("pt-BR"), "%.1f%%", cents.toDouble() / total * 100),
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(0.62f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    composition.entries.forEachIndexed { index, (kind, cents) ->
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Canvas(Modifier.padding(top = 5.dp).size(6.dp)) { drawCircle(NeonPalette[index]) }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(labels.getValue(kind), style = MaterialTheme.typography.bodySmall)
+                                Text(ledgerMoney(cents) + " · " + String.format(Locale.forLanguageTag("pt-BR"), "%.1f%%", cents.toDouble() / total * 100),
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             }

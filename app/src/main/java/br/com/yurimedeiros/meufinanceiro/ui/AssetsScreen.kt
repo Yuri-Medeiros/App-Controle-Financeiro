@@ -2,6 +2,7 @@ package br.com.yurimedeiros.meufinanceiro.ui
 
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
@@ -67,6 +68,7 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
     var adding by remember { mutableStateOf(false) }
     var goalOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<String?>(null) }
+    var selectedType by remember { mutableStateOf<AssetKind?>(null) }
     val live = book.assets.filter { !it.disposed }
     val known = live.mapNotNull { it.valueCents }.sum()
     val incomplete = live.any { it.valueCents == null }
@@ -122,14 +124,15 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
     }
     AssetCharts(book)
     if (book.assets.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
-    book.assets.forEach { asset -> GlassPanel {
-        Text(asset.name, style = MaterialTheme.typography.titleMedium)
-        Text(if (asset.disposed) "Vendido · histórico preservado" else asset.valueCents?.let(::ledgerMoney) ?: "Cotação ainda indisponível")
-        Text("${assetLabel(asset.kind)} · confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall)
-        if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
-        asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
-        TextButton(onClick = { selected = asset.id }) { Text("Ver detalhes") }
-    } }
+    AssetGroupList(book, onGroup = { selectedType = it }, onAsset = { selected = it })
+    selectedType?.let { kind ->
+        if (selected == null) AssetDialog(assetGroupLabel(kind), state, { selectedType = null },
+            subtitle = "Selecione um patrimônio para ver os detalhes.") {
+            book.assets.filter { it.kind == kind }.forEach { asset ->
+                AssetRecordRow(asset, onClick = { selected = asset.id })
+            }
+        }
+    }
     if (adding) AddAssetDialog(state, model) { adding = false }
     selected?.let { id -> book.assets.firstOrNull { it.id == id }?.let { AssetDetails(it, state, model) { selected = null } } }
     if (goalOpen) {
@@ -157,6 +160,59 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
             Text("A seleção altera apenas a meta, sem mudar o disponível para gastar.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+private fun assetGroupLabel(kind: AssetKind) = if (kind == AssetKind.VEHICLE) "Veículos" else assetLabel(kind)
+
+@Composable
+internal fun AssetGroupList(book: AssetBook, onGroup: (AssetKind) -> Unit, onAsset: (String) -> Unit) {
+    AssetKind.entries.forEach { kind ->
+        val assets = book.assets.filter { it.kind == kind }
+        if (assets.isNotEmpty()) {
+            val live = assets.filter { !it.disposed }
+            val partial = live.any { it.valueCents == null }
+            val multipleAllowed = kind == AssetKind.INVESTMENT || kind == AssetKind.VEHICLE
+            val actionLabel = if (multipleAllowed) "Ver ${assetGroupLabel(kind).lowercase()}" else "Ver detalhes de ${assetGroupLabel(kind)}"
+            GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = actionLabel) {
+                if (multipleAllowed) onGroup(kind) else onAsset(assets.single().id)
+            }) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(assetGroupLabel(kind), style = MaterialTheme.typography.titleMedium)
+                        Text(if (live.isNotEmpty() && live.all { it.valueCents == null }) "Cotação ainda indisponível"
+                            else ledgerMoney(live.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else "",
+                            style = MaterialTheme.typography.titleLarge)
+                        if (multipleAllowed) Text("${assets.size} ${if (assets.size == 1) "registro" else "registros"}" +
+                            if (assets.any { it.disposed }) " · ${assets.count { it.disposed }} vendidos" else "",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Text("Confirmado em ${AppDates.date(assets.single().confirmedDate)}",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(AssetChevronIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AssetRecordRow(asset: AssetPosition, onClick: () -> Unit) {
+    GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${asset.name}", onClick = onClick)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(asset.name, style = MaterialTheme.typography.titleMedium)
+                Text(if (asset.disposed) "Vendido · histórico preservado" else asset.valueCents?.let(::ledgerMoney)
+                    ?: "Cotação ainda indisponível")
+                Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(AssetChevronIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -361,6 +417,8 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
+            asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
         }
         if (!asset.disposed) {
             if (asset.kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) Button(onClick = { action = "confirm" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Confirmar saldo real") }

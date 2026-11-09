@@ -219,4 +219,42 @@ class FipeQuotesTest {
         }.single().code)
     }
 
+    @Test fun newVehiclesStartWithFipeValueAndCanOnlyBeSoldWhileLegacyEventsStillReplay() {
+        val registration = FipeQuotes.registration("new", "Minha moto", quote(), today)
+        AssetRules.validateNew(AssetBook(), registration)
+        val book = AssetRules.apply(AssetBook(), registration)
+        val saved = book.assets.single()
+        assertEquals(1543210L, saved.cents)
+        assertEquals(vehicle.path, saved.vehiclePath)
+        assertEquals("2026-11", saved.fipeReference)
+        assertEquals(now.toString(), saved.quotedAt)
+        assertEquals(registration, AssetCodec.decode(AssetCodec.encode(registration)))
+        val confirmation = AssetChange.Confirm(saved.id, 2000000, 0, today)
+        val contribution = AssetChange.Transfer(saved.id, 42, AssetTransferKind.CONTRIBUTION, 10000, 0, 0, today, false)
+        for (change in listOf(confirmation, contribution, AssetChange.Register(asset()),
+            AssetChange.Configure(saved.id, "", 0, false),
+            AssetChange.Quote(saved.id, 10000, null, now.toString(), "manual"))) {
+            assertTrue(runCatching { AssetRules.validateNew(book, change) }.isFailure)
+        }
+        // Historical manual confirmations and contributions remain readable during replay.
+        assertEquals(2000000L, AssetRules.apply(book, confirmation).assets.single().cents)
+        assertEquals(1553210L, AssetRules.apply(book, contribution).assets.single().cents)
+        val sale = contribution.copy(kind = AssetTransferKind.SALE)
+        AssetRules.validateNew(book, sale)
+        val sold = AssetRules.apply(book, sale)
+        assertTrue(sold.assets.single().disposed)
+        assertEquals(0L, sold.assets.single().valueCents)
+        assertEquals(2, sold.history.size)
+        assertTrue(runCatching { FipeQuotes.registration("x", "Moto", quote().copy(reference = YearMonth.of(2026, 10)), today) }.isFailure)
+    }
+
+    @Test fun manualRefreshIncludesAlreadyQuotedVehiclesWithoutRefreshingSoldOrUnconfiguredAssets() {
+        val saved = asset().copy(fipeReference = "2026-11")
+        assertFalse(FipeQuotes.due(saved, today))
+        assertTrue(FipeQuotes.due(saved, today, manual = true))
+        assertFalse(FipeQuotes.due(saved.copy(disposed = true), today, manual = true))
+        assertFalse(FipeQuotes.due(saved.copy(vehiclePath = ""), today, manual = true))
+        assertFalse(FipeQuotes.due(saved.copy(kind = AssetKind.INVESTMENT), today, manual = true))
+    }
+
 }

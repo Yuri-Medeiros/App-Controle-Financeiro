@@ -278,6 +278,13 @@ internal fun AssetRecordRow(asset: AssetPosition, onClick: () -> Unit) {
 
 @Composable
 private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var vehicleDialog by remember { mutableStateOf(false) }
+    val vehicleId = remember { UUID.randomUUID().toString() }
+    if (vehicleDialog) {
+        VehicleFipeDialog(AssetPosition(vehicleId, "", AssetKind.VEHICLE, 0, 0, LocalDate.now()), state, model,
+            { vehicleDialog = false; close() }, isNew = true)
+        return
+    }
     var name by remember { mutableStateOf("") }; var kind by remember { mutableStateOf(AssetKind.INVESTMENT) }
     var amount by remember { mutableStateOf("") }; var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
     var error by remember { mutableStateOf<String?>(null) }; val id = remember { UUID.randomUUID().toString() }
@@ -329,19 +336,22 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
                             if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
-                    if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
-                        AssetEntryField("Nome", name, !state.syncing) { name = it }
+                    if (kind != AssetKind.VEHICLE) {
+                        if (kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
+                            AssetEntryField("Nome", name, !state.syncing) { name = it }
+                        }
+                        AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor",
+                            amount, !state.syncing) { amount = it }
+                        AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
                     }
-                    AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor",
-                        amount, !state.syncing) { amount = it }
-                    AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
                     (error ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall) }
                 }
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = {
-                        try {
+                        if (kind == AssetKind.VEHICLE) vehicleDialog = true
+                        else try {
                             val cents = if (kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount)
                             val satoshis = if (kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0
                             model.saveLedger(LedgerAction.Asset(AssetChange.Register(AssetPosition(id,
@@ -357,7 +367,7 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text(if (state.syncing) "Salvando…" else "Adicionar patrimônio")
+                    Text(if (state.syncing) "Salvando…" else if (kind == AssetKind.VEHICLE) "Continuar" else "Adicionar patrimônio")
                 }
                 TextButton(onClick = close, enabled = !state.syncing, modifier = Modifier.fillMaxWidth()) {
                     Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -466,13 +476,15 @@ private fun AssetChoice(label: String, value: String, options: List<Pair<String,
 
 @Composable
 private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var showHistory by remember { mutableStateOf(false) }
+    var newVehicleId by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var action by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     if (action.isEmpty()) AssetDialog(asset.name, state, close, subtitle = assetLabel(asset.kind)) {
         GlassPanel(highlighted = true) {
             Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação",
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+            if (asset.kind != AssetKind.VEHICLE) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
             asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
@@ -483,8 +495,9 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             state.vehicleNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         if (!asset.disposed) {
-            if (asset.kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) Button(onClick = { action = "confirm" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Confirmar saldo real") }
-            OutlinedButton(onClick = { action = "transfer" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Aporte, resgate ou venda") }
+            if (asset.kind == AssetKind.INVESTMENT) Button(onClick = { action = "confirm" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Confirmar saldo real") }
+            OutlinedButton(onClick = { action = "transfer" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text(if (asset.kind == AssetKind.VEHICLE) "Vender veículo" else "Aporte ou resgate") }
+            if (asset.kind == AssetKind.VEHICLE) OutlinedButton(onClick = { newVehicleId = UUID.randomUUID().toString(); action = "addVehicle" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Adicionar veículo") }
             if (asset.kind == AssetKind.VEHICLE) OutlinedButton(onClick = { action = "configure" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Editar veículo") }
             if (asset.kind == AssetKind.FGTS) OutlinedButton(onClick = { action = "configure" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Configurar") }
         }
@@ -492,25 +505,30 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             Text("Depósito previsto no dia 20 · ${ledgerMoney(asset.monthlyFgts)} · ${if (asset.fgtsDepositsActive) "ativo" else "interrompido"}", style = MaterialTheme.typography.bodySmall)
             Text("Saldo exibido é a última confirmação real. Rendimentos futuros dependem de metodologia validada; nenhuma taxa fixa foi aplicada.", style = MaterialTheme.typography.bodySmall)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Text("Histórico", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        state.ledger.assets.history.filter { change -> when (change) {
-            is AssetChange.Register -> change.asset.id == asset.id
-            is AssetChange.Confirm -> change.id == asset.id
-            is AssetChange.Configure -> change.id == asset.id
-            is AssetChange.Transfer -> change.id == asset.id
-            is AssetChange.Quote -> change.id == asset.id
-            is AssetChange.Goal -> false
-        } }.takeLast(30).reversed().forEach { change -> Text(when (change) {
-            is AssetChange.Register -> "${AppDates.date(change.asset.confirmedDate)} · saldo inicial ${ledgerMoney(change.asset.cents)}"
-            is AssetChange.Confirm -> "${AppDates.date(change.date)} · confirmação ${if (asset.kind == AssetKind.BITCOIN) btcEdit(change.satoshis) + " BTC" else ledgerMoney(change.cents)}"
-            is AssetChange.Transfer -> "${AppDates.date(change.date)} · ${change.kind} ${ledgerMoney(change.bankCents)} · custos ${ledgerMoney(change.feesCents)}"
-            is AssetChange.Quote -> "${AppDates.timestamp(change.timestamp)} · avaliação ${change.source}" + if (asset.kind == AssetKind.VEHICLE) " · ${ledgerMoney(change.cents)}" else ""
-            is AssetChange.Configure -> "Configuração atualizada; versão anterior preservada"
-            is AssetChange.Goal -> ""
-        }, style = MaterialTheme.typography.bodySmall) }
+        OutlinedButton(onClick = { showHistory = !showHistory }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text(if (showHistory) "Ocultar histórico" else "Histórico") }
+        if (showHistory) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text("Histórico", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            state.ledger.assets.history.filter { change -> when (change) {
+                is AssetChange.Register -> change.asset.id == asset.id
+                is AssetChange.Confirm -> change.id == asset.id
+                is AssetChange.Configure -> change.id == asset.id
+                is AssetChange.Transfer -> change.id == asset.id
+                is AssetChange.Quote -> change.id == asset.id
+                is AssetChange.Goal -> false
+            } }.reversed().forEach { change -> Text(when (change) {
+                is AssetChange.Register -> "${AppDates.date(change.asset.confirmedDate)} · saldo inicial ${ledgerMoney(change.asset.cents)}"
+                is AssetChange.Confirm -> "${AppDates.date(change.date)} · confirmação ${if (asset.kind == AssetKind.BITCOIN) btcEdit(change.satoshis) + " BTC" else ledgerMoney(change.cents)}"
+                is AssetChange.Transfer -> "${AppDates.date(change.date)} · ${change.kind} ${ledgerMoney(change.bankCents)} · custos ${ledgerMoney(change.feesCents)}"
+                is AssetChange.Quote -> "${AppDates.timestamp(change.timestamp)} · avaliação ${change.source}" + if (asset.kind == AssetKind.VEHICLE) " · ${ledgerMoney(change.cents)}" else ""
+                is AssetChange.Configure -> "Configuração atualizada; versão anterior preservada"
+                is AssetChange.Goal -> ""
+            }, style = MaterialTheme.typography.bodySmall) }
+        }
     }
-    if (action == "confirm") {
+    if (action == "addVehicle") VehicleFipeDialog(
+        AssetPosition(newVehicleId, "", AssetKind.VEHICLE, 0, 0, LocalDate.now()), state, model, { action = "" }, isNew = true)
+    if (action == "confirm" && asset.kind == AssetKind.INVESTMENT) {
         var amount by remember { mutableStateOf(if (asset.kind == AssetKind.BITCOIN) btcEdit(asset.satoshis) else assetEdit(asset.cents)) }
         var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
         AssetDialog("Confirmar saldo real", state, { action = ""; error = null }, confirm = {
@@ -523,7 +541,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
-    if (action == "configure" && asset.kind == AssetKind.VEHICLE) VehicleFipeDialog(asset, state, model) { action = "" }
+    if (action == "configure" && asset.kind == AssetKind.VEHICLE) VehicleFipeDialog(asset, state, model, { action = "" })
     if (action == "configure" && asset.kind == AssetKind.FGTS) {
         val path = asset.vehiclePath
         var monthly by remember { mutableStateOf(assetEdit(asset.monthlyFgts)) }
@@ -544,7 +562,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
 
 @Composable
 private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var kind by remember { mutableStateOf(AssetTransferKind.CONTRIBUTION) }; var movementId by remember { mutableLongStateOf(0) }
+    var kind by remember { mutableStateOf(if (asset.kind == AssetKind.VEHICLE) AssetTransferKind.SALE else AssetTransferKind.CONTRIBUTION) }; var movementId by remember { mutableLongStateOf(0) }
     var fees by remember { mutableStateOf("0,00") }; var quantity by remember { mutableStateOf("") }; var included by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val sources = state.movements.filter { it.id !in state.ledger.usedMovementIds && it.status !in setOf("CONFLICT", "IGNORED") && it.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(it.row) && if (kind == AssetTransferKind.CONTRIBUTION) it.row.cents < 0 else it.row.cents > 0 }
@@ -556,7 +574,7 @@ private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, mod
             model.saveLedger(LedgerAction.Asset(AssetChange.Transfer(asset.id, source.id, kind, abs(source.row.cents), FinanceLedger.money(fees), satoshis, source.row.date, included)), close)
         } catch (e: Exception) { error = e.message ?: "Revise os dados da operação." }
     }) {
-        val options = if (asset.kind == AssetKind.VEHICLE) listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.SALE) else listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.REDEMPTION)
+        val options = if (asset.kind == AssetKind.VEHICLE) listOf(AssetTransferKind.SALE) else listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.REDEMPTION)
         fun label(k: AssetTransferKind) = when (k) { AssetTransferKind.CONTRIBUTION -> "Aporte / compra"; AssetTransferKind.REDEMPTION -> "Resgate / venda parcial"; AssetTransferKind.SALE -> "Venda do veículo" }
         AssetChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
         AssetChoice("Extrato", source?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(it.row.cents)}" } ?: "Escolher", sources.map { m -> "${AppDates.date(m.row.date)} · ${ledgerMoney(m.row.cents)} · ${m.row.description}" to { movementId = m.id; included = kind != AssetTransferKind.SALE && m.row.date <= asset.confirmedDate } })

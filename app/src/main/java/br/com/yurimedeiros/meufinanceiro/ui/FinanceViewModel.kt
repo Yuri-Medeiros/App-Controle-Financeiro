@@ -279,6 +279,25 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    fun registerVehicle(id: String, name: String, path: String, onSaved: () -> Unit) {
+        if (!state.value.unlocked || !state.value.visible || state.value.syncing || state.value.quotingVehicles) return
+        val attempt = generation
+        mutableState.value = state.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                val quote = withContext(Dispatchers.IO) { FipeQuotes.fetch(path) }
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    LedgerRepository(checkNotNull(session).database).append(
+                        LedgerAction.Asset(FipeQuotes.registration(id, name, quote, LocalDate.now())))
+                } }
+                if (attempt == generation) onSaved()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { if (attempt == generation) showError(FipeQuotes.failure(error)) }
+            finally { if (attempt == generation) { mutableState.value = state.value.copy(syncing = false); refresh() } }
+        }
+    }
+
     fun configureVehicle(id: String, path: String, onSaved: () -> Unit) {
         if (!state.value.unlocked || state.value.syncing || state.value.quotingVehicles) return
         val attempt = generation
@@ -289,7 +308,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
                     check(attempt == generation)
                     val repository = LedgerRepository(checkNotNull(session).database)
                     val current = repository.snapshot().assets.assets.single { it.id == id }
-                    require(current.kind == AssetKind.VEHICLE && !current.disposed)
+                    require(current.kind == AssetKind.VEHICLE && !current.disposed && FipeVehicle.parse(path) != null)
                     repository.append(LedgerAction.Asset(AssetChange.Configure(id, path, current.monthlyFgts, current.fgtsDepositsActive)))
                     repository.snapshot()
                 } }
@@ -309,7 +328,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         val today = LocalDate.now()
         val configured = state.value.ledger.assets.assets.filter { it.kind == AssetKind.VEHICLE && !it.disposed && it.vehiclePath.isNotBlank() }
         if (configured.isEmpty()) return
-        val pending = configured.filter { FipeQuotes.due(it, today) }
+        val pending = configured.filter { FipeQuotes.due(it, today, manual) }
         if (pending.isEmpty()) {
             if (manual) mutableState.value = state.value.copy(vehicleError = null, vehicleNotice = "FIPE já atualizada para o mês atual.")
             return

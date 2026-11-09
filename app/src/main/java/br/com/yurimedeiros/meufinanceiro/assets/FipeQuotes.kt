@@ -125,8 +125,17 @@ internal object FipeQuotes {
         return FipeQuote(cents, reference, now.toString(), "FIPE (Parallelum) · $brand $model · $code · ${row.getString("referenceMonth")}", vehicle.path)
     }
 
-    fun due(asset: AssetPosition, today: LocalDate): Boolean = asset.kind == AssetKind.VEHICLE && !asset.disposed &&
-        asset.vehiclePath.isNotBlank() && asset.fipeReference != YearMonth.from(today).toString()
+    fun registration(id: String, name: String, quote: FipeQuote, today: LocalDate): AssetChange.Register {
+        require(FipeVehicle.parse(quote.vehiclePath) != null && quote.reference == YearMonth.from(today))
+        require(quote.cents > 0 && quote.source.isNotBlank())
+        require(!Instant.parse(quote.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate().isBefore(today))
+        return AssetChange.Register(AssetPosition(id, name.trim(), AssetKind.VEHICLE, quote.cents, 0, today,
+            vehiclePath = quote.vehiclePath, fipeReference = quote.reference.toString(),
+            quotedAt = quote.timestamp, quoteSource = quote.source))
+    }
+
+    fun due(asset: AssetPosition, today: LocalDate, manual: Boolean = false): Boolean = asset.kind == AssetKind.VEHICLE && !asset.disposed &&
+        asset.vehiclePath.isNotBlank() && (manual || asset.fipeReference != YearMonth.from(today).toString())
 
     fun action(original: AssetPosition, current: AssetPosition, quote: FipeQuote, today: LocalDate): AssetChange.Quote {
         if (original != current || current.disposed || current.kind != AssetKind.VEHICLE) throw FipeValidationException("O veículo foi alterado durante a consulta. Atualize novamente.")

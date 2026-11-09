@@ -11,9 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit, isNew: Boolean = false) {
     val initial = remember(asset.id) { FipeVehicle.parse(asset.vehiclePath) }
-    var useFipe by remember { mutableStateOf(true) }
+    var name by remember { mutableStateOf(if (isNew) "" else asset.name) }
     var type by remember { mutableStateOf(initial?.type) }
     var brand by remember { mutableStateOf(initial?.brand.orEmpty()) }
     var vehicleModel by remember { mutableStateOf(initial?.model.orEmpty()) }
@@ -27,9 +27,9 @@ internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, mode
     var lookupGeneration by remember { mutableIntStateOf(0) }
     val cache = remember { mutableMapOf<String, List<FipeOption>>() }
     val interactive = LocalFinanceInteractive.current && state.unlocked && state.visible
-    LaunchedEffect(type, brand, vehicleModel, retry, useFipe, interactive) {
+    LaunchedEffect(type, brand, vehicleModel, retry, interactive) {
         val ticket = ++lookupGeneration
-        if (!interactive || !useFipe || type == null) { loading = false; return@LaunchedEffect }
+        if (!interactive || type == null) { loading = false; return@LaunchedEffect }
         loading = true; error = null
         suspend fun read(path: String): List<FipeOption> {
             cache[path]?.let { return it }
@@ -47,16 +47,15 @@ internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, mode
         finally { if (ticket == lookupGeneration) loading = false }
     }
     val complete = type != null && brands.any { it.code == brand } && models.any { it.code == vehicleModel } && years.any { it.code == year }
-    AssetDialog("Editar veículo", state, close, eyebrow = null, confirmLabel = "Salvar",
-        confirmEnabled = !loading && !state.quotingVehicles && (!useFipe || complete), confirm = {
-            val path = if (useFipe) FipeVehicle(checkNotNull(type), brand, vehicleModel, year).path else ""
-            model.configureVehicle(asset.id, path, close)
+    AssetDialog(if (isNew) "Adicionar veículo" else "Editar veículo", state, close, eyebrow = null, confirmLabel = if (isNew) "Adicionar veículo" else "Salvar",
+        confirmEnabled = !loading && !state.quotingVehicles && complete && (!isNew || name.isNotBlank()), confirm = {
+            val path = FipeVehicle(checkNotNull(type), brand, vehicleModel, year).path
+            if (isNew) model.registerVehicle(asset.id, name.trim(), path, close)
+            else model.configureVehicle(asset.id, path, close)
         }) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Atualizar pela FIPE", Modifier.weight(1f))
-            Switch(checked = useFipe, onCheckedChange = { useFipe = it }, enabled = !state.syncing)
-        }
-        if (useFipe) {
+        if (isNew) OutlinedTextField(name, { name = it }, label = { Text("Nome") },
+            enabled = !state.syncing, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FipeOptionField("Tipo", type?.key.orEmpty(), FipeType.entries.map { FipeOption(it.key, it.label) }, !state.syncing && !loading) { code ->
                 type = FipeType.entries.single { it.key == code }
                 brand = ""; vehicleModel = ""; year = ""

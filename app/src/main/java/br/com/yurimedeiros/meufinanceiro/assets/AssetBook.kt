@@ -34,15 +34,28 @@ internal data class AssetBook(val assets: List<AssetPosition> = emptyList(), val
 internal object AssetRules {
     fun validateNew(book: AssetBook, change: AssetChange) {
         when (change) {
-            is AssetChange.Register -> if (change.asset.kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
-                require(book.assets.none { it.kind == change.asset.kind }) { "Já existe um cadastro desse tipo. Use aportes e saques." }
+            is AssetChange.Register -> {
+                if (change.asset.kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) {
+                    require(book.assets.none { it.kind == change.asset.kind }) { "Já existe um cadastro desse tipo. Use aportes e saques." }
+                }
+                if (change.asset.kind == AssetKind.VEHICLE) {
+                    require(FipeVehicle.parse(change.asset.vehiclePath) != null && change.asset.fipeReference != null &&
+                        change.asset.quotedAt != null && !change.asset.quoteSource.isNullOrBlank()) { "Cadastre o veículo pela FIPE." }
+                }
             }
-            is AssetChange.Confirm -> require(book.assets.single { it.id == change.id }.kind !in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) { "Use aportes e saques para alterar o saldo." }
+            is AssetChange.Confirm -> require(book.assets.single { it.id == change.id }.kind == AssetKind.INVESTMENT) { "Veículos usam a FIPE; para os demais tipos, use aportes e saques." }
+            is AssetChange.Configure -> if (book.assets.single { it.id == change.id }.kind == AssetKind.VEHICLE) {
+                require(FipeVehicle.parse(change.vehiclePath) != null) { "Selecione a identificação FIPE do veículo." }
+            }
+            is AssetChange.Transfer -> if (book.assets.single { it.id == change.id }.kind == AssetKind.VEHICLE) {
+                require(change.kind == AssetTransferKind.SALE) { "Veículos permitem apenas venda. Para outro veículo, adicione um novo cadastro." }
+            }
             is AssetChange.Quote -> {
                 val asset = book.assets.single { it.id == change.id }
                 val previous = asset.quotedAt
                 require(previous == null || !Instant.parse(change.timestamp).isBefore(Instant.parse(previous))) { "A avaliação salva é mais recente. Seu saldo foi preservado." }
-                if (asset.kind == AssetKind.VEHICLE && change.fipeReference != null) {
+                if (asset.kind == AssetKind.VEHICLE) {
+                    require(change.fipeReference != null) { "A avaliação do veículo deve vir da FIPE." }
                     require(change.vehiclePath == asset.vehiclePath) { "A identificação FIPE foi alterada durante a consulta." }
                     require(asset.fipeReference == null || java.time.YearMonth.parse(change.fipeReference) >= java.time.YearMonth.parse(asset.fipeReference))
                     require(!Instant.parse(change.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate().isBefore(asset.confirmedDate))

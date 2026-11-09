@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.*
 import br.com.yurimedeiros.meufinanceiro.importing.*
@@ -123,7 +124,6 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
         TextButton(onClick = { goalOpen = true }) { Text("Alterar") }
     }
     AssetCharts(book)
-    if (book.assets.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
     AssetGroupList(book, onGroup = { selectedType = it }, onAsset = { selected = it })
     selectedType?.let { kind ->
         if (selected == null) AssetDialog(assetGroupLabel(kind), state, { selectedType = null },
@@ -223,32 +223,33 @@ private fun assetGroupLabel(kind: AssetKind) = if (kind == AssetKind.VEHICLE) "V
 
 @Composable
 internal fun AssetGroupList(book: AssetBook, onGroup: (AssetKind) -> Unit, onAsset: (String) -> Unit) {
-    AssetKind.entries.forEach { kind ->
-        val assets = book.assets.filter { it.kind == kind }
-        if (assets.isNotEmpty()) {
-            val live = assets.filter { !it.disposed }
-            val partial = live.any { it.valueCents == null }
-            val multipleAllowed = kind == AssetKind.INVESTMENT || kind == AssetKind.VEHICLE
-            val actionLabel = if (multipleAllowed) "Ver ${assetGroupLabel(kind).lowercase()}" else "Ver detalhes de ${assetGroupLabel(kind)}"
-            GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = actionLabel) {
-                if (multipleAllowed) onGroup(kind) else onAsset(assets.single().id)
-            }) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(assetGroupLabel(kind), style = MaterialTheme.typography.titleMedium)
-                        Text(if (live.isNotEmpty() && live.all { it.valueCents == null }) "Cotação ainda indisponível"
-                            else ledgerMoney(live.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else "",
-                            style = MaterialTheme.typography.titleLarge)
-                        if (multipleAllowed) Text("${assets.size} ${if (assets.size == 1) "registro" else "registros"}" +
-                            if (assets.any { it.disposed }) " · ${assets.count { it.disposed }} vendidos" else "",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        else Text("Confirmado em ${AppDates.date(assets.single().confirmedDate)}",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+    val groups = AssetKind.entries.mapNotNull { kind ->
+        book.assets.filter { it.kind == kind }.takeIf { it.isNotEmpty() }?.let { kind to it }
+    }
+    GlassPanel {
+        Text("Patrimônios", style = MaterialTheme.typography.titleMedium)
+        if (groups.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
+        Column {
+            groups.forEachIndexed { index, (kind, assets) ->
+                val live = assets.filter { !it.disposed }
+                val partial = live.any { it.valueCents == null }
+                val amount = if (live.isNotEmpty() && live.all { it.valueCents == null }) "—"
+                    else ledgerMoney(live.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else ""
+                val multipleAllowed = kind == AssetKind.INVESTMENT || kind == AssetKind.VEHICLE || assets.size > 1
+                val actionLabel = if (multipleAllowed) "Ver ${assetGroupLabel(kind).lowercase()}" else "Ver detalhes de ${assetGroupLabel(kind)}"
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClickLabel = actionLabel) {
+                        if (multipleAllowed) onGroup(kind) else onAsset(assets.single().id)
+                    }.padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(assetGroupLabel(kind), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(amount, Modifier.weight(1f).semantics {
+                        if (amount == "—") contentDescription = "Cotação ainda indisponível"
+                    }, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
                     Icon(AssetChevronIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp))
+                        modifier = Modifier.size(18.dp))
                 }
+                if (index < groups.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             }
         }
     }

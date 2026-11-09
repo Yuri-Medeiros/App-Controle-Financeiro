@@ -139,3 +139,7 @@ O card contém apenas “Evolução” e o gráfico de linhas por tipo, sem tota
 Validar datas próximas, valores próximos, fonte ampliada, uma única atualização, falta de cotação e venda. Testes cobrem a separação das legendas e a reconstrução por tipo.
 
 Validação: 34 testes Python; 166 testes JVM em cada variante, incluindo agregação por tipo com cotação ausente e posicionamento de legendas próximas/fonte ampliada; checks Gradle de release/candidate e APK do teste instrumentado. Duas prévias nativas com dados de demonstração foram renderizadas: card de evolução e tela completa sem Aportes e retiradas. A interação e aparência no S23 ainda precisam de conferência.
+
+## Lista compacta de patrimônios — 0.11.2
+
+A listagem fica em um único card “Patrimônios”. Cada tipo mostra nome e total na mesma linha, com seta discreta e área de toque mínima de 48 dp; contagem de registros e datas deixam a listagem principal. O toque continua abrindo a lista de Investimentos/Veículos ou os detalhes de Bitcoin/FGTS. Registros vendidos continuam acessíveis pelos detalhes e não entram no total. Cotação ausente aparece como traço, sem inventar valor zero. Conferir legibilidade, fonte ampliada e navegação no aparelho.

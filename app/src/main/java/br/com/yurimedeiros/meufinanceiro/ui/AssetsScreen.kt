@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.*
@@ -117,7 +120,7 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
             )
             Text(ledgerMoney(book.goal.targetCents), style = MaterialTheme.typography.labelLarge)
         }
-        TextButton(onClick = { goalOpen = true }) { Text("Escolher componentes") }
+        TextButton(onClick = { goalOpen = true }) { Text("Alterar") }
     }
     AssetCharts(book)
     if (book.assets.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
@@ -132,31 +135,86 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
     }
     if (adding) AddAssetDialog(state, model) { adding = false }
     selected?.let { id -> book.assets.firstOrNull { it.id == id }?.let { AssetDetails(it, state, model) { selected = null } } }
-    if (goalOpen) {
-        var target by remember { mutableStateOf(assetEdit(book.goal.targetCents)) }
-        var selectedIds by remember { mutableStateOf(book.goal.selectedAssets) }
-        var bank by remember { mutableStateOf(book.goal.includeBank) }
-        var flashChosen by remember { mutableStateOf(book.goal.includeFlash) }
-        var receivables by remember { mutableStateOf(book.goal.includeReceivables) }
-        var error by remember { mutableStateOf<String?>(null) }
-        AssetDialog("Componentes da meta", state, { goalOpen = false }, subtitle = "Escolha o que acompanha seu objetivo.", confirmLabel = "Salvar meta", confirm = {
-            try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables)))) { goalOpen = false } }
-            catch (_: Exception) { error = "Informe uma meta positiva." }
-        }) {
-            AssetEntryField("Meta", target) { target = it }
-            Text("Patrimônios", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            book.assets.forEach { asset ->
-                AssetSelectionRow(asset.name, asset.id in selectedIds, !state.syncing) {
-                    selectedIds = if (it) selectedIds + asset.id else selectedIds - asset.id
+    if (goalOpen) GoalDialog(state, model) { goalOpen = false }
+}
+
+@Composable
+internal fun GoalDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    val book = state.ledger.assets
+    var target by remember { mutableStateOf(assetEdit(book.goal.targetCents)) }
+    var selectedIds by remember { mutableStateOf(book.goal.selectedAssets) }
+    var expandedTypes by remember { mutableStateOf(emptySet<AssetKind>()) }
+    var bank by remember { mutableStateOf(book.goal.includeBank) }
+    var flashChosen by remember { mutableStateOf(book.goal.includeFlash) }
+    var receivables by remember { mutableStateOf(book.goal.includeReceivables) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AssetDialog("Meta", state, close, eyebrow = null, confirmLabel = "Salvar", confirm = {
+        try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables))), close) }
+        catch (_: Exception) { error = "Informe uma meta positiva." }
+    }) {
+        AssetEntryField("Meta", target, !state.syncing) { target = it }
+        Text("Composição do patrimônio", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        GoalAssetTree(book, selectedIds, expandedTypes, !state.syncing,
+            onSelectionChange = { selectedIds = it }, onExpandedChange = { expandedTypes = it })
+        Text("Outros componentes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        AssetSelectionRow("Saldo bancário", bank, !state.syncing) { bank = it }
+        AssetSelectionRow("Flash", flashChosen, !state.syncing) { flashChosen = it }
+        AssetSelectionRow("Valores a receber", receivables, !state.syncing) { receivables = it }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+internal fun GoalAssetTree(
+    book: AssetBook, selectedIds: Set<String>, expandedTypes: Set<AssetKind>, enabled: Boolean,
+    onSelectionChange: (Set<String>) -> Unit, onExpandedChange: (Set<AssetKind>) -> Unit,
+) {
+    AssetKind.entries.forEach { kind ->
+        val assets = book.assets.filter { it.kind == kind }
+        if (assets.isNotEmpty()) {
+            val ids = assets.map { it.id }.toSet()
+            val selectedCount = ids.count { it in selectedIds }
+            val checked = when (selectedCount) {
+                0 -> ToggleableState.Off
+                ids.size -> ToggleableState.On
+                else -> ToggleableState.Indeterminate
+            }
+            val expanded = kind in expandedTypes
+            val partial = assets.any { !it.disposed && it.valueCents == null }
+            val amount = if (assets.all { it.valueCents == null }) "Sem cotação"
+                else ledgerMoney(assets.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else ""
+            Surface(shape = FinanceInputShape,
+                color = if (selectedCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.025f),
+                border = BorderStroke(1.dp, if (selectedCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.outlineVariant)) {
+                Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TriStateCheckbox(state = checked, enabled = enabled,
+                        modifier = Modifier.semantics { contentDescription = "Selecionar todos: ${assetGroupLabel(kind)}" },
+                        onClick = { onSelectionChange(if (checked == ToggleableState.On) selectedIds - ids else selectedIds + ids) })
+                    Row(Modifier.weight(1f).heightIn(min = 64.dp)
+                        .clickable(enabled = enabled, role = Role.Button,
+                            onClickLabel = if (expanded) "Recolher ${assetGroupLabel(kind)}" else "Expandir ${assetGroupLabel(kind)}") {
+                            onExpandedChange(if (expanded) expandedTypes - kind else expandedTypes + kind)
+                        }.semantics { stateDescription = if (expanded) "Expandido" else "Recolhido" },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(assetGroupLabel(kind), style = MaterialTheme.typography.bodyMedium)
+                            Text(amount, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(AssetChevronIcon, contentDescription = null,
+                            modifier = Modifier.size(18.dp).rotate(if (expanded) 90f else 0f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
-            Text("Outros componentes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            AssetSelectionRow("Saldo bancário", bank, !state.syncing) { bank = it }
-            AssetSelectionRow("Flash", flashChosen, !state.syncing) { flashChosen = it }
-            AssetSelectionRow("Valores a receber", receivables, !state.syncing) { receivables = it }
-            Text("A seleção altera apenas a meta, sem mudar o disponível para gastar.", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (expanded) Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                assets.forEach { asset ->
+                    AssetSelectionRow(asset.name, asset.id in selectedIds, enabled,
+                        detail = if (asset.disposed) "Vendido · ${ledgerMoney(0)}" else asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação") {
+                        onSelectionChange(if (it) selectedIds + asset.id else selectedIds - asset.id)
+                    }
+                }
+            }
         }
     }
 }
@@ -323,14 +381,17 @@ private fun AssetEntryField(label: String, value: String, enabled: Boolean = tru
 internal fun AssetDialog(
     title: String, state: FinanceUiState, close: () -> Unit,
     subtitle: String? = null, confirmLabel: String = "Salvar", confirm: (() -> Unit)? = null,
+    eyebrow: String? = "PATRIMÔNIO",
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (LocalFinanceInteractive.current) Dialog(onDismissRequest = { if (!state.syncing) close() }) {
         Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF0C162B),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))) {
             Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp)) {
-                Text("PATRIMÔNIO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(8.dp))
+                eyebrow?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                }
                 Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 subtitle?.let {
                     Spacer(Modifier.height(6.dp))
@@ -360,15 +421,19 @@ internal fun AssetDialog(
 }
 
 @Composable
-private fun AssetSelectionRow(label: String, selected: Boolean, enabled: Boolean, change: (Boolean) -> Unit) {
+private fun AssetSelectionRow(label: String, selected: Boolean, enabled: Boolean, detail: String? = null, change: (Boolean) -> Unit) {
     Surface(shape = FinanceInputShape,
         color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.025f),
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             else MaterialTheme.colorScheme.outlineVariant)) {
         Row(Modifier.fillMaxWidth().toggleable(selected, enabled = enabled, role = Role.Checkbox, onValueChange = change)
             .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium)
+                detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
         }
     }
 }

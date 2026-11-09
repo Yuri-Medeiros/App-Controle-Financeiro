@@ -123,3 +123,11 @@ Remove o cabeçalho verde “NOVO PATRIMÔNIO”, a descrição abaixo de “Adi
 ## Distribuição compacta — 0.10.3
 
 Remove a linha de valor/progresso parcial abaixo da barra da meta. O card passa a se chamar “Distribuição”, com o gráfico à esquerda, sem texto no centro, e legenda de cores, valores e percentuais à direita. A legenda pode quebrar linhas com fonte ampliada. Validar a legibilidade e o alinhamento no aparelho, incluindo quatro tipos e valores longos.
+
+## Meta com seleção por tipo — 0.11.0
+
+O botão “Alterar” abre “Meta”, sem cabeçalho verde nem descrição inicial; a confirmação passa a se chamar “Salvar”. “Composição do patrimônio” agrupa os registros por tipo com total, seleção à esquerda e expansão por nome/seta. Os grupos começam recolhidos a cada abertura. A caixa do tipo seleciona/desmarca todos os seus patrimônios; seleção de parte dos registros mostra estado intermediário. Expandir não altera a seleção. Cada registro expandido exibe seu valor e seleção individual. Outros componentes mantêm as seleções existentes. Salvar persiste a meta e os IDs; cancelar descarta alterações. Estado de seleção e expansão permanece em memória durante bloqueio automático, como o restante do formulário.
+
+Conferir no aparelho: expandir/recolher, seleção total/parcial/nenhuma, valor por tipo e por registro, salvar/reabrir, cancelar, retomada, rolagem e fonte ampliada. Prévias nativas usam dados de demonstração.
+
+Validação local: 34 testes Python, 162 testes JVM por variante, checks Gradle de release/candidate e compilação do APK de testes instrumentados. As duas prévias do modal (recolhido e expandido com seleção parcial) foram renderizadas com os componentes Compose em cópia temporária, sem acrescentar dependências ao aplicativo. Interação no S23 ainda precisa ser conferida.

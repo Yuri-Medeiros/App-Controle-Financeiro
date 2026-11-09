@@ -28,6 +28,7 @@ internal sealed interface AssetChange {
         val satoshis: Long, val date: LocalDate, val includedInBalance: Boolean) : AssetChange
     data class Quote(val id: String, val cents: Long, val btcPrice: String?, val timestamp: String, val source: String,
         val fipeReference: String? = null, val vehiclePath: String? = null) : AssetChange
+    data class Remove(val id: String, val date: LocalDate) : AssetChange
     data class Goal(val settings: GoalSettings) : AssetChange
 }
 internal data class AssetBook(val assets: List<AssetPosition> = emptyList(), val goal: GoalSettings = GoalSettings(), val history: List<AssetChange> = emptyList())
@@ -134,6 +135,11 @@ internal object AssetRules {
                     java.time.YearMonth.parse(it)
                 }
                 assets = assets.map { if (it.id != a.id) it else it.copy(cents = if (it.kind == AssetKind.VEHICLE) change.cents else it.cents, btcPrice = change.btcPrice, quotedAt = change.timestamp, quoteSource = change.source, fipeReference = change.fipeReference).also { updated -> updated.valueCents } }
+            }
+            is AssetChange.Remove -> {
+                val asset = assets.single { it.id == change.id }
+                require(asset.kind == AssetKind.VEHICLE && !asset.disposed) { "O veículo já foi retirado do patrimônio." }
+                assets = assets.map { if (it.id == change.id) it.copy(disposed = true) else it }
             }
             is AssetChange.Goal -> {
                 require(change.settings.targetCents > 0 && change.settings.selectedAssets.all { id -> assets.any { it.id == id } })

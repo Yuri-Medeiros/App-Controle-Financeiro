@@ -22,6 +22,7 @@ internal object AssetInsights {
                 is AssetChange.Register -> change.asset.confirmedDate
                 is AssetChange.Confirm -> change.date
                 is AssetChange.Transfer -> change.date
+                is AssetChange.Remove -> change.date
                 is AssetChange.Quote -> Instant.parse(change.timestamp).atZone(zone).toLocalDate()
                 else -> null
             }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.importing.*
@@ -25,8 +26,10 @@ private fun editMoney(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 internal fun personLabel(state: FinanceUiState, id: Long) = if (id == 0L) "Eu" else state.people.firstOrNull { it.id == id }?.name ?: "Pessoa não encontrada"
 
 @Composable
-internal fun LedgerField(label: String, value: String, change: (String) -> Unit) {
-    OutlinedTextField(value, change, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape, singleLine = true)
+internal fun LedgerField(label: String, value: String, monetary: Boolean = false, change: (String) -> Unit) {
+    OutlinedTextField(value, { if (monetary) normalizeMoneyInput(it)?.let(change) else change(it) },
+        label = { Text(label) }, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape, singleLine = true,
+        visualTransformation = if (monetary) MoneyInputVisualTransformation else VisualTransformation.None)
 }
 
 @Composable
@@ -123,7 +126,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                 chosenLink?.let { (p, part) ->
                     Text("Importado ${ledgerMoney(movement.row.cents)} · confirme diferenças e divisão.")
                     LedgerField("Vencimento", linkDue) { linkDue = it }
-                    p.shares.keys.forEach { person -> LedgerField(personLabel(state, person), linkAmounts[person].orEmpty()) { linkAmounts[person] = it } }
+                    p.shares.keys.forEach { person -> LedgerField(personLabel(state, person), linkAmounts[person].orEmpty(), monetary = true) { linkAmounts[person] = it } }
                     Button(onClick = {
                         try {
                             val amounts = p.shares.keys.associateWith { FinanceLedger.money(linkAmounts[it].orEmpty()) }
@@ -155,7 +158,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     Text("Compras anteriores ficam como histórico a conciliar. A data não presume recebimentos nem quitação; revise as parcelas em aberto na prévia.", style = MaterialTheme.typography.bodySmall)
                 }
                 LedgerChoice("Divisão", listOf("Igual", "Percentuais", "Valores por parcela")[split], listOf("Igual", "Percentuais", "Valores por parcela").mapIndexed { i, label -> label to { split = i } })
-                if (split != 0) participants.forEach { person -> LedgerField(personLabel(state, person), values[person].orEmpty()) { values[person] = it } }
+                if (split != 0) participants.forEach { person -> LedgerField(personLabel(state, person), values[person].orEmpty(), monetary = split == 2) { values[person] = it } }
                 Text("Parcela importada: ${ledgerMoney(movement.row.cents)}", style = MaterialTheme.typography.bodySmall)
             }
         } else {
@@ -187,7 +190,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
                 }
                 var totalText by remember(i) { mutableStateOf(editMoney(part.cents)) }
-                LedgerField("Valor da parcela", totalText) { text ->
+                LedgerField("Valor da parcela", totalText, monetary = true) { text ->
                     totalText = text
                     val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                     invalidInputs["total:$i"] = cents == null || cents <= 0
@@ -197,7 +200,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     if (person > 0 && part.number in p.familyOpening) {
                         val openingKey = "${part.number}:$person"
                         var opening by remember(i, person, "opening", amounts[i]) { mutableStateOf(editMoney(p.openingBalances[openingKey] ?: amounts[i])) }
-                        LedgerField("${personLabel(state, person)} · saldo em aberto", opening) { text ->
+                        LedgerField("${personLabel(state, person)} · saldo em aberto", opening, monetary = true) { text ->
                             opening = text
                             val cents = runCatching { FinanceLedger.money(text) }.getOrNull()
                             invalidInputs["opening:$i:$person"] = cents == null
@@ -205,7 +208,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                         }
                     }
                     var amount by remember(i, person) { mutableStateOf(editMoney(amounts[i])) }
-                    LedgerField(personLabel(state, person), amount) { text ->
+                    LedgerField(personLabel(state, person), amount, monetary = true) { text ->
                         amount = text
                         val parsedAmount = runCatching { FinanceLedger.money(text) }.getOrNull()
                         invalidInputs["share:$i:$person"] = parsedAmount == null
@@ -244,7 +247,7 @@ internal fun PaymentDialog(personId: Long, direction: DebtDirection, state: Fina
         if (debts.isEmpty()) Text("Nenhuma dívida em aberto nesta direção.")
         debts.forEach { d ->
             Text("Em aberto: ${ledgerMoney(d.remaining)}", style = MaterialTheme.typography.bodySmall)
-            LedgerField(d.title, allocations[d.id].orEmpty()) { allocations[d.id] = it }
+            LedgerField(d.title, allocations[d.id].orEmpty(), monetary = true) { allocations[d.id] = it }
         }
         localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
@@ -262,7 +265,7 @@ internal fun ManualDebtDialog(personId: Long, state: FinanceUiState, model: Fina
     }) {
         Text(personLabel(state, personId))
         LedgerChoice("Direção", if (direction == DebtDirection.RECEIVE) "A receber" else "Eu devo", DebtDirection.entries.map { d -> (if (d == DebtDirection.RECEIVE) "A receber" else "Eu devo") to { direction = d } })
-        LedgerField("Descrição", title) { title = it }; LedgerField("Valor", amount) { amount = it }
+        LedgerField("Descrição", title) { title = it }; LedgerField("Valor", amount, monetary = true) { amount = it }
         LedgerField("Vencimento", due) { due = it }
         Text("Confirme a data, inclusive ajustes por dia útil. Não há juros nem compensação automática.", style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -297,7 +300,7 @@ internal fun RefundDialog(movement: ReviewMovement, state: FinanceUiState, model
                 val refunded = state.ledger.actions.filterIsInstance<LedgerAction.Refund>().sumOf { it.credits[id] ?: 0 }
                 if (amounts[part.number - 1] > refunded) {
                     Text("Limite: ${ledgerMoney(amounts[part.number - 1] - refunded)}", style = MaterialTheme.typography.bodySmall)
-                    LedgerField(personLabel(state, person), credits[id].orEmpty()) { credits[id] = it }
+                    LedgerField(personLabel(state, person), credits[id].orEmpty(), monetary = true) { credits[id] = it }
                 }
             }
         }

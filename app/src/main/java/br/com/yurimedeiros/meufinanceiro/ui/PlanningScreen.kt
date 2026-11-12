@@ -114,11 +114,11 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
                 model.saveLedger(LedgerAction.Planning(p.copy(balanceCents = signedAmount(balance), balanceDate = AppDates.parse(date), salaryCents = FinanceLedger.money(salary), fixedReserve = fixedValue, reserveStart = start, salaryDates = salaryDates, invoiceDates = invoices))) { dialog = "" }
             } catch (_: Exception) { error = "Revise os valores e as datas." }
         }) {
-            LedgerField("Saldo bancário", balance) { balance = it }
+            LedgerField("Saldo bancário", balance, monetary = true) { balance = it }
             LedgerField("Data do saldo", date) { date = it }
             Text("Somente movimentações após essa data alteram o saldo. Confira se os extratos desse período estão completos.", style = MaterialTheme.typography.bodySmall)
-            LedgerField("Salário previsto", salary) { salary = it }
-            LedgerField("Reserva por ciclo", fixed) { fixed = it }
+            LedgerField("Salário previsto", salary, monetary = true) { salary = it }
+            LedgerField("Reserva por ciclo", fixed, monetary = true) { fixed = it }
             Text("A reserva é somada uma vez em cada ciclo a partir da configuração. Para ajustar o ciclo atual, use Reservar ou liberar.", style = MaterialTheme.typography.bodySmall)
             LedgerField("Data do salário", salaryDate) { salaryDate = it }
             LedgerField("Data da fatura", invoiceDate) { invoiceDate = it }
@@ -132,7 +132,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             try { require(category.isNotBlank()); model.saveLedger(LedgerAction.Planning(p.copy(budgets = p.budgets + (category.trim() to FinanceLedger.money(amount))))) { dialog = "" } }
             catch (_: Exception) { error = "Informe categoria e valor." }
         }) {
-            CategoryDropdown(category, { category = it }, !state.syncing); LedgerField("Limite", amount) { amount = it }
+            CategoryDropdown(category, { category = it }, !state.syncing); LedgerField("Limite", amount, monetary = true) { amount = it }
             Text("O limite da categoria inclui suas subcategorias. Evite limites sobrepostos entre a categoria e seus filhos. O histórico de configuração é preservado.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -145,7 +145,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             try { model.saveLedger(LedgerAction.Planning(p.copy(reserves = p.reserves + ReserveChange(id, title.trim(), signedAmount(amount), location, today)))) { dialog = "" } }
             catch (_: Exception) { error = "Revise nome e valor. Use sinal negativo para liberar." }
         }) {
-            LedgerField("Nome da reserva", title) { title = it }; LedgerField("Valor", amount) { amount = it }
+            LedgerField("Nome da reserva", title) { title = it }; LedgerField("Valor", amount, monetary = true) { amount = it }
             Text("Use um valor negativo para liberar a reserva.", style = MaterialTheme.typography.bodySmall)
             LedgerChoice("Local", if (location == ReserveLocation.BANK) "Na conta" else "Em investimentos", ReserveLocation.entries.map { l -> (if (l == ReserveLocation.BANK) "Na conta" else "Em investimentos") to { location = l } })
             Text("Para liberar, use exatamente o nome e o local da reserva existente. A liberação não realiza resgate bancário.", style = MaterialTheme.typography.bodySmall)
@@ -161,7 +161,7 @@ internal fun PlanningScreen(state: FinanceUiState, model: FinanceViewModel) {
             catch (_: Exception) { error = "Revise descrição, categoria, valor e data." }
         }) {
             LedgerField("Descrição", title) { title = it }; CategoryDropdown(category, { category = it }, !state.syncing)
-            LedgerField("Valor previsto", amount) { amount = it }; LedgerField("Primeiro vencimento", date) { date = it }
+            LedgerField("Valor previsto", amount, monetary = true) { amount = it }; LedgerField("Primeiro vencimento", date) { date = it }
             LedgerChoice("Frequência", frequencyLabel(frequency), ExpenseFrequency.entries.map { f -> frequencyLabel(f) to { frequency = f } })
             Text("A previsão só deixa de ser obrigação ao vincular o lançamento real. Diferenças de valor são confirmadas nesse vínculo.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

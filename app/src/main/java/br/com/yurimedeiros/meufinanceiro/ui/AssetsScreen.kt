@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -174,7 +175,7 @@ internal fun GoalDialog(state: FinanceUiState, model: FinanceViewModel, close: (
         try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables))), close) }
         catch (_: Exception) { error = "Informe uma meta positiva." }
     }) {
-        AssetEntryField("Meta", target, !state.syncing) { target = it }
+        AssetEntryField("Meta", target, !state.syncing, monetary = true) { target = it }
         Text("Composição do patrimônio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         GoalAssetTree(book, selectedIds, expandedTypes, !state.syncing,
             onSelectionChange = { selectedIds = it }, onExpandedChange = { expandedTypes = it })
@@ -360,7 +361,7 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
                             AssetEntryField("Nome", name, !state.syncing) { name = it }
                         }
                         AssetEntryField(if (kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Valor",
-                            amount, !state.syncing) { amount = it }
+                            amount, !state.syncing, monetary = kind != AssetKind.BITCOIN) { amount = it }
                         AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
                     }
                     (error ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error,
@@ -397,9 +398,10 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
 }
 
 @Composable
-private fun AssetEntryField(label: String, value: String, enabled: Boolean = true, change: (String) -> Unit) {
+private fun AssetEntryField(label: String, value: String, enabled: Boolean = true, monetary: Boolean = false, change: (String) -> Unit) {
     OutlinedTextField(
-        value = value, onValueChange = change, enabled = enabled,
+        value = value, onValueChange = { if (monetary) normalizeMoneyInput(it)?.let(change) else change(it) }, enabled = enabled,
+        visualTransformation = if (monetary) MoneyInputVisualTransformation else VisualTransformation.None,
         label = { Text(label) }, modifier = Modifier.fillMaxWidth(),
         shape = FinanceInputShape, singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
@@ -604,7 +606,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Confirm(asset.id, if (asset.kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount), if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0, AppDates.parse(date)))) { action = "" } }
             catch (_: Exception) { error = "Revise valor e data da confirmação." }
         }) {
-            AssetEntryField(if (asset.kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Saldo real", amount) { amount = it }
+            AssetEntryField(if (asset.kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Saldo real", amount, monetary = asset.kind != AssetKind.BITCOIN) { amount = it }
             AssetEntryField("Data", date) { date = it }
             Text("A confirmação cria uma nova base, preservando saldos anteriores e operações no histórico.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -619,7 +621,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             try { model.saveLedger(LedgerAction.Asset(AssetChange.Configure(asset.id, path, FinanceLedger.money(monthly), deposits))) { action = "" } }
             catch (_: Exception) { error = "Revise os dados informados." }
         }) {
-            AssetEntryField("Depósito mensal previsto", monthly) { monthly = it }
+            AssetEntryField("Depósito mensal previsto", monthly, monetary = true) { monthly = it }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Prever depósitos", Modifier.weight(1f)); Switch(deposits, { deposits = it }) }
             Text("Depósitos previstos não são adicionados ao saldo real confirmado.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -647,7 +649,7 @@ private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, mod
         fun label(k: AssetTransferKind) = when (k) { AssetTransferKind.CONTRIBUTION -> "Aporte / compra"; AssetTransferKind.REDEMPTION -> "Resgate / venda parcial"; AssetTransferKind.SALE -> "Venda do veículo" }
         AssetChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
         AssetChoice("Extrato", source?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(it.row.cents)}" } ?: "Escolher", sources.map { m -> "${AppDates.date(m.row.date)} · ${ledgerMoney(m.row.cents)} · ${m.row.description}" to { movementId = m.id; included = kind != AssetTransferKind.SALE && m.row.date <= asset.confirmedDate } })
-        AssetEntryField("Custos da operação", fees) { fees = it }
+        AssetEntryField("Custos da operação", fees, monetary = true) { fees = it }
         if (asset.kind == AssetKind.BITCOIN) AssetEntryField("Quantidade de bitcoin", quantity) { quantity = it }
         if (kind != AssetTransferKind.SALE) AssetSelectionRow("Já incluída no saldo confirmado", included, !state.syncing) { included = it }
         Text(if (kind == AssetTransferKind.SALE) "A venda retira o veículo do patrimônio e preserva avaliações anteriores. A entrada líquida será contada uma única vez, pelo extrato." else "Vincula ao extrato sem duplicar movimentações ou consumir o orçamento.", style = MaterialTheme.typography.bodySmall)
@@ -673,7 +675,7 @@ private fun FgtsTransferDialog(asset: AssetPosition, state: FinanceUiState, mode
         } catch (_: Exception) { error = "Revise valor e data." }
     }) {
         AssetChoice("Operação", if (contribution) "Aporte" else "Saque", listOf("Aporte" to { contribution = true }, "Saque" to { contribution = false }))
-        AssetEntryField("Valor", amount) { amount = it }
+        AssetEntryField("Valor", amount, monetary = true) { amount = it }
         AssetEntryField("Data", date) { date = it }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }

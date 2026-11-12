@@ -483,22 +483,39 @@ private fun AssetChoice(label: String, value: String, options: List<Pair<String,
 }
 
 @Composable
-private fun VehicleValuationInfo(details: VehicleValuationDetails) {
+private fun AssetInfoButton(description: String, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = "Informações da cotação" }) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = description }) {
             Surface(shape = CircleShape, border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary), color = Color.Transparent) {
                 Text("i", Modifier.size(22.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.titleMedium)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Atualizado em ${details.updated}", style = MaterialTheme.typography.bodyMedium)
-                Text("Fonte: ${details.source}", style = MaterialTheme.typography.bodyMedium)
-                Text("Referência: ${details.reference}", style = MaterialTheme.typography.bodyMedium)
+                ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
             }
         }
+    }
+}
+
+@Composable
+private fun VehicleValuationInfo(details: VehicleValuationDetails) {
+    AssetInfoButton("Informações da cotação") {
+        Text("Atualizado em ${details.updated}")
+        Text("Fonte: ${details.source}")
+        Text("Referência: ${details.reference}")
+    }
+}
+
+@Composable
+private fun FgtsDetailsInfo(asset: AssetPosition) {
+    AssetInfoButton("Informações sobre o FGTS") {
+        Text("Confirmado em ${AppDates.date(asset.confirmedDate)}")
+        asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}") }
+        Text("Depósito previsto no dia 20 · ${ledgerMoney(asset.monthlyFgts)} · ${if (asset.fgtsDepositsActive) "ativo" else "interrompido"}")
+        Text("Saldo exibido é a última confirmação real. Rendimentos futuros dependem de metodologia validada; nenhuma taxa fixa foi aplicada.")
     }
 }
 
@@ -509,16 +526,20 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
     var error by remember { mutableStateOf<String?>(null) }
     val valuation = VehicleValuationDetails.from(asset)
     if (action.isEmpty()) AssetDialog(asset.name, state, close, subtitle = assetLabel(asset.kind), headerActions = {
-        if (asset.kind == AssetKind.VEHICLE) VehicleValuationInfo(valuation)
+        when (asset.kind) {
+            AssetKind.VEHICLE -> VehicleValuationInfo(valuation)
+            AssetKind.FGTS -> FgtsDetailsInfo(asset)
+            else -> Unit
+        }
     }) {
         GlassPanel(highlighted = true) {
             Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação",
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            if (asset.kind != AssetKind.VEHICLE) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+            if (asset.kind !in setOf(AssetKind.VEHICLE, AssetKind.FGTS)) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
             if (asset.kind == AssetKind.VEHICLE) Text(valuation.model, style = MaterialTheme.typography.bodySmall)
-            else asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
+            else if (asset.kind != AssetKind.FGTS) asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
         }
         if (asset.kind == AssetKind.VEHICLE && !asset.disposed) {
             if (state.quotingVehicles) Text("Consultando FIPE…", style = MaterialTheme.typography.bodySmall)
@@ -530,10 +551,6 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
             if (asset.kind == AssetKind.VEHICLE) OutlinedButton(onClick = { action = "configure" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Editar") }
             OutlinedButton(onClick = { action = if (asset.kind == AssetKind.VEHICLE) "remove" else "transfer" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text(if (asset.kind == AssetKind.VEHICLE) "Remover" else "Aporte ou resgate") }
             if (asset.kind == AssetKind.FGTS) OutlinedButton(onClick = { action = "configure" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Configurar") }
-        }
-        if (asset.kind == AssetKind.FGTS) {
-            Text("Depósito previsto no dia 20 · ${ledgerMoney(asset.monthlyFgts)} · ${if (asset.fgtsDepositsActive) "ativo" else "interrompido"}", style = MaterialTheme.typography.bodySmall)
-            Text("Saldo exibido é a última confirmação real. Rendimentos futuros dependem de metodologia validada; nenhuma taxa fixa foi aplicada.", style = MaterialTheme.typography.bodySmall)
         }
         OutlinedButton(onClick = { showHistory = !showHistory }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text(if (showHistory) "Ocultar histórico" else "Histórico") }
         if (showHistory) {
@@ -629,7 +646,11 @@ private fun FgtsTransferDialog(asset: AssetPosition, state: FinanceUiState, mode
     var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
     var contribution by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    AssetDialog("Aporte ou saque do FGTS", state, close, confirm = {
+    AssetDialog("Aporte ou saque do FGTS", state, close, headerActions = {
+        AssetInfoButton("Informações da movimentação do FGTS") {
+            Text("Registra somente o FGTS. Uma entrada na conta será contabilizada pelo extrato bancário.")
+        }
+    }, confirm = {
         try {
             model.saveLedger(LedgerAction.Asset(AssetChange.Transfer(asset.id, 0,
                 if (contribution) AssetTransferKind.CONTRIBUTION else AssetTransferKind.REDEMPTION,
@@ -639,7 +660,6 @@ private fun FgtsTransferDialog(asset: AssetPosition, state: FinanceUiState, mode
         AssetChoice("Operação", if (contribution) "Aporte" else "Saque", listOf("Aporte" to { contribution = true }, "Saque" to { contribution = false }))
         AssetEntryField("Valor", amount) { amount = it }
         AssetEntryField("Data", date) { date = it }
-        Text("Registra somente o FGTS. Uma entrada na conta será contabilizada pelo extrato bancário.")
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }

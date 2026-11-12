@@ -15,15 +15,18 @@ import br.com.yurimedeiros.meufinanceiro.assets.*
 import java.util.Locale
 
 @Composable
-internal fun AssetCharts(book: AssetBook) {
+internal fun AssetCharts(book: AssetBook, individualAssets: Boolean = false) {
     val live = book.assets.filter { !it.disposed }
-    val composition = live.filter { it.valueCents != null }.groupBy { it.kind }
+    val composition = live.filter { it.valueCents != null }.groupBy { if (individualAssets) it.id else it.kind.name }
         .mapValues { (_, rows) -> rows.sumOf { it.valueCents ?: 0L } }.filterValues { it > 0 }
     val total = composition.values.sum()
     val points = remember(book.history) { AssetInsights.evolution(book) }
-    val colors = book.assets.map { it.kind }.distinct().mapIndexed { index, kind -> kind to NeonPalette[index] }.toMap()
-    val labels = mapOf(AssetKind.INVESTMENT to "Investimentos", AssetKind.BITCOIN to "Bitcoin",
-        AssetKind.FGTS to "FGTS", AssetKind.VEHICLE to "Veículo")
+    val keys = book.assets.map { if (individualAssets) it.id else it.kind.name }.distinct()
+    val colors = keys.mapIndexed { index, key -> key to (NeonPalette.getOrNull(index)
+        ?: Color.hsl(((index - NeonPalette.size) * 137.508f + 35f) % 360f, 0.7f, 0.55f)) }.toMap()
+    val labels = if (individualAssets) book.assets.associate { it.id to it.name } else
+        mapOf(AssetKind.INVESTMENT.name to "Investimentos", AssetKind.BITCOIN.name to "Bitcoin",
+            AssetKind.FGTS.name to "FGTS", AssetKind.VEHICLE.name to "Veículo")
 
     GlassPanel {
         Text("Distribuição", style = MaterialTheme.typography.titleMedium)
@@ -34,7 +37,7 @@ internal fun AssetCharts(book: AssetBook) {
                 val legendWidth = (maxWidth - chartSize - 16.dp).coerceAtLeast(0.dp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Canvas(Modifier.size(chartSize).padding(10.dp).semantics {
-                        contentDescription = "Distribuição do patrimônio por tipo; valores e percentuais na legenda ao lado"
+                        contentDescription = if (individualAssets) "Distribuição por investimento; valores e percentuais na legenda ao lado" else "Distribuição do patrimônio por tipo; valores e percentuais na legenda ao lado"
                     }) {
                         var start = -90f
                         composition.entries.forEach { (kind, cents) ->
@@ -62,7 +65,8 @@ internal fun AssetCharts(book: AssetBook) {
     }
     GlassPanel {
         Text("Evolução", style = MaterialTheme.typography.titleMedium)
-        EvolutionLineChart(points, colors, labels)
+        EvolutionSeriesChart(points.map { point -> EvolutionSeriesPoint(point.date,
+            if (individualAssets) point.byAsset else point.byKind.mapKeys { it.key.name }) }, colors, labels)
     }
 }
 

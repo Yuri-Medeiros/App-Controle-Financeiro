@@ -2,6 +2,7 @@ package br.com.yurimedeiros.meufinanceiro.ui
 
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
@@ -40,13 +41,14 @@ private fun assetEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainString()
 
 @Composable
-internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
+internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean,
+    description: String = "Atualizar Bitcoin, investimentos e veículos pela FIPE", onClick: () -> Unit) {
     val accent = NeonPalette[0]
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = Modifier.size(48.dp).semantics {
-            contentDescription = if (loading) "Atualizando patrimônios" else "Atualizar Bitcoin, investimentos e veículos pela FIPE"
+            contentDescription = if (loading) "Atualizando patrimônios" else description
         },
         shape = CircleShape,
         border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
@@ -62,7 +64,8 @@ internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean, onClick: () 
 }
 
 @Composable
-internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefreshInvestments: () -> Unit) {
+internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefreshInvestments: () -> Unit,
+    active: Boolean = true, onRouteChanged: () -> Unit = {}) {
     LaunchedEffect(state.unlocked, state.visible, state.ledger.assets.assets.map { it.id to it.vehiclePath }) {
         if (state.unlocked && state.visible) {
             while (true) { model.refreshBitcoin(); model.refreshVehicles(); kotlinx.coroutines.delay(300_000L) }
@@ -73,6 +76,16 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
     var goalOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<String?>(null) }
     var selectedType by remember { mutableStateOf<AssetKind?>(null) }
+    var investmentsOpen by remember { mutableStateOf(false) }
+    if (investmentsOpen) {
+        fun back() { investmentsOpen = false; selected = null; onRouteChanged() }
+        BackHandler(enabled = active && state.unlocked && state.visible && selected == null) { back() }
+        InvestmentsScreen(state, onBack = { back() }, onRefresh = onRefreshInvestments, onAsset = { selected = it })
+        selected?.let { id -> book.assets.firstOrNull { it.id == id && it.kind == AssetKind.INVESTMENT }?.let {
+            AssetDetails(it, state, model) { selected = null }
+        } }
+        return
+    }
     val live = book.assets.filter { !it.disposed }
     val known = live.mapNotNull { it.valueCents }.sum()
     val incomplete = live.any { it.valueCents == null }
@@ -129,7 +142,9 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefr
     AssetCharts(book)
     AssetGroupList(book, onGroup = { kind ->
         val vehicles = book.assets.filter { it.kind == AssetKind.VEHICLE }
-        if (kind == AssetKind.VEHICLE && vehicles.size == 1) selected = vehicles.single().id
+        if (kind == AssetKind.INVESTMENT) {
+            investmentsOpen = true; selected = null; selectedType = null; onRouteChanged()
+        } else if (kind == AssetKind.VEHICLE && vehicles.size == 1) selected = vehicles.single().id
         else selectedType = kind
     }, onAsset = { selected = it })
     selectedType?.let { kind ->

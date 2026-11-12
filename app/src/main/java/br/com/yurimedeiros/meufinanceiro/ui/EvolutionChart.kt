@@ -14,6 +14,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.style.TextOverflow
+import java.time.LocalDate
 import br.com.yurimedeiros.meufinanceiro.assets.AssetHistoryPoint
 import br.com.yurimedeiros.meufinanceiro.assets.AssetKind
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
@@ -37,15 +40,23 @@ internal fun evolutionLabelPositions(desired: List<Float>, labelHeight: Float, h
     return centers.toList()
 }
 
+internal data class EvolutionSeriesPoint(val date: LocalDate, val values: Map<String, Long?>)
+
 @Composable
 internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<AssetKind, Color>, names: Map<AssetKind, String>) {
+    EvolutionSeriesChart(history.map { point -> EvolutionSeriesPoint(point.date, point.byKind.mapKeys { it.key.name }) },
+        colors.mapKeys { it.key.name }, names.mapKeys { it.key.name })
+}
+
+@Composable
+internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: Map<String, Color>, names: Map<String, String>) {
     val points = history.takeLast(8)
-    val kinds = AssetKind.entries.filter { kind -> points.any { it.byKind[kind] != null } }
+    val kinds = names.keys.filter { kind -> points.any { it.values[kind] != null } }
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.labelSmall
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
-        measurer.measure("Investimentos\nR$ 100.000,00", style).size.height.toDp()
+        measurer.measure("Investimento\nNome\nR$ 100.000,00", style).size.height.toDp()
     }
     val chartHeight = maxOf(200.dp, (labelHeightDp + 8.dp) * kinds.size + 16.dp)
     val axisHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
@@ -53,7 +64,7 @@ internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<As
     } + 12.dp
     val description = if (points.isEmpty()) "Evolução: sem atualizações registradas" else points.joinToString("; ") { point ->
         AppDates.date(point.date) + ": " + kinds.joinToString(", ") { kind ->
-            names.getValue(kind) + " " + (point.byKind[kind]?.let(::ledgerMoney) ?: "sem valor disponível")
+            names.getValue(kind) + " " + (point.values[kind]?.let(::ledgerMoney) ?: "sem valor disponível")
         }
     }
     Canvas(Modifier.fillMaxWidth().height(chartHeight + axisHeight).semantics { contentDescription = description }) {
@@ -61,18 +72,19 @@ internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<As
         val bottom = size.height - axisHeight.toPx()
         val height = bottom - top
         val labels = kinds.map { kind ->
-            val last = points.last().byKind[kind]
-            measurer.measure(names.getValue(kind) + "\n" + (last?.let(::ledgerMoney) ?: "Sem cotação"), style,
-                softWrap = false)
+            val last = points.last().values[kind]
+            measurer.measure(names.getValue(kind).let { if (it.length > 32) it.take(29) + "…" else it } + "\n" + (last?.let(::ledgerMoney) ?: "Sem cotação"), style,
+                softWrap = true, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                constraints = Constraints(maxWidth = (size.width * 0.43f).toInt().coerceAtLeast(1)))
         }
         val labelWidth = labels.maxOfOrNull { it.size.width }?.toFloat() ?: 0f
         val labelHeight = labels.maxOfOrNull { it.size.height }?.toFloat() ?: 0f
         val left = 4.dp.toPx()
         val right = (size.width - labelWidth - 16.dp.toPx()).coerceAtLeast(left + 32.dp.toPx())
-        val max = points.flatMap { it.byKind.values }.filterNotNull().maxOrNull()?.coerceAtLeast(1L) ?: 1L
+        val max = points.flatMap { it.values.values }.filterNotNull().maxOrNull()?.coerceAtLeast(1L) ?: 1L
         val firstDay = points.firstOrNull()?.date?.toEpochDay() ?: 0L
         val days = ((points.lastOrNull()?.date?.toEpochDay() ?: firstDay) - firstDay).coerceAtLeast(1L)
-        fun x(point: AssetHistoryPoint) = if (points.size == 1) right else
+        fun x(point: EvolutionSeriesPoint) = if (points.size == 1) right else
             left + (point.date.toEpochDay() - firstDay).toFloat() / days * (right - left)
         fun y(cents: Long) = top + height * (1f - (cents.toDouble() / max).toFloat())
         repeat(3) { tick ->
@@ -83,14 +95,14 @@ internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<As
             val empty = measurer.measure("Sem atualizações", style)
             drawText(empty, textColor, Offset((size.width - empty.size.width) / 2f, height / 2f))
         } else {
-            val desired = kinds.map { kind -> y(points.last { it.byKind[kind] != null }.byKind.getValue(kind)!!) - top }
+            val desired = kinds.map { kind -> y(points.last { it.values[kind] != null }.values.getValue(kind)!!) - top }
             val centers = evolutionLabelPositions(desired, labelHeight, height, 8.dp.toPx())
             kinds.forEachIndexed { index, kind ->
-                val color = colors[kind] ?: NeonPalette[kind.ordinal]
+                val color = colors[kind] ?: NeonPalette[index % NeonPalette.size]
                 val path = Path()
                 var connected = false
                 points.forEach { point ->
-                    val cents = point.byKind[kind]
+                    val cents = point.values[kind]
                     if (cents == null) connected = false else {
                         val at = Offset(x(point), y(cents))
                         if (connected) path.lineTo(at.x, at.y) else path.moveTo(at.x, at.y)
@@ -99,8 +111,8 @@ internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<As
                     }
                 }
                 drawPath(path, color, style = Stroke(2.dp.toPx()))
-                val lastPoint = points.last { it.byKind[kind] != null }
-                val endpoint = Offset(x(lastPoint), y(lastPoint.byKind.getValue(kind)!!))
+                val lastPoint = points.last { it.values[kind] != null }
+                val endpoint = Offset(x(lastPoint), y(lastPoint.values.getValue(kind)!!))
                 val center = top + centers[index]
                 // A broken series ends at its last known point; no fabricated price.
                 if (lastPoint == points.last()) {

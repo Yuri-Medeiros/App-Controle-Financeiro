@@ -306,7 +306,8 @@ internal fun FinanceApp(
                                             )
                                             2 -> PeopleScreen(state, model)
                                             3 -> PlanningScreen(state, model)
-                                            4 -> AssetsScreen(state, model, onRefreshInvestments)
+                                            4 -> AssetsScreen(state, model, onRefreshInvestments, active = page == selected,
+                                                onRouteChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })
                                         }
                                     }
                                     Spacer(Modifier.height(8.dp))

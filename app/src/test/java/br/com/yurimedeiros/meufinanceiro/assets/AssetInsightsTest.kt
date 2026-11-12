@@ -64,4 +64,47 @@ class AssetInsightsTest {
         assertTrue(AssetInsights.evolution(AssetBook()).isEmpty())
         assertTrue(AssetInsights.flows(AssetBook(), day).all { it.contributions == 0L && it.withdrawals == 0L })
     }
+    @Test fun investmentProjectionExcludesOtherTypesAndTheirUpdateDatesWithoutChangingTheBook() {
+        var book = AssetRules.apply(AssetBook(), register("investment"))
+        book = AssetRules.apply(book, register("btc", AssetKind.BITCOIN))
+        book = AssetRules.apply(book, AssetChange.Quote("btc", 0, "300000", "2026-11-09T12:00:00Z", "test"))
+        book = AssetRules.apply(book, AssetChange.Confirm("investment", 120000, 0, day.plusDays(1)))
+        book = AssetRules.apply(book, AssetChange.Goal(GoalSettings(selectedAssets = setOf("investment", "btc"))))
+        val projected = AssetInsights.forKind(book, AssetKind.INVESTMENT)
+        assertEquals(listOf("investment"), projected.assets.map { it.id })
+        assertEquals(2, projected.history.size)
+        assertTrue(projected.history.none { it is AssetChange.Goal })
+        val points = AssetInsights.evolution(projected, ZoneOffset.UTC)
+        assertEquals(listOf(day, day.plusDays(1)), points.map { it.date })
+        assertEquals(listOf(100000L, 120000L), points.map { it.cents })
+        assertTrue(points.all { it.byAsset.keys == setOf("investment") && !it.partial })
+        assertEquals(2, book.assets.size)
+        assertEquals(5, book.history.size)
+    }
+
+    @Test fun perAssetSeriesKeepSeparateIdentitiesAndDoNotInventValuesBeforeRegistration() {
+        var book = AssetRules.apply(AssetBook(), register("a"))
+        book = AssetRules.apply(book, register("b").let { it.copy(asset = it.asset.copy(name = "a", cents = 200000, confirmedDate = day.plusDays(1))) })
+        book = AssetRules.apply(book, AssetChange.Confirm("a", 150000, 0, day.plusDays(2)))
+        val points = AssetInsights.evolution(book)
+        assertFalse(points.first().byAsset.containsKey("b"))
+        assertEquals(mapOf("a" to 100000L, "b" to 200000L), points[1].byAsset)
+        assertEquals(mapOf("a" to 150000L, "b" to 200000L), points.last().byAsset)
+        assertEquals(350000L, points.last().cents)
+        assertTrue(AssetInsights.evolution(AssetInsights.forKind(book, AssetKind.VEHICLE)).isEmpty())
+    }
+
+    @Test fun importedCustodyProducesSixIndividualInvestmentSeries() {
+        val text = checkNotNull(javaClass.getResource("/nubank-custody-tables.txt")).readText()
+        val statement = br.com.yurimedeiros.meufinanceiro.importing.CustodyStatements.parse(text)
+        val actions = br.com.yurimedeiros.meufinanceiro.importing.CustodyStatements.actions(statement, AssetBook())
+        val book = br.com.yurimedeiros.meufinanceiro.ledger.FinanceLedger.replay(actions).assets
+        val investments = AssetInsights.forKind(book, AssetKind.INVESTMENT)
+        val point = AssetInsights.evolution(investments).single()
+        assertEquals(6, point.byAsset.size)
+        assertEquals(3599768L, point.cents)
+        assertEquals(investments.assets.associate { it.id to it.cents }, point.byAsset)
+        assertEquals(statement.date, point.date)
+    }
+
 }

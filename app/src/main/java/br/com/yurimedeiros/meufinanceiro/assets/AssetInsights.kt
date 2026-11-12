@@ -6,10 +6,25 @@ import java.time.YearMonth
 import java.time.ZoneId
 
 internal data class AssetHistoryPoint(val date: LocalDate, val cents: Long, val partial: Boolean,
-    val byKind: Map<AssetKind, Long?> = emptyMap())
+    val byKind: Map<AssetKind, Long?> = emptyMap(), val byAsset: Map<String, Long?> = emptyMap())
 internal data class AssetMonthFlow(val month: YearMonth, val contributions: Long, val withdrawals: Long)
 
 internal object AssetInsights {
+    fun forKind(book: AssetBook, kind: AssetKind): AssetBook {
+        val assets = book.assets.filter { it.kind == kind }
+        val ids = assets.map { it.id }.toSet()
+        val history = book.history.filter { change -> when (change) {
+            is AssetChange.Register -> change.asset.id in ids
+            is AssetChange.Confirm -> change.id in ids
+            is AssetChange.Configure -> change.id in ids
+            is AssetChange.Transfer -> change.id in ids
+            is AssetChange.Quote -> change.id in ids
+            is AssetChange.Remove -> change.id in ids
+            is AssetChange.Goal -> false
+        } }
+        return AssetBook(assets = assets, history = history)
+    }
+
     // Replay journal order: confirmations can supersede earlier balances. A backdated
     // entry corrects the latest reference point rather than rewriting older snapshots.
     fun evolution(book: AssetBook, zone: ZoneId = ZoneId.systemDefault()): List<AssetHistoryPoint> {
@@ -33,7 +48,7 @@ internal object AssetInsights {
                 val byKind = replay.assets.groupBy { it.kind }.mapValues { (_, assets) ->
                     if (assets.any { it.valueCents == null }) null else assets.sumOf { it.valueCents ?: 0L }
                 }
-                points[day] = AssetHistoryPoint(day, live.mapNotNull { it.valueCents }.sum(), live.any { it.valueCents == null }, byKind)
+                points[day] = AssetHistoryPoint(day, live.mapNotNull { it.valueCents }.sum(), live.any { it.valueCents == null }, byKind, replay.assets.associate { it.id to it.valueCents })
             }
         }
         return points.values.toList()

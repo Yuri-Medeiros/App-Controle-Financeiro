@@ -169,7 +169,7 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
         "payment" -> InvoicePaymentDialog(invoice, state, model) { dialog = "" }
         "due" -> InvoiceDueDialog(invoice, state, model) { dialog = "" }
     }
-    receiptPerson?.let { id -> InvoiceReceiptDialog(id, state, model) { receiptPerson = null } }
+    receiptPerson?.let { id -> PersonTransferDialog(id, state, model, close = { receiptPerson = null }) }
 }
 
 @Composable
@@ -255,26 +255,26 @@ private fun InvoicePaymentDialog(invoice: Invoice, state: FinanceUiState, model:
 }
 
 @Composable
-private fun InvoiceReceiptDialog(person: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    val debts = state.ledger.debts.filter { it.personId == person && it.direction == DebtDirection.RECEIVE && it.remaining > 0 }.sortedWith(compareBy<DebtBalance> { it.due }.thenBy { it.id })
+internal fun PersonTransferDialog(person: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit, direction: DebtDirection = DebtDirection.RECEIVE) {
+    val debts = state.ledger.debts.filter { it.personId == person && it.direction == direction && it.remaining > 0 }.sortedWith(compareBy<DebtBalance> { it.due }.thenBy { it.id })
     var selected by remember { mutableLongStateOf(0) }
-    val sources = state.movements.filter { it.row.kind == DocumentKind.NUBANK_ACCOUNT && it.row.cents > 0 && it.status !in setOf("CONFLICT", "IGNORED") && it.id !in state.ledger.usedMovementIds && !PaymentMatching.isPayment(it.row) }
+    val sources = state.movements.filter { it.row.kind == DocumentKind.NUBANK_ACCOUNT && (if (direction == DebtDirection.RECEIVE) it.row.cents > 0 else it.row.cents < 0) && it.status !in setOf("CONFLICT", "IGNORED") && it.id !in state.ledger.usedMovementIds && !PaymentMatching.isPayment(it.row) }
     val source = sources.firstOrNull { it.id == selected }
     val amounts = remember { mutableStateMapOf<String, String>() }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(selected, debts) {
         amounts.clear()
-        source?.let { InvoiceBook.suggestReceipt(debts, it.row.cents).forEach { (id, cents) -> amounts[id] = invoiceEdit(cents) } }
+        source?.let { InvoiceBook.suggestReceipt(debts, kotlin.math.abs(it.row.cents)).forEach { (id, cents) -> amounts[id] = invoiceEdit(cents) } }
     }
-    AssetDialog("Recebimento", state, close, subtitle = invoicePerson(state, person), confirmLabel = "Confirmar recebimento", confirmEnabled = source != null, confirm = {
+    AssetDialog(if (direction == DebtDirection.RECEIVE) "Recebimento" else "Pagamento", state, close, subtitle = invoicePerson(state, person), confirmLabel = if (direction == DebtDirection.RECEIVE) "Confirmar recebimento" else "Confirmar pagamento", confirmEnabled = source != null, confirm = {
         try {
             val row = requireNotNull(source)
             val allocations = amounts.mapValues { FinanceLedger.money(it.value.ifBlank { "0" }) }.filterValues { it > 0 }
-            require(allocations.values.fold(0L, Math::addExact) == row.row.cents) { "Distribua exatamente ${ledgerMoney(row.row.cents)}." }
-            model.saveLedger(LedgerAction.Payment(person, DebtDirection.RECEIVE, row.id, row.row.date, allocations), close)
+            require(allocations.values.fold(0L, Math::addExact) == kotlin.math.abs(row.row.cents)) { "Distribua exatamente ${ledgerMoney(kotlin.math.abs(row.row.cents))}." }
+            model.saveLedger(LedgerAction.Payment(person, direction, row.id, row.row.date, allocations), close)
         } catch (e: Exception) { error = e.message ?: "Revise os valores." }
     }) {
-        BankMovementChoice("Recebimento no extrato", source, sources, !state.syncing) { selected = it.id }
+        BankMovementChoice(if (direction == DebtDirection.RECEIVE) "Recebimento no extrato" else "Pagamento no extrato", source, sources, !state.syncing) { selected = it.id }
         if (source != null) {
             Text("Sugestão · Dívidas mais antigas primeiro", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             debts.forEach { d ->

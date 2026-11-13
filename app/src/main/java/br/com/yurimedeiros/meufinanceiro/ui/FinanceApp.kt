@@ -289,7 +289,7 @@ internal fun FinanceApp(
                                         Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     } else {
                                         val section = Sections[page]
-                                        if (page != 4 && page != 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        if (page != 4 && page != 1 && page != 2) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             if (page == 0 && movementsOpen) IconButton(onClick = { movementsOpen = false }) { Icon(AssetChevronIcon, "Voltar ao início", Modifier.graphicsLayer { rotationZ = 180f }) }
                                             Text(if (page == 0 && movementsOpen) "Movimentações" else section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                             if (page == 0 && movementsOpen) {
@@ -311,7 +311,9 @@ internal fun FinanceApp(
                                                     onMovements = { movementsOpen = true; navigateTo(0) },
                                                     onMonthChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })
                                             }
-                                            2 -> PeopleScreen(state, model)
+                                            2 -> CompositionLocalProvider(LocalFinanceInteractive provides (page == selected && state.unlocked && state.visible)) {
+                                                PeopleScreen(state, model, onRouteChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })
+                                            }
                                             3 -> PlanningScreen(state, model)
                                             4 -> AssetsScreen(state, model, onRefreshInvestments, active = page == selected,
                                                 onRouteChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })

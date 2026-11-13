@@ -15,6 +15,8 @@ Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada 
 
 A versão 0.18.0 reorganiza a navegação com a aba Faturas e mantém Movimentações pelo Início. Faturas reúne resumo bancário, compras agrupadas por pessoa, rateio de pagamentos, recebimentos, pendências anteriores e parcelas futuras. As regras e o roteiro no aparelho estão em [VALIDACAO_FATURAS.md](VALIDACAO_FATURAS.md). Patrimônio inclui os gráficos e as consultas de Bitcoin/FIPE, além da importação de investimentos.
 
+A versão 0.19.0 acrescenta resumos financeiros em Pessoas, referência por fatura, filtros, perfil individual em página própria e detalhes expansíveis. Recebimentos, pagamentos ao banco, dívidas avulsas e parcelas futuras permanecem separados. Comportamento e roteiro de conferência em [VALIDACAO_PESSOAS.md](VALIDACAO_PESSOAS.md).
+
 ## Atualizar pelo PC ou pelo celular
 
 O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.

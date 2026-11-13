@@ -11,6 +11,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -500,7 +504,7 @@ private fun AssetChoice(label: String, value: String, options: List<Pair<String,
 }
 
 @Composable
-internal fun AssetInfoButton(description: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun AssetInfoButton(description: String, alignToEnd: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = description }) {
@@ -509,7 +513,21 @@ internal fun AssetInfoButton(description: String, content: @Composable ColumnSco
                     style = MaterialTheme.typography.titleMedium)
             }
         }
-        DropdownMenu(expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
+        if (alignToEnd) {
+            val belowIcon = with(LocalDensity.current) { 48.dp.roundToPx() }
+            if (expanded && LocalFinanceInteractive.current) Popup(
+                alignment = Alignment.TopEnd, offset = IntOffset(0, belowIcon),
+                onDismissRequest = { expanded = false }, properties = PopupProperties(focusable = true),
+            ) {
+                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 3.dp, shadowElevation = 8.dp) {
+                    Column(Modifier.widthIn(max = 320.dp).heightIn(max = 480.dp).verticalScroll(rememberScrollState())
+                        .padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
+                    }
+                }
+            }
+        } else DropdownMenu(expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
             }

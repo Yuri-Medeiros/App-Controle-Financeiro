@@ -25,11 +25,12 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             val dao = db.movements()
             if (dao.document(source.source) != null) return@runInTransaction
             val document = FinancialCsv.parse(source.bytes, source.kind, source.filename)
-            if (source.kind == DocumentKind.NUBANK_CARD && confirmed == null) {
+            val statement = ImportComparison.statementReference(document, confirmed)
+            if (source.kind == DocumentKind.NUBANK_CARD && statement == null) {
                 review = StatementReview(source, document)
                 return@runInTransaction
             }
-            val rows = if (confirmed != null) ImportComparison.withStatement(document, confirmed) else document.rows
+            val rows = if (statement != null) ImportComparison.withStatement(document, statement) else document.rows
             val account = source.source.substringBefore(':')
             val accountMovements = all().filter { it.origin.startsWith("$account · ") }
             val existing = accountMovements.map { it.row }
@@ -47,7 +48,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
                 importedCount++
             }
             reconcilePayments()
-            dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = confirmed?.toString().orEmpty() })
+            dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = statement?.toString().orEmpty() })
         }
         return MovementImportResult(review, importedCount)
     }

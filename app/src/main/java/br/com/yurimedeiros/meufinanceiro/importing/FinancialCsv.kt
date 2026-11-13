@@ -26,7 +26,7 @@ internal data class ImportedRow(
 internal data class ParsedDocument(
     val kind: DocumentKind,
     val rows: List<ImportedRow>,
-    // A proposal from the filename only. The caller must obtain confirmation before first import.
+    // Reference extracted from the filename; used automatically for card imports.
     val proposedStatement: LocalDate? = null,
 )
 

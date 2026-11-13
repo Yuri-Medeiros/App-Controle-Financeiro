@@ -29,7 +29,7 @@ O código enviado à PR #4 ainda contém a base protegida e divisão isolada de 
 - Flash: data, hora, descrição, valor, meio e saldo, preservando multiplicidade de linhas idênticas. Possíveis correções/divergências vão à revisão sem substituição automática.
 - Conta Nubank: mesmo ID e mesmos dados é repetição; ID igual com sinal oposto preserva ambos; outras diferenças vão à revisão. Não aplicar regra de ID ao cartão.
 - Fatura: mesma referência de fatura, data, título e valor com sinal, preservando multiplicidade. Parcelas de faturas diferentes ficam separadas. Divergências vão à revisão, sem sobrescrever automaticamente.
-- Referência da fatura pela data no nome Nubank_AAAA-MM-DD.csv, com confirmação na primeira importação. Reutilizar vínculo confirmado nas reimportações; nome divergente/conflito exige revisão. Referência é distinta do vencimento efetivo ajustado por dia útil.
+- Referência da fatura extraída automaticamente da data no nome Nubank_AAAA-MM-DD.csv, sem confirmação na primeira importação. A data válida do nome tem prioridade sobre uma referência manual. Nomes fora do formato não geram datas presumidas; apenas nesses casos permanece a revisão excepcional. Reimportações continuam deduplicadas e registros anteriores não são reescritos automaticamente. Referência é distinta do vencimento efetivo ajustado por dia útil.
 
 ## Revisão e aprendizado aprovados
 

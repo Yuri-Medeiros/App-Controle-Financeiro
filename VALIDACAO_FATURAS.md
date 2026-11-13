@@ -2,7 +2,7 @@
 
 A segunda aba passa a ser Faturas. O botão Movimentações no Início abre a revisão existente, com importação Gmail, filtros e seleção em lote; Voltar e o ícone Início retornam ao resumo.
 
-A fatura inicial é a primeira ainda não quitada com o banco entre as referências registradas. Setas e seletor de mês permitem consultar as demais. O total soma as compras e créditos importados e as parcelas previstas ainda sem vínculo. Uma parcela vinculada aparece somente uma vez. Importação que pode sobrepor parcelas previstas gera aviso para revisar o vínculo, sem inferir equivalência por descrição/valor. Conflitos são sinalizados; os registros conflitantes ficam fora do total importado.
+A fatura inicial é a primeira ainda não quitada com o banco entre as referências registradas. O seletor de mês permite consultar as demais. O total soma as compras e créditos importados e as parcelas previstas ainda sem vínculo. Uma parcela vinculada aparece somente uma vez. Importação que pode sobrepor parcelas previstas gera aviso para revisar o vínculo, sem inferir equivalência por descrição/valor. Conflitos são sinalizados; os registros conflitantes ficam fora do total importado.
 
 Os grupos por pessoa começam recolhidos e mostram sua parte, o valor a receber e quanto foi atribuído aos pagamentos do banco. Ao expandir aparecem compras, parcelas, valores recebidos e o acesso ao recebimento. Compras sem divisão registrada permanecem em **A revisar**, inclusive se já tiverem categoria; não se presume que pertençam ao titular.
 
@@ -17,7 +17,7 @@ Pendências anteriores exibem dívidas ainda abertas de faturas mais antigas qui
 ## Conferência no Android
 
 1. Abrir Faturas com dados importados. Conferir referência inicial, vencimento, total, pago e restante com os documentos.
-2. Abrir o seletor, trocar meses nas duas direções e conferir o recolhimento inicial dos grupos.
+2. Abrir o seletor, trocar a referência pelo mês desejado e conferir o recolhimento inicial dos grupos.
 3. Expandir uma compra compartilhada: cada participante vê somente sua parte; conferir centavos e parcela.
 4. Conferir importação ainda sem responsáveis e previsão sem vínculo; revisar em Movimentações sem perder filtros, revisão ou categorização em lote. Voltar deve abrir o Início.
 5. Com pagamento parcial conciliado, conferir o total pago antes do rateio. Dividir, alterar a sugestão e salvar; conferir que o total pago não duplicou e as dívidas familiares não mudaram.

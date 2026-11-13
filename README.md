@@ -19,6 +19,8 @@ A versão 0.19.0 acrescenta resumos financeiros em Pessoas, referência por fatu
 
 A versão 0.20.0 adiciona atualização pelo Gmail diretamente em Faturas e redefinição exclusiva das faturas com conferência e confirmação digitada. O reset arquiva os registros originais, remove os vínculos ativos do cartão e permite nova importação, preservando as demais áreas. Veja [VALIDACAO_REDEFINICAO_FATURAS.md](VALIDACAO_REDEFINICAO_FATURAS.md).
 
+A versão 0.21.0 usa automaticamente a referência do nome dos arquivos de fatura e torna a notificação de importação temporária, dispensável por arraste lateral ou para cima. Os ajustes de apresentação de Faturas também estão incluídos. Roteiro em [VALIDACAO_IMPORTACAO_AUTOMATICA.md](VALIDACAO_IMPORTACAO_AUTOMATICA.md).
+
 ## Atualizar pelo PC ou pelo celular
 
 O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.

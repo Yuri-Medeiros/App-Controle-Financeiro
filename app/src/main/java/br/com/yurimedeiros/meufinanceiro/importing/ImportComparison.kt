@@ -29,7 +29,11 @@ internal object ImportComparison {
         }
     }
 
-    /** Explicit user-confirmed reference, not inferred from transaction date or closing rules. */
+    /** Filename reference is authoritative; a manual fallback is only for unrecognized names. */
+    fun statementReference(document: ParsedDocument, fallback: LocalDate? = null): LocalDate? =
+        if (document.kind == DocumentKind.NUBANK_CARD) document.proposedStatement ?: fallback else null
+
+    /** Apply the source reference without changing transaction dates or business-day due dates. */
     fun withStatement(document: ParsedDocument, confirmed: LocalDate): List<ImportedRow> {
         require(document.kind == DocumentKind.NUBANK_CARD)
         return document.rows.map { it.copy(statement = confirmed) }

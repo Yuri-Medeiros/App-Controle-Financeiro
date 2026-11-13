@@ -78,8 +78,9 @@ class SecurityInstrumentation : Instrumentation() {
             val personId = people.all().single { it.name == "Pessoa de teste" }.id
             val card = MailDocument("example@test.invalid:card", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
                 "date,title,amount\n2026-11-01,Loja - 1/2,\"200,00\"\n2026-11-02,Estorno da loja,\"-40,00\"\n".toByteArray())
-            repo.import(card, LocalDate.of(2026, 11, 8))
+            check(repo.import(card) == null)
             val cardRow = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.row.cents > 0 }
+            check(cardRow.row.statement == LocalDate.of(2026, 11, 8))
             val credit = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.row.cents < 0 }
             repo.import(source("transfer", "Data,Valor,Identificador,Descrição\n03/11/2026,100.00,00000000-0000-4000-8000-000000000002,Transferência recebida - Pessoa de teste\n"))
             val transfer = repo.all().single { it.row.cents == 10000L }
@@ -169,12 +170,12 @@ class SecurityInstrumentation : Instrumentation() {
                     check(it.database.movements().all().count { row -> row.status == "ARCHIVED" } == 3)
                     check(it.database.movements().document(card.source) == null)
                     check(PeopleRepository(it.database).all().size == 12)
-                    restoredRepo.import(card, LocalDate.of(2026, 11, 8))
+                    check(restoredRepo.import(card) == null)
                     restoredRepo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
                         "date,title,amount\n2026-11-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2026, 11, 8))
                     check(restoredRepo.all().count { row -> row.row.kind == DocumentKind.NUBANK_CARD } == 3)
                     check(restoredRepo.all().single { row -> row.row.kind == DocumentKind.NUBANK_CARD && row.status == "PAYMENT" }.pairedMovementId == cardPayment.pairedMovementId)
-                    restoredRepo.import(card, LocalDate.of(2026, 11, 8))
+                    check(restoredRepo.import(card) == null)
                     check(restoredRepo.all().count { row -> row.row.kind == DocumentKind.NUBANK_CARD } == 3)
                     val eventsBeforeStale = it.database.financialEvents().all().size
                     check(runCatching { restoredLedger.append(reset.action) }.isFailure)

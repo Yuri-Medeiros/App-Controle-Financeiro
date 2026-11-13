@@ -42,45 +42,33 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
     fun select(month: YearMonth) { selected = month; dialog = ""; onMonthChanged() }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("Faturas", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        key(dialog) { AssetInfoButton("Informações da fatura") {
-            Text("Cartão Nubank")
-            Text("Receber de uma pessoa e pagar ao banco são controles separados.")
-            Text("Parcelas futuras incluem somente compromissos registrados.")
-            if (invoice != null) TextButton(onClick = { dialog = "due" }) { Text("Alterar vencimento") }
-            TextButton(onClick = { model.prepareInvoiceReset(); dialog = "reset" }, enabled = !state.syncing && !state.backupWorking && state.statements.isEmpty()) { Text("Redefinir faturas", color = MaterialTheme.colorScheme.error) }
-        } }
         IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
             if (state.syncing) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
             else Icon(RefreshIcon, contentDescription = "Atualizar faturas pelo Gmail", tint = MaterialTheme.colorScheme.primary)
         }
+        key(dialog) { AssetInfoButton("Informações da fatura", alignToEnd = true) {
+            Text("Parcelas futuras incluem somente compromissos registrados.")
+            if (invoice != null) TextButton(onClick = { dialog = "due" }, contentPadding = PaddingValues(0.dp)) { Text("Alterar vencimento") }
+            if (invoice != null) TextButton(onClick = { model.prepareInvoiceReset(); dialog = "reset" }, contentPadding = PaddingValues(0.dp), enabled = !state.syncing && !state.backupWorking && state.statements.isEmpty()) { Text("Redefinir faturas", color = MaterialTheme.colorScheme.error) }
+        } }
     }
     if (state.syncing) {
         LinearProgressIndicator(Modifier.fillMaxWidth())
         Text("Atualizando seus dados…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    if (dialog == "reset") InvoiceResetDialog(state, model) { dialog = "" }
-    state.invoiceResetNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+    if (dialog == "reset" && invoice != null) InvoiceResetDialog(state, model) { dialog = "" }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     StatementReferenceReview(state, model)
     if (invoice == null) {
         if (state.syncing || state.statements.isNotEmpty()) return
         Spacer(Modifier.height(32.dp))
         Text("Nenhuma fatura registrada", style = MaterialTheme.typography.titleLarge)
-        Text("Atualize pelo Gmail para importar suas faturas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onRefresh) { Text("Importar pelo Gmail") }
-        TextButton(onClick = onMovements) { Text("Abrir Movimentações") }
+        Button(onClick = onRefresh) { Text("Atualizar") }
         return
     }
-    val index = invoices.indexOf(invoice)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        IconButton(onClick = { select(invoices[index - 1].month) }, enabled = index > 0) {
-            Icon(AssetChevronIcon, "Fatura anterior", Modifier.graphicsLayer { rotationZ = 180f })
-        }
-        Column(Modifier.weight(1f).clickable(role = Role.Button) { dialog = "months" }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("${invoiceMonth(invoice.month)} ⌄", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Text(invoice.due?.let { "Vencimento em ${AppDates.date(it)}" } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        IconButton(onClick = { select(invoices[index + 1].month) }, enabled = index < invoices.lastIndex) { Icon(AssetChevronIcon, "Próxima fatura") }
+    Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { dialog = "months" }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("${invoiceMonth(invoice.month)} ⌄", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text(invoice.due?.let { "Vencimento em ${AppDates.date(it)}" } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

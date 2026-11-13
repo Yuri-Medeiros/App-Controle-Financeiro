@@ -648,7 +648,10 @@ private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, mod
         val options = if (asset.kind == AssetKind.VEHICLE) listOf(AssetTransferKind.SALE) else listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.REDEMPTION)
         fun label(k: AssetTransferKind) = when (k) { AssetTransferKind.CONTRIBUTION -> "Aporte / compra"; AssetTransferKind.REDEMPTION -> "Resgate / venda parcial"; AssetTransferKind.SALE -> "Venda do veículo" }
         AssetChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
-        AssetChoice("Extrato", source?.let { "${AppDates.date(it.row.date)} · ${ledgerMoney(it.row.cents)}" } ?: "Escolher", sources.map { m -> "${AppDates.date(m.row.date)} · ${ledgerMoney(m.row.cents)} · ${m.row.description}" to { movementId = m.id; included = kind != AssetTransferKind.SALE && m.row.date <= asset.confirmedDate } })
+        BankMovementChoice(if (kind == AssetTransferKind.CONTRIBUTION) "Destino" else "Origem", source, sources, !state.syncing) { movement ->
+            movementId = movement.id
+            included = kind != AssetTransferKind.SALE && movement.row.date <= asset.confirmedDate
+        }
         AssetEntryField("Custos da operação", fees, monetary = true) { fees = it }
         if (asset.kind == AssetKind.BITCOIN) AssetEntryField("Quantidade de bitcoin", quantity) { quantity = it }
         if (kind != AssetTransferKind.SALE) AssetSelectionRow("Já incluída no saldo confirmado", included, !state.syncing) { included = it }

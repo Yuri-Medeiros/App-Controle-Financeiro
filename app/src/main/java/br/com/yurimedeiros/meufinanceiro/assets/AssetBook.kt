@@ -12,7 +12,7 @@ internal data class AssetPosition(
     val confirmedDate: LocalDate, val disposed: Boolean = false,
     val btcPrice: String? = null, val quotedAt: String? = null, val quoteSource: String? = null,
     val vehiclePath: String = "", val monthlyFgts: Long = 0, val fgtsDepositsActive: Boolean = false,
-    val fipeReference: String? = null,
+    val fipeReference: String? = null, val investmentType: InvestmentType? = null,
 ) {
     val valueCents: Long? get() = if (disposed) 0 else if (kind == AssetKind.BITCOIN) btcPrice?.let {
         BigDecimal(it).multiply(BigDecimal.valueOf(satoshis, 8)).movePointRight(2).setScale(0, RoundingMode.HALF_EVEN).longValueExact()
@@ -22,7 +22,7 @@ internal data class GoalSettings(val targetCents: Long = 10000000, val selectedA
     val includeBank: Boolean = false, val includeFlash: Boolean = false, val includeReceivables: Boolean = false)
 internal sealed interface AssetChange {
     data class Register(val asset: AssetPosition) : AssetChange
-    data class Confirm(val id: String, val cents: Long, val satoshis: Long, val date: LocalDate) : AssetChange
+    data class Confirm(val id: String, val cents: Long, val satoshis: Long, val date: LocalDate, val investmentType: InvestmentType? = null) : AssetChange
     data class Configure(val id: String, val vehiclePath: String, val monthlyFgts: Long, val depositsActive: Boolean, val name: String? = null) : AssetChange
     data class Transfer(val id: String, val movementId: Long, val kind: AssetTransferKind, val bankCents: Long, val feesCents: Long,
         val satoshis: Long, val date: LocalDate, val includedInBalance: Boolean) : AssetChange
@@ -73,6 +73,7 @@ internal object AssetRules {
                 val a = change.asset.let { if (it.kind in setOf(AssetKind.FGTS, AssetKind.BITCOIN)) it.copy(name = if (it.kind == AssetKind.FGTS) "FGTS" else "Bitcoin") else it }
                 require(a.id.isNotBlank() && a.name.isNotBlank() && assets.none { it.id == a.id })
                 require(a.cents >= 0 && a.satoshis >= 0)
+                require(a.investmentType == null || a.kind == AssetKind.INVESTMENT)
                 a.fipeReference?.let {
                     require(a.kind == AssetKind.VEHICLE && a.vehiclePath.isNotBlank())
                     java.time.YearMonth.parse(it)
@@ -82,8 +83,10 @@ internal object AssetRules {
             }
             is AssetChange.Confirm -> {
                 val a = assets.single { it.id == change.id }
+                require(change.investmentType == null || a.kind == AssetKind.INVESTMENT)
                 require(!a.disposed && change.cents >= 0 && change.satoshis >= 0 && change.date >= a.confirmedDate) { "Use uma confirmação de saldo mais recente. O histórico anterior foi preservado." }
                 assets = assets.map { if (it.id != a.id) it else it.copy(cents = change.cents, satoshis = change.satoshis, confirmedDate = change.date,
+                    investmentType = change.investmentType ?: it.investmentType,
                     fipeReference = if (it.kind == AssetKind.VEHICLE) null else it.fipeReference,
                     quotedAt = if (it.kind == AssetKind.VEHICLE) null else it.quotedAt, quoteSource = if (it.kind == AssetKind.VEHICLE) null else it.quoteSource) }
             }

@@ -8,10 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.AssetInsights
 import br.com.yurimedeiros.meufinanceiro.assets.AssetKind
+import br.com.yurimedeiros.meufinanceiro.assets.InvestmentPresentation
+import br.com.yurimedeiros.meufinanceiro.assets.InvestmentType
 
 @Composable
 internal fun InvestmentsScreen(state: FinanceUiState, onBack: () -> Unit, onRefresh: () -> Unit, onAsset: (String) -> Unit) {
@@ -33,16 +37,28 @@ internal fun InvestmentsScreen(state: FinanceUiState, onBack: () -> Unit, onRefr
     GlassPanel {
         Text("Investimentos", style = MaterialTheme.typography.titleMedium)
         if (book.assets.isEmpty()) Text("Nenhum investimento cadastrado.")
-        book.assets.forEachIndexed { index, asset ->
-            Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${asset.name}") {
-                onAsset(asset.id)
-            }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(asset.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Text(asset.valueCents?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.bodyMedium)
-                Icon(AssetChevronIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+        val groups = book.assets.groupBy(InvestmentPresentation::type)
+        InvestmentType.entries.forEach { type ->
+            groups[type]?.let { investments ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(type.label, modifier = Modifier.semantics { heading() },
+                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary)
+                    Column {
+                        investments.forEachIndexed { index, asset ->
+                            Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${InvestmentPresentation.label(asset)}") {
+                                onAsset(asset.id)
+                            }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(InvestmentPresentation.label(asset), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Text(asset.valueCents?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.bodyMedium)
+                                Icon(AssetChevronIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            if (index < investments.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        }
+                    }
+                }
             }
-            if (index < book.assets.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         }
     }
 }

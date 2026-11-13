@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -55,6 +57,7 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.labelSmall
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelBackground = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     val labelHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
         measurer.measure("Investimento\nNome\nR$ 100.000,00", style).size.height.toDp()
     }
@@ -68,19 +71,20 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
         }
     }
     Canvas(Modifier.fillMaxWidth().height(chartHeight + axisHeight).semantics { contentDescription = description }) {
-        val top = 8.dp.toPx()
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
         val bottom = size.height - axisHeight.toPx()
-        val height = bottom - top
         val labels = kinds.map { kind ->
             val last = points.last().values[kind]
             measurer.measure(names.getValue(kind).let { if (it.length > 32) it.take(29) + "…" else it } + "\n" + (last?.let(::ledgerMoney) ?: "Sem cotação"), style,
                 softWrap = true, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 constraints = Constraints(maxWidth = (size.width * 0.43f).toInt().coerceAtLeast(1)))
         }
-        val labelWidth = labels.maxOfOrNull { it.size.width }?.toFloat() ?: 0f
         val labelHeight = labels.maxOfOrNull { it.size.height }?.toFloat() ?: 0f
+        val gap = 8.dp.toPx()
+        val top = labelHeight + gap + 4.dp.toPx()
+        val height = (bottom - top).coerceAtLeast(1f)
         val left = 4.dp.toPx()
-        val right = (size.width - labelWidth - 16.dp.toPx()).coerceAtLeast(left + 32.dp.toPx())
+        val right = (size.width - 4.dp.toPx()).coerceAtLeast(left)
         val max = points.flatMap { it.values.values }.filterNotNull().maxOrNull()?.coerceAtLeast(1L) ?: 1L
         val firstDay = points.firstOrNull()?.date?.toEpochDay() ?: 0L
         val days = ((points.lastOrNull()?.date?.toEpochDay() ?: firstDay) - firstDay).coerceAtLeast(1L)
@@ -95,30 +99,42 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
             val empty = measurer.measure("Sem atualizações", style)
             drawText(empty, textColor, Offset((size.width - empty.size.width) / 2f, height / 2f))
         } else {
-            val desired = kinds.map { kind -> y(points.last { it.values[kind] != null }.values.getValue(kind)!!) - top }
-            val centers = evolutionLabelPositions(desired, labelHeight, height, 8.dp.toPx())
+            val plotted = kinds.map { kind -> points.map { point -> point.values[kind]?.let { Offset(x(point), y(it)) } } }
+            val endpoints = plotted.map { line -> line.last { it != null }!! }
+            val segments = plotted.flatMapIndexed { index, line ->
+                line.zipWithNext().mapNotNull { (from, to) ->
+                    if (from == null || to == null) null else EvolutionLineSegment(index, from.x, from.y, to.x, to.y)
+                } + line.filterNotNull().map { point -> EvolutionLineSegment(index, point.x, point.y, point.x, point.y) }
+            }
+            val boxes = evolutionLabelBoxes(endpoints.mapIndexed { index, point ->
+                EvolutionLabelTarget(point.x, point.y, labels[index].size.width.toFloat(), labels[index].size.height.toFloat())
+            }, size.width, bottom - 4.dp.toPx(), gap, segments)
             kinds.forEachIndexed { index, kind ->
                 val color = colors[kind] ?: NeonPalette[index % NeonPalette.size]
                 val path = Path()
                 var connected = false
-                points.forEach { point ->
-                    val cents = point.values[kind]
-                    if (cents == null) connected = false else {
-                        val at = Offset(x(point), y(cents))
-                        if (connected) path.lineTo(at.x, at.y) else path.moveTo(at.x, at.y)
+                plotted[index].forEach { point ->
+                    if (point == null) connected = false else {
+                        if (connected) path.lineTo(point.x, point.y) else path.moveTo(point.x, point.y)
                         connected = true
-                        drawCircle(color, 2.5.dp.toPx(), at)
+                        drawCircle(color, 2.5.dp.toPx(), point)
                     }
                 }
                 drawPath(path, color, style = Stroke(2.dp.toPx()))
-                val lastPoint = points.last { it.values[kind] != null }
-                val endpoint = Offset(x(lastPoint), y(lastPoint.values.getValue(kind)!!))
-                val center = top + centers[index]
-                // A broken series ends at its last known point; no fabricated price.
-                if (lastPoint == points.last()) {
-                    drawLine(color.copy(alpha = 0.7f), endpoint, Offset(right + 8.dp.toPx(), center))
+            }
+            boxes.forEachIndexed { index, box ->
+                val endpoint = endpoints[index]
+                val anchor = Offset(endpoint.x.coerceIn(box.x, box.right), endpoint.y.coerceIn(box.y, box.bottom))
+                val color = colors[kinds[index]] ?: NeonPalette[index % NeonPalette.size]
+                drawLine(color.copy(alpha = 0.6f), endpoint, anchor, strokeWidth = 1.dp.toPx())
+            }
+            boxes.forEachIndexed { index, box ->
+                if (segments.any { evolutionLineCrossesLabel(it, box) }) {
+                    val padding = 2.dp.toPx()
+                    drawRoundRect(labelBackground, Offset(box.x - padding, box.y - padding),
+                        Size(box.width + padding * 2, box.height + padding * 2), CornerRadius(4.dp.toPx()))
                 }
-                drawText(labels[index], textColor, Offset(right + 12.dp.toPx(), center - labels[index].size.height / 2f))
+                drawText(labels[index], textColor, Offset(box.x, box.y))
             }
         }
         // Keep update dates at their true x positions; omit crowded intermediate

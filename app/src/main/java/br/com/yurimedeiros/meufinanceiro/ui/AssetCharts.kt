@@ -24,13 +24,23 @@ internal fun AssetCharts(book: AssetBook, individualAssets: Boolean = false) {
     val keys = book.assets.map { if (individualAssets) it.id else it.kind.name }.distinct()
     val colors = keys.mapIndexed { index, key -> key to (NeonPalette.getOrNull(index)
         ?: Color.hsl(((index - NeonPalette.size) * 137.508f + 35f) % 360f, 0.7f, 0.55f)) }.toMap()
-    val labels = if (individualAssets) book.assets.associate { it.id to it.name } else
+    val labels = if (individualAssets) book.assets.associate { it.id to InvestmentPresentation.label(it) } else
         mapOf(AssetKind.INVESTMENT.name to "Investimentos", AssetKind.BITCOIN.name to "Bitcoin",
             AssetKind.FGTS.name to "FGTS", AssetKind.VEHICLE.name to "Veículo")
 
     GlassPanel {
         Text("Distribuição", style = MaterialTheme.typography.titleMedium)
         if (total == 0L) Text("Ainda não há valores disponíveis para comparar.")
+        else if (individualAssets) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                InteractiveDonutChart("Por investimento", composition.map { (id, cents) ->
+                    DonutSlice(id, labels.getValue(id), cents, colors.getValue(id))
+                }, Modifier.weight(1f))
+                InteractiveDonutChart("Por tipo", InvestmentPresentation.totalsByType(live).map { (type, cents) ->
+                    DonutSlice(type.name, type.label, cents, NeonPalette[type.ordinal % NeonPalette.size])
+                }, Modifier.weight(1f))
+            }
+        }
         else {
             BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val chartSize = (maxWidth * 0.38f).coerceAtMost(132.dp)

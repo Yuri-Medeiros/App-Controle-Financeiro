@@ -232,7 +232,7 @@ internal fun GoalAssetTree(
             }
             if (expanded) Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 assets.forEach { asset ->
-                    AssetSelectionRow(asset.name, asset.id in selectedIds, enabled,
+                    AssetSelectionRow(InvestmentPresentation.label(asset), asset.id in selectedIds, enabled,
                         detail = if (asset.disposed) "Vendido · ${ledgerMoney(0)}" else asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação") {
                         onSelectionChange(if (it) selectedIds + asset.id else selectedIds - asset.id)
                     }
@@ -280,11 +280,11 @@ internal fun AssetGroupList(book: AssetBook, onGroup: (AssetKind) -> Unit, onAss
 
 @Composable
 internal fun AssetRecordRow(asset: AssetPosition, onClick: () -> Unit) {
-    GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${asset.name}", onClick = onClick)) {
+    GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${InvestmentPresentation.label(asset)}", onClick = onClick)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(asset.name, style = MaterialTheme.typography.titleMedium)
+                Text(InvestmentPresentation.label(asset), style = MaterialTheme.typography.titleMedium)
                 Text(if (asset.disposed) "Fora do patrimônio · histórico preservado" else asset.valueCents?.let(::ledgerMoney)
                     ?: "Cotação ainda indisponível")
                 Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
@@ -537,26 +537,36 @@ private fun FgtsDetailsInfo(asset: AssetPosition) {
 }
 
 @Composable
+private fun BitcoinDetailsInfo(asset: AssetPosition) {
+    AssetInfoButton("Informações sobre o Bitcoin") {
+        Text("Confirmado em ${AppDates.date(asset.confirmedDate)}")
+        asset.quotedAt?.let { Text("Atualizado em ${AppDates.timestamp(it)}") }
+        asset.quoteSource?.let { Text("Fonte: $it") }
+    }
+}
+
+@Composable
 private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     var showHistory by remember { mutableStateOf(false) }
     var action by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val valuation = VehicleValuationDetails.from(asset)
-    if (action.isEmpty()) AssetDialog(asset.name, state, close, subtitle = assetLabel(asset.kind), headerActions = {
+    if (action.isEmpty()) AssetDialog(InvestmentPresentation.label(asset), state, close, subtitle = assetLabel(asset.kind), headerActions = {
         when (asset.kind) {
             AssetKind.VEHICLE -> VehicleValuationInfo(valuation)
             AssetKind.FGTS -> FgtsDetailsInfo(asset)
+            AssetKind.BITCOIN -> BitcoinDetailsInfo(asset)
             else -> Unit
         }
     }) {
         GlassPanel(highlighted = true) {
             Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação",
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            if (asset.kind !in setOf(AssetKind.VEHICLE, AssetKind.FGTS)) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+            if (asset.kind == AssetKind.INVESTMENT) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
             if (asset.kind == AssetKind.VEHICLE) Text(valuation.model, style = MaterialTheme.typography.bodySmall)
-            else if (asset.kind != AssetKind.FGTS) asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
+            else if (asset.kind == AssetKind.INVESTMENT) asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
         }
         if (asset.kind == AssetKind.VEHICLE && !asset.disposed) {
             if (state.quotingVehicles) Text("Consultando FIPE…", style = MaterialTheme.typography.bodySmall)
@@ -596,7 +606,7 @@ private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: Fin
         AssetDialog("Remover veículo", state, { action = "" }, confirmLabel = "Remover", confirm = {
             model.saveLedger(LedgerAction.Asset(AssetChange.Remove(asset.id, LocalDate.now())), close)
         }) {
-            Text("Remover ${asset.name} do patrimônio? O histórico será preservado, sem vínculo com o extrato.")
+            Text("Remover ${InvestmentPresentation.label(asset)} do patrimônio? O histórico será preservado, sem vínculo com o extrato.")
         }
     }
     if (action == "confirm" && asset.kind == AssetKind.INVESTMENT) {
@@ -638,7 +648,7 @@ private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, mod
     var error by remember { mutableStateOf<String?>(null) }
     val sources = state.movements.filter { it.id !in state.ledger.usedMovementIds && it.status !in setOf("CONFLICT", "IGNORED") && it.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(it.row) && if (kind == AssetTransferKind.CONTRIBUTION) it.row.cents < 0 else it.row.cents > 0 }
     val source = sources.firstOrNull { it.id == movementId }
-    AssetDialog("Vincular operação", state, close, subtitle = asset.name, confirmLabel = "Vincular operação", confirm = {
+    AssetDialog("Vincular operação", state, close, subtitle = InvestmentPresentation.label(asset), confirmLabel = "Vincular operação", confirm = {
         try {
             require(source != null) { "Selecione a movimentação bancária." }
             val satoshis = if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(quantity) else 0

@@ -31,11 +31,12 @@ private fun invoicePerson(state: FinanceUiState, id: Long) = when (id) { 0L -> "
 private fun invoiceEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString().replace('.', ',')
 
 @Composable
-internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMovements: () -> Unit, onMonthChanged: () -> Unit) {
+internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMovements: () -> Unit, onMonthChanged: () -> Unit, onRefresh: () -> Unit) {
     val invoices = remember(state.ledger, state.movements) { InvoiceBook.invoices(state.ledger, state.movements) }
     var selected by remember { mutableStateOf<YearMonth?>(null) }
     val invoice = invoices.firstOrNull { it.month == selected } ?: invoices.firstOrNull { it.month == InvoiceBook.defaultMonth(invoices, LocalDate.now()) }
     var dialog by remember { mutableStateOf("") }
+    LaunchedEffect(state.invoiceResetNotice) { if (state.invoiceResetNotice != null) dialog = "" }
     var receiptPerson by remember { mutableStateOf<Long?>(null) }
     val expanded = remember(invoice?.month) { mutableStateMapOf<Long, Boolean>() }
     fun select(month: YearMonth) { selected = month; dialog = ""; onMonthChanged() }
@@ -46,13 +47,28 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
             Text("Receber de uma pessoa e pagar ao banco são controles separados.")
             Text("Parcelas futuras incluem somente compromissos registrados.")
             if (invoice != null) TextButton(onClick = { dialog = "due" }) { Text("Alterar vencimento") }
+            TextButton(onClick = { model.prepareInvoiceReset(); dialog = "reset" }, enabled = !state.syncing && !state.backupWorking && state.statements.isEmpty()) { Text("Redefinir faturas", color = MaterialTheme.colorScheme.error) }
         } }
+        IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
+            if (state.syncing) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            else Icon(RefreshIcon, contentDescription = "Atualizar faturas pelo Gmail", tint = MaterialTheme.colorScheme.primary)
+        }
     }
+    if (state.syncing) {
+        LinearProgressIndicator(Modifier.fillMaxWidth())
+        Text("Atualizando seus dados…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (dialog == "reset") InvoiceResetDialog(state, model) { dialog = "" }
+    state.invoiceResetNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    StatementReferenceReview(state, model)
     if (invoice == null) {
+        if (state.syncing || state.statements.isNotEmpty()) return
         Spacer(Modifier.height(32.dp))
         Text("Nenhuma fatura registrada", style = MaterialTheme.typography.titleLarge)
-        Text("Importe sua fatura em Movimentações.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onMovements) { Text("Abrir Movimentações") }
+        Text("Atualize pelo Gmail para importar suas faturas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(onClick = onRefresh) { Text("Importar pelo Gmail") }
+        TextButton(onClick = onMovements) { Text("Abrir Movimentações") }
         return
     }
     val index = invoices.indexOf(invoice)
@@ -283,5 +299,26 @@ internal fun PersonTransferDialog(person: Long, state: FinanceUiState, model: Fi
             }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun InvoiceResetDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var confirmation by remember { mutableStateOf("") }
+    val preview = state.invoiceResetPreview
+    AssetDialog("Redefinir faturas", state, close, confirmLabel = "Redefinir faturas",
+        confirmEnabled = preview?.available == true && confirmation.trim() == "RESETAR" && !state.backupWorking,
+        confirm = { model.resetInvoices(confirmation) }) {
+        if (preview == null) Text(if (state.syncing) "Conferindo os registros…" else "Não foi possível carregar a conferência. Feche e tente novamente.")
+        else if (!preview.available) Text("Nenhuma fatura registrada para redefinir.")
+        else {
+            Text("Todas as faturas registradas serão retiradas da consulta, incluindo parcelas, divisões, estornos e vínculos de pagamento associados.")
+            Text("${preview.action.movementIds.size} lançamentos de cartão · ${preview.action.purchaseIds.size} compras · ${preview.installments} parcelas", style = MaterialTheme.typography.bodyMedium)
+            Text("${preview.affectedDebts} saldos familiares vinculados serão removidos.", style = MaterialTheme.typography.bodySmall)
+            Text("Conta bancária, pessoas, patrimônio, Flash e dívidas fora do cartão serão mantidos.")
+            if (preview.mixedTransfers > 0) Text("${preview.mixedTransfers} transferências também pagam dívidas fora do cartão. Esses vínculos serão preservados e as transferências não poderão ser usadas novamente por inteiro.", style = MaterialTheme.typography.bodySmall)
+            Text("O histórico original fica arquivado internamente. Após o reset, atualize pelo Gmail e confirme as referências para importar as faturas novamente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LedgerField("Digite RESETAR para confirmar", confirmation) { confirmation = it }
+        }
     }
 }

@@ -17,6 +17,8 @@ A versão 0.18.0 reorganiza a navegação com a aba Faturas e mantém Movimenta�
 
 A versão 0.19.0 acrescenta resumos financeiros em Pessoas, referência por fatura, filtros, perfil individual em página própria e detalhes expansíveis. Recebimentos, pagamentos ao banco, dívidas avulsas e parcelas futuras permanecem separados. Comportamento e roteiro de conferência em [VALIDACAO_PESSOAS.md](VALIDACAO_PESSOAS.md).
 
+A versão 0.20.0 adiciona atualização pelo Gmail diretamente em Faturas e redefinição exclusiva das faturas com conferência e confirmação digitada. O reset arquiva os registros originais, remove os vínculos ativos do cartão e permite nova importação, preservando as demais áreas. Veja [VALIDACAO_REDEFINICAO_FATURAS.md](VALIDACAO_REDEFINICAO_FATURAS.md).
+
 ## Atualizar pelo PC ou pelo celular
 
 O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.

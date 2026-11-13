@@ -42,6 +42,8 @@ internal data class FinanceUiState(
     val createdAtMillis: Long? = null,
     val error: String? = null,
     val movements: List<ReviewMovement> = emptyList(),
+    val invoiceResetPreview: InvoiceResetPreview? = null,
+    val invoiceResetNotice: String? = null,
     val people: List<Person> = emptyList(),
     val ledger: LedgerSnapshot = LedgerSnapshot(),
     val backupFiles: List<DriveBackupFile> = emptyList(),
@@ -146,7 +148,7 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
     fun syncGmail(token: String, investmentsOnly: Boolean = false) {
         if (!state.value.unlocked || state.value.syncing || state.value.statements.isNotEmpty()) return
         val attempt = generation
-        mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null)
+        mutableState.value = mutableState.value.copy(syncing = true, error = null, importNotification = null, invoiceResetNotice = null)
         viewModelScope.launch {
             val reviews = mutableListOf<StatementReview>()
             val custody = state.value.custody.toMutableList()
@@ -488,6 +490,43 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { if (attempt == generation) showError("Escolha uma categoria. Conflitos e pagamentos/estornos ainda não podem ser confirmados nesta etapa.") }
             finally { if (attempt == generation) { mutableState.value = mutableState.value.copy(syncing = false); refresh() } }
+        }
+    }
+
+    fun prepareInvoiceReset() {
+        if (!state.value.unlocked || state.value.syncing || state.value.backupWorking || state.value.statements.isNotEmpty()) return
+        val attempt = generation
+        mutableState.value = state.value.copy(syncing = true, error = null, invoiceResetPreview = null, invoiceResetNotice = null)
+        viewModelScope.launch {
+            try {
+                val preview = withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    LedgerRepository(checkNotNull(session).database).invoiceResetPreview()
+                } }
+                if (attempt == generation) mutableState.value = state.value.copy(invoiceResetPreview = preview)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (attempt == generation) showError("Não foi possível conferir as faturas. Nenhum dado foi alterado.") }
+            finally { if (attempt == generation) mutableState.value = state.value.copy(syncing = false) }
+        }
+    }
+
+    fun resetInvoices(confirmation: String) {
+        val preview = state.value.invoiceResetPreview ?: return
+        if (confirmation.trim() != "RESETAR" || !preview.available || !state.value.unlocked || state.value.syncing || state.value.backupWorking || state.value.statements.isNotEmpty()) return
+        val attempt = generation
+        mutableState.value = state.value.copy(syncing = true, error = null)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { synchronized(databaseGuard) {
+                    check(attempt == generation)
+                    LedgerRepository(checkNotNull(session).database).append(preview.action)
+                } }
+                if (attempt == generation) mutableState.value = state.value.copy(invoiceResetPreview = null,
+                    importNotification = null, invoiceResetNotice = "Faturas redefinidas. Atualize pelo Gmail para importar novamente.")
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: IllegalArgumentException) { if (attempt == generation) showError(error.message ?: "Confira o reset novamente. Nenhum dado foi alterado.") }
+            catch (_: Exception) { if (attempt == generation) showError("Não foi possível redefinir. Seus registros foram preservados.") }
+            finally { if (attempt == generation) { mutableState.value = state.value.copy(syncing = false); refresh() } }
         }
     }
 

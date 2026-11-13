@@ -83,12 +83,13 @@ internal object BackupPayload {
             require(row.getString(2) == PersonNames.key(name) && personNames.add(row.getString(2)))
         }
         val movements = tables.getJSONArray("movements")
-        val sourceRows = linkedMapOf<Long, ImportedRow>(); val pairs = mutableMapOf<Long, Long>()
+        val sourceRows = linkedMapOf<Long, ImportedRow>(); val pairs = mutableMapOf<Long, Long>(); val archived = mutableSetOf<Long>()
         for (i in 0 until movements.length()) {
             val row = movements.getJSONArray(i); val id = row.getLong(0)
             require(id > 0 && id !in sourceRows)
+            if (row.getString(5) == "ARCHIVED") archived.add(id)
             sourceRows[id] = MovementRepository.decode(row.getString(3)); pairs[id] = row.getLong(2)
-            require(row.getString(5) in setOf("PENDING", "CONFIRMED", "CONFLICT", "PAYMENT", "PAYMENT_PENDING", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT"))
+            require(row.getString(5) in setOf("PENDING", "CONFIRMED", "CONFLICT", "PAYMENT", "PAYMENT_PENDING", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT", "ARCHIVED"))
         }
         pairs.forEach { (id, pair) -> if (pair > 0) require(pairs[pair] == id) }
         val events = tables.getJSONArray("financial_events")
@@ -97,6 +98,7 @@ internal object BackupPayload {
             require(row.getLong(0) > 0 && (i == 0 || row.getLong(0) > events.getJSONArray(i - 1).getLong(0)))
             LedgerCodec.decode(row.getString(2))
         }
+        require(archived == actions.filterIsInstance<LedgerAction.ResetInvoices>().flatMap { it.movementIds }.toSet())
         val snapshot = FinanceLedger.replay(actions)
         require(snapshot.usedMovementIds.all { it in sourceRows })
         require(snapshot.debts.all { it.personId in personIds })
@@ -109,6 +111,7 @@ internal object BackupPayload {
             }
         }
         actions.forEach { a -> when (a) {
+            is LedgerAction.ResetInvoices -> require(a.movementIds.all { sourceRows.getValue(it).kind == DocumentKind.NUBANK_CARD })
             is LedgerAction.CardCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.NUBANK_CARD && source.cents < 0 && !PaymentMatching.isPayment(source)) }
             is LedgerAction.FlashCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.FLASH && source.cents == 15000L && source.date == a.sunday) }
             is LedgerAction.Asset -> (a.change as? br.com.yurimedeiros.meufinanceiro.assets.AssetChange.Transfer)?.let { transfer ->
@@ -134,7 +137,8 @@ internal object BackupPayload {
                 val account = sourceRows.getValue(a.accountMovementId); val card = sourceRows.getValue(a.cardMovementId)
                 require(account.kind == DocumentKind.NUBANK_ACCOUNT && card.kind == DocumentKind.NUBANK_CARD)
                 require(PaymentMatching.isPayment(account) && PaymentMatching.isPayment(card) && account.cents == card.cents)
-                require(card.statement == a.reference && pairs[a.cardMovementId] == a.accountMovementId && pairs[a.accountMovementId] == a.cardMovementId)
+                require(card.statement == a.reference)
+                if (a.cardMovementId !in archived) require(pairs[a.cardMovementId] == a.accountMovementId && pairs[a.accountMovementId] == a.cardMovementId)
                 require(a.allocations.values.fold(0L, Math::addExact) == -card.cents)
             }
             is LedgerAction.InvoicePaid -> {

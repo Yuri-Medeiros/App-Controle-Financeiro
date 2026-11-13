@@ -13,6 +13,7 @@ internal data class PurchasePlan(
     val familyOpening: Set<Int> = parts.map { it.number }.toSet(), val familyStart: LocalDate? = null, val openingBalances: Map<String, Long> = emptyMap(),
 )
 internal sealed interface LedgerAction {
+    data class ResetInvoices(val movementIds: Set<Long>, val purchaseIds: Set<String>, val documents: Map<String, String>) : LedgerAction
     data class CardCredit(val movementId: Long, val reason: String) : LedgerAction
     data class FlashCredit(val movementId: Long, val sunday: LocalDate) : LedgerAction
     data class Asset(val change: AssetChange) : LedgerAction
@@ -84,11 +85,13 @@ internal object FinanceLedger {
         return result
     }
     fun apply(s: LedgerSnapshot, a: LedgerAction): LedgerSnapshot {
+        if (a is LedgerAction.ResetInvoices) return InvoiceReset.apply(s, a)
         var purchases = s.purchases
         var debts = s.debts
         var planning = s.planning
         var assets = s.assets
         when (a) {
+            is LedgerAction.ResetInvoices -> error("Reset handled before ordinary actions")
             is LedgerAction.CardCredit -> require(a.movementId > 0 && a.movementId !in s.usedMovementIds && a.reason.isNotBlank() && a.reason.length <= 240)
             is LedgerAction.FlashCredit -> {
                 require(a.movementId > 0 && a.movementId !in s.usedMovementIds && a.sunday.dayOfWeek == java.time.DayOfWeek.SUNDAY)

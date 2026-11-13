@@ -11,6 +11,7 @@ internal object LedgerCodec {
     fun encode(a: LedgerAction): String = JSONObject().apply {
         put("version", 1)
         when (a) {
+            is LedgerAction.ResetInvoices -> { put("type", "reset-invoices"); put("movements", JSONArray(a.movementIds.sorted())); put("purchases", JSONArray(a.purchaseIds.sorted())); put("documents", JSONObject(a.documents)) }
             is LedgerAction.CardCredit -> { put("type", "card-credit"); put("movement", a.movementId); put("reason", a.reason) }
             is LedgerAction.FlashCredit -> { put("type", "flash-credit"); put("movement", a.movementId); put("sunday", a.sunday) }
             is LedgerAction.Asset -> { put("type", "asset"); put("change", AssetCodec.encode(a.change)) }
@@ -39,6 +40,10 @@ internal object LedgerCodec {
         require(o.getInt("version") == 1)
         fun date(key: String) = LocalDate.parse(o.getString(key))
         when (o.getString("type")) {
+            "reset-invoices" -> LedgerAction.ResetInvoices(
+                o.getJSONArray("movements").let { list -> (0 until list.length()).map { list.getLong(it) }.toSet() },
+                o.getJSONArray("purchases").let { list -> (0 until list.length()).map { list.getString(it) }.toSet() },
+                o.getJSONObject("documents").let { obj -> obj.keys().asSequence().associateWith { obj.getString(it) } })
             "card-credit" -> LedgerAction.CardCredit(o.getLong("movement"), o.getString("reason"))
             "flash-credit" -> LedgerAction.FlashCredit(o.getLong("movement"), date("sunday"))
             "asset" -> LedgerAction.Asset(AssetCodec.decode(o.getJSONObject("change")))

@@ -13,7 +13,7 @@ internal data class MovementImportResult(val review: StatementReview?, val impor
 internal data class StatementReview(val source: MailDocument, val document: ParsedDocument)
 
 internal class MovementRepository(private val db: FinanceDatabase) {
-    fun all(): List<ReviewMovement> = db.movements().all().map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
+    fun all(): List<ReviewMovement> = db.movements().all().filter { it.status != "ARCHIVED" }.map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
 
     fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? =
         importWithCount(source, confirmed).review
@@ -54,7 +54,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
 
     private fun reconcilePayments() {
         val dao = db.movements()
-        val payments = dao.all().filter { it.status !in setOf("CONFLICT", "IGNORED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
+        val payments = dao.all().filter { it.status !in setOf("CONFLICT", "IGNORED", "ARCHIVED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
             .filter { PaymentMatching.isPayment(it.second) }
         val pairs = PaymentMatching.pairs(payments.map { (item, row) -> PaymentCandidate(item.id, item.origin.substringBefore(" · "), row) })
         payments.forEach { (item, _) ->

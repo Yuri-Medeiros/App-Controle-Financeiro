@@ -141,6 +141,51 @@ class SecurityInstrumentation : Instrumentation() {
                     val invalidBackup = org.json.JSONObject(recoveryData.toString(Charsets.UTF_8)).put("version", 999).toString().toByteArray()
                     check(runCatching { BackupPayload.restore(it.database, invalidBackup) }.isFailure)
                     check(MovementRepository(it.database).all().size == 7)
+
+                    // Reset keeps raw sources/journal, outside allocations and assets; the
+                    // same Gmail card files can then be imported and reconciled again.
+                    val restoredRepo = MovementRepository(it.database)
+                    val restoredLedger = LedgerRepository(it.database)
+                    restoredLedger.append(LedgerAction.Debt("outside-reset", personId, DebtDirection.RECEIVE, "Avulsa", 1000, due))
+                    restoredLedger.append(LedgerAction.Asset(br.com.yurimedeiros.meufinanceiro.assets.AssetChange.Register(
+                        br.com.yurimedeiros.meufinanceiro.assets.AssetPosition("reset-fgts", "FGTS", br.com.yurimedeiros.meufinanceiro.assets.AssetKind.FGTS, 12345, 0, due))))
+                    restoredRepo.import(source("mixed-receipt", "Data,Valor,Identificador,Descrição\n06/11/2026,50.00,00000000-0000-4000-8000-000000000004,Transferência recebida - Pessoa de teste\n"))
+                    val mixed = restoredRepo.all().single { row -> row.row.cents == 5000L }
+                    restoredLedger.append(LedgerAction.Payment(personId, DebtDirection.RECEIVE, mixed.id, mixed.row.date,
+                        linkedMapOf("test-plan:2:$personId" to 4000L, "outside-reset" to 1000L)))
+                    val accountSources = restoredRepo.all().filter { row -> row.row.kind == DocumentKind.NUBANK_ACCOUNT }.associate { row -> row.id to row.row }
+                    val reset = restoredLedger.invoiceResetPreview()
+                    check(reset.mixedTransfers == 1 && reset.action.movementIds.size == 3)
+                    val oldEventCount = it.database.financialEvents().all().size
+                    restoredLedger.append(reset.action)
+                    check(it.database.financialEvents().all().size == oldEventCount + 1)
+                    check(restoredLedger.snapshot().purchases.isEmpty())
+                    check(restoredLedger.snapshot().debts.single().id == "outside-reset")
+                    check(restoredLedger.snapshot().debts.single().paidCents == 1000L)
+                    check(restoredLedger.snapshot().assets.assets.single().cents == 12345L)
+                    check(restoredRepo.all().filter { row -> row.row.kind == DocumentKind.NUBANK_ACCOUNT }.associate { row -> row.id to row.row } == accountSources)
+                    check(restoredRepo.all().single { row -> row.id == mixed.id }.status == "FAMILY_PAYMENT")
+                    check(restoredRepo.all().single { row -> row.id == transfer.id }.status == "PENDING")
+                    check(it.database.movements().all().count { row -> row.status == "ARCHIVED" } == 3)
+                    check(it.database.movements().document(card.source) == null)
+                    check(PeopleRepository(it.database).all().size == 12)
+                    restoredRepo.import(card, LocalDate.of(2026, 11, 8))
+                    restoredRepo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
+                        "date,title,amount\n2026-11-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2026, 11, 8))
+                    check(restoredRepo.all().count { row -> row.row.kind == DocumentKind.NUBANK_CARD } == 3)
+                    check(restoredRepo.all().single { row -> row.row.kind == DocumentKind.NUBANK_CARD && row.status == "PAYMENT" }.pairedMovementId == cardPayment.pairedMovementId)
+                    restoredRepo.import(card, LocalDate.of(2026, 11, 8))
+                    check(restoredRepo.all().count { row -> row.row.kind == DocumentKind.NUBANK_CARD } == 3)
+                    val eventsBeforeStale = it.database.financialEvents().all().size
+                    check(runCatching { restoredLedger.append(reset.action) }.isFailure)
+                    check(it.database.financialEvents().all().size == eventsBeforeStale)
+                    val afterResetBackup = BackupPayload.export(it.database)
+                    BackupPayload.preview(afterResetBackup)
+                    BackupPayload.restore(it.database, afterResetBackup)
+                    check(LedgerRepository(it.database).snapshot().assets.assets.single().cents == 12345L)
+                    check(LedgerRepository(it.database).snapshot().debts.single().paidCents == 1000L)
+                    check(it.database.movements().all().count { row -> row.status == "ARCHIVED" } == 3)
+                    afterResetBackup.fill(0)
                 }
             } finally { context.deleteDatabase(freshName) }
             recoveryData.fill(0)

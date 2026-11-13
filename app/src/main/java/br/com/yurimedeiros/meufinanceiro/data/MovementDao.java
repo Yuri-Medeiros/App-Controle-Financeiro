@@ -13,4 +13,6 @@ public interface MovementDao {
     @Update void update(Movement movement);
     @Query("SELECT * FROM import_documents WHERE source = :source") ImportDocument document(String source);
     @Insert void insertDocument(ImportDocument document);
+    @Query("SELECT * FROM import_documents ORDER BY source") List<ImportDocument> documents();
+    @Query("DELETE FROM import_documents WHERE source = :source") void removeDocument(String source);
 }

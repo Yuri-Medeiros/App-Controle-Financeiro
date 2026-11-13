@@ -181,47 +181,7 @@ internal fun MovementsScreen(
         Text("Consultando seus extratos…", style = MaterialTheme.typography.bodySmall)
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    state.statements.firstOrNull()?.let { statement ->
-        var reference by remember(statement.source.source) { mutableStateOf(statement.document.proposedStatement?.let(AppDates::date).orEmpty()) }
-        // This pending action has its own light surface and readable field colors.
-        // A native filled button avoids stacking the glass border with its outline.
-        MaterialTheme(
-            colorScheme = lightColorScheme(
-                primary = Color(0xFF6554E8),
-                onPrimary = Color.White,
-                surface = Color(0xFFEFEDFA),
-                onSurface = Color(0xFF202039),
-                onSurfaceVariant = Color(0xFF55536B),
-                outline = Color(0xFF858198),
-            ),
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Confirme a referência da fatura", fontWeight = FontWeight.SemiBold)
-                    Text(statement.source.filename, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(
-                        reference, { reference = it },
-                        label = { Text("Data de referência") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = FinanceInputShape,
-                        singleLine = true,
-                        enabled = !state.syncing,
-                    )
-                    Button(
-                        onClick = { model.confirmStatement(reference) },
-                        enabled = !state.syncing,
-                        shape = FinanceInputShape,
-                        border = null,
-                    ) { Text("Confirmar referência") }
-                }
-            }
-        }
-    }
+    StatementReferenceReview(state, model)
     // Filter and sort the entire result before selecting the visible page.
     var page by remember { mutableIntStateOf(0) }
     LaunchedEffect(query, account, selectedPeriod) {

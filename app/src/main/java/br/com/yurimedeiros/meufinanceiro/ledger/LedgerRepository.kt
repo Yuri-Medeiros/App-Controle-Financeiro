@@ -9,6 +9,16 @@ import kotlin.math.abs
 internal class LedgerRepository(private val db: FinanceDatabase) {
     fun snapshot(): LedgerSnapshot = FinanceLedger.replay(db.financialEvents().all().map { LedgerCodec.decode(it.payload) })
 
+    fun invoiceResetPreview(): InvoiceResetPreview {
+        val snapshot = snapshot()
+        val ids = MovementRepository(db).all().filter { it.row.kind == DocumentKind.NUBANK_CARD }.map { it.id }.toSet()
+        val documents = db.movements().documents().filter { it.reference.isNotBlank() }.associate { it.source to it.reference }
+        val affected = InvoiceReset.affectedDebts(snapshot)
+        val mixed = snapshot.actions.filterIsInstance<LedgerAction.Payment>().count { payment -> payment.allocations.keys.any { it in affected } && payment.allocations.keys.any { it !in affected } }
+        return InvoiceResetPreview(LedgerAction.ResetInvoices(ids, snapshot.purchases.map { it.id }.toSet(), documents),
+            snapshot.purchases.sumOf { it.parts.size }, affected.size, mixed)
+    }
+
     fun append(action: LedgerAction) = db.runInTransaction {
         val snapshot = snapshot()
         (action as? LedgerAction.Asset)?.let { AssetRules.validateNew(snapshot.assets, it.change) }
@@ -23,6 +33,9 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             require(m.row.kind == DocumentKind.NUBANK_CARD && m.row.cents == cents && cents > 0) { "Valor ou origem não corresponde à parcela." }
         }
         when (action) {
+            is LedgerAction.ResetInvoices -> {
+                require(action == invoiceResetPreview().action) { "Os dados mudaram. Confira o reset novamente." }
+            }
             is LedgerAction.CardCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.NUBANK_CARD && m.row.cents < 0 && !PaymentMatching.isPayment(m.row)) }
             is LedgerAction.FlashCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.FLASH && m.row.cents == 15000L && m.row.date == action.sunday) }
             is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { transfer ->
@@ -78,7 +91,7 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             }
             is LedgerAction.Postpone -> Unit
         }
-        FinanceLedger.apply(snapshot, action) // Validate before appending or changing review status.
+        val after = FinanceLedger.apply(snapshot, action) // Validate before appending or changing review status.
         db.financialEvents().append(FinancialEvent().apply { createdAt = System.currentTimeMillis(); payload = LedgerCodec.encode(action) })
         val rows = db.movements().all().associateBy { it.id }
         fun mark(id: Long, status: String, category: String = "", pair: Long = 0) {
@@ -86,6 +99,18 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             row.confirmedAt = System.currentTimeMillis(); db.movements().update(row)
         }
         when (action) {
+            is LedgerAction.ResetInvoices -> {
+                // Keep original rows and event payloads; only retire the active card view.
+                action.movementIds.forEach { id ->
+                    val card = rows.getValue(id)
+                    if (card.pairedMovementId > 0) mark(card.pairedMovementId, "PAYMENT_PENDING")
+                    mark(id, "ARCHIVED", card.category)
+                }
+                (snapshot.usedMovementIds - after.usedMovementIds - action.movementIds).forEach { id ->
+                    if (rows[id]?.status == "FAMILY_PAYMENT") mark(id, "PENDING")
+                }
+                action.documents.keys.forEach { db.movements().removeDocument(it) }
+            }
             is LedgerAction.CardCredit -> mark(action.movementId, "CARD_CREDIT")
             is LedgerAction.FlashCredit -> mark(action.movementId, "FLASH_CREDIT")
             is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { if (it.movementId > 0) mark(it.movementId, "ASSET_TRANSFER") }

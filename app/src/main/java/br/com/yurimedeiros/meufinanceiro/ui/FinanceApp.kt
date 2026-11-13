@@ -309,7 +309,8 @@ internal fun FinanceApp(
                                             1 -> CompositionLocalProvider(LocalFinanceInteractive provides (page == selected && state.unlocked && state.visible)) {
                                                 InvoicesScreen(state, model,
                                                     onMovements = { movementsOpen = true; navigateTo(0) },
-                                                    onMonthChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })
+                                                    onMonthChanged = { navigationScope.launch { contentScroll.scrollTo(0) } },
+                                                    onRefresh = onRefresh)
                                             }
                                             2 -> CompositionLocalProvider(LocalFinanceInteractive provides (page == selected && state.unlocked && state.visible)) {
                                                 PeopleScreen(state, model, onRouteChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })

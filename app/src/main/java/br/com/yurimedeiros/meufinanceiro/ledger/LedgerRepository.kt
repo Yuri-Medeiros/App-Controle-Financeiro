@@ -64,6 +64,10 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
                 require(action.date == m.row.date)
                 require(action.credits.values.fold(0L, Math::addExact) == abs(m.row.cents)) { "Distribua o valor integral do estorno." }
             }
+            is LedgerAction.InvoiceAllocation -> {
+                action.allocations.keys.forEach(::person)
+                InvoiceBook.validateAllocation(action, snapshot, movements.values.toList())
+            }
             is LedgerAction.InvoicePaid -> {
                 val account = movement(action.accountMovementId); val card = movement(action.cardMovementId)
                 require(account.row.kind == DocumentKind.NUBANK_ACCOUNT && card.row.kind == DocumentKind.NUBANK_CARD)

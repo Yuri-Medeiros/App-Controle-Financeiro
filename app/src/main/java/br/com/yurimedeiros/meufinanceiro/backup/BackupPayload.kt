@@ -129,6 +129,14 @@ internal object BackupPayload {
                 require(source.kind == DocumentKind.NUBANK_CARD && source.cents < 0 && !PaymentMatching.isPayment(source) && a.date == source.date)
                 require(a.credits.values.fold(0L, Math::addExact) == abs(source.cents))
             }
+            is LedgerAction.InvoiceAllocation -> {
+                require(a.allocations.keys.all { it == 0L || it in personIds })
+                val account = sourceRows.getValue(a.accountMovementId); val card = sourceRows.getValue(a.cardMovementId)
+                require(account.kind == DocumentKind.NUBANK_ACCOUNT && card.kind == DocumentKind.NUBANK_CARD)
+                require(PaymentMatching.isPayment(account) && PaymentMatching.isPayment(card) && account.cents == card.cents)
+                require(card.statement == a.reference && pairs[a.cardMovementId] == a.accountMovementId && pairs[a.accountMovementId] == a.cardMovementId)
+                require(a.allocations.values.fold(0L, Math::addExact) == -card.cents)
+            }
             is LedgerAction.InvoicePaid -> {
                 val account = sourceRows.getValue(a.accountMovementId); val card = sourceRows.getValue(a.cardMovementId)
                 require(account.kind == DocumentKind.NUBANK_ACCOUNT && card.kind == DocumentKind.NUBANK_CARD)

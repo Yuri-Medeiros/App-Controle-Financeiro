@@ -88,7 +88,7 @@ private fun symbol(name: String, path: String): ImageVector = ImageVector.Builde
 ).addPath(PathParser().parsePathString(path).toNodes(), fill = SolidColor(Color.Black)).build()
 
 private val HomeIcon = symbol("Início", "M3,10L12,3L21,10V21H15V14H9V21H3Z")
-private val ListIcon = symbol("Movimentações", "M4,4H20V6H4ZM4,11H20V13H4ZM4,18H20V20H4Z")
+private val ListIcon = symbol("Faturas", "M5,2H19V22L16,20L13,22L10,20L7,22L5,20ZM8,7V9H16V7ZM8,12V14H16V12Z")
 private val PeopleIcon = symbol("Pessoas", "M9,3A4,4 0,1 0,9,11A4,4 0,1 0,9,3M2,21V18C2,14 16,14 16,18V21ZM17,4A4,4 0,0 1,17,12V10A2,2 0,0 0,17,6ZM18,15C21,15 23,16 23,18V21H20V18C20,17 19,16 18,16Z")
 private val PlanIcon = symbol("Planejamento", "M6,2H8V4H16V2H18V4H21V22H3V4H6ZM5,9V20H19V9ZM7,12H11V16H7Z")
 private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V16ZM13,16V7H16V16ZM18,16V3H21V16Z")
@@ -98,7 +98,7 @@ internal val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")
 private val Sections = listOf(
     Section("Resumo", "Resumo", "Seu dinheiro, com clareza.", HomeIcon),
-    Section("Movimentações", "Movimentações", "Contas, faturas e parcelas em um só lugar.", ListIcon),
+    Section("Faturas", "Faturas", "Sua fatura e as partes de cada pessoa.", ListIcon),
     Section("Pessoas", "Pessoas", "Mais clareza nas contas compartilhadas.", PeopleIcon),
     Section("Planejamento", "Planejamento", "Espaço para seus planos e prioridades.", PlanIcon),
     Section("Patrimônio", "Patrimônio", "Acompanhe o caminho até seus objetivos.", WealthIcon),
@@ -126,15 +126,17 @@ internal fun FinanceApp(
     val navigateTo: (Int) -> Unit = { page ->
         navigationScope.launch { pager.animateScrollToPage(page) }
     }
+    var movementsOpen by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var selectedMovementIds by remember { mutableStateOf(emptySet<Long>()) }
     var batchCategoryOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(selected, settings, state.unlocked, state.visible) {
-        if (selected != 1 || settings) {
+    LaunchedEffect(selected, settings, movementsOpen, state.unlocked, state.visible) {
+        if (selected != 0 || !movementsOpen || settings) {
             selectedMovementIds = emptySet()
             batchCategoryOpen = false
         }
     }
+    BackHandler(enabled = movementsOpen && selected == 0 && !settings && state.unlocked && state.visible) { movementsOpen = false }
     BackHandler(enabled = settings && state.unlocked && state.visible) { settings = false; model.cancelRestore() }
     BackHandler(enabled = selectedMovementIds.isNotEmpty() && !batchCategoryOpen && state.unlocked && state.visible) {
         selectedMovementIds = emptySet()
@@ -166,7 +168,7 @@ internal fun FinanceApp(
                         bottomBar = {
                             if (!settings) {
                                 Column {
-                                    if (selected == 1 && selectedMovementIds.isNotEmpty()) {
+                                    if (selected == 0 && movementsOpen && selectedMovementIds.isNotEmpty()) {
                                         GlassButton(
                                             onClick = { batchCategoryOpen = true },
                                             enabled = !state.syncing,
@@ -218,7 +220,7 @@ internal fun FinanceApp(
                                                             .selectable(
                                                                 selected = active,
                                                                 role = Role.Tab,
-                                                                onClick = { navigateTo(index) },
+                                                                onClick = { if (index == 0) movementsOpen = false; navigateTo(index) },
                                                             ),
                                                         horizontalAlignment = Alignment.CenterHorizontally,
                                                         verticalArrangement = Arrangement.Center,
@@ -254,6 +256,7 @@ internal fun FinanceApp(
                                 key = { it },
                             ) { page ->
                                 val contentScroll = rememberScrollState()
+                                LaunchedEffect(movementsOpen) { if (page == 0) contentScroll.scrollTo(0) }
                                 Column(
                                     Modifier.fillMaxSize()
                                         .onGloballyPositioned { if (page == selected) contentPosition = it.positionInRoot() }
@@ -286,9 +289,10 @@ internal fun FinanceApp(
                                         Text("Meu Financeiro · ${br.com.yurimedeiros.meufinanceiro.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     } else {
                                         val section = Sections[page]
-                                        if (page != 4) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text(section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                            if (page == 1) {
+                                        if (page != 4 && page != 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            if (page == 0 && movementsOpen) IconButton(onClick = { movementsOpen = false }) { Icon(AssetChevronIcon, "Voltar ao início", Modifier.graphicsLayer { rotationZ = 180f }) }
+                                            Text(if (page == 0 && movementsOpen) "Movimentações" else section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                            if (page == 0 && movementsOpen) {
                                                 IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
                                                     Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")
                                                 }
@@ -299,11 +303,14 @@ internal fun FinanceApp(
                                             }
                                         }
                                         when (page) {
-                                            0 -> OverviewScreen(state, onMovements = { navigateTo(1) })
-                                            1 -> MovementsScreen(
-                                                state, model, selectedMovementIds,
-                                                onSelectionChange = { selectedMovementIds = it },
-                                            )
+                                            0 -> if (movementsOpen) MovementsScreen(state, model, selectedMovementIds,
+                                                onSelectionChange = { selectedMovementIds = it })
+                                                else OverviewScreen(state, onMovements = { movementsOpen = true })
+                                            1 -> CompositionLocalProvider(LocalFinanceInteractive provides (page == selected && state.unlocked && state.visible)) {
+                                                InvoicesScreen(state, model,
+                                                    onMovements = { movementsOpen = true; navigateTo(0) },
+                                                    onMonthChanged = { navigationScope.launch { contentScroll.scrollTo(0) } })
+                                            }
                                             2 -> PeopleScreen(state, model)
                                             3 -> PlanningScreen(state, model)
                                             4 -> AssetsScreen(state, model, onRefreshInvestments, active = page == selected,
@@ -313,7 +320,7 @@ internal fun FinanceApp(
                                     Spacer(Modifier.height(8.dp))
                                 }
                             }
-                            if (!settings && selected == 1 && state.movements.isEmpty()) {
+                            if (!settings && selected == 0 && movementsOpen && state.movements.isEmpty()) {
                                 Box(
                                     Modifier.matchParentSize().padding(
                                         top = insets.calculateTopPadding(),

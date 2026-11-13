@@ -95,11 +95,19 @@ class SecurityInstrumentation : Instrumentation() {
             ledger.append(LedgerAction.Refund(plan.id, credit.id, credit.row.date, mapOf("test-plan:1:$personId" to 4000)))
             check(ledger.snapshot().debts.single { it.direction == DebtDirection.PAY }.remaining == 4000L)
             check(ledger.snapshot().debts.single { it.number == 2 }.remaining == 10000L)
+            repo.import(source("bank-payment", "Data,Valor,Identificador,Descrição\n05/11/2026,-160.00,00000000-0000-4000-8000-000000000003,Pagamento de fatura\n"))
+            repo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
+                "date,title,amount\n2026-11-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2026, 11, 8))
+            val cardPayment = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.status == "PAYMENT" }
+            val attribution = LedgerAction.InvoiceAllocation(LocalDate.of(2026, 11, 8), cardPayment.pairedMovementId, cardPayment.id, linkedMapOf(0L to 10000L, personId to 6000L))
+            ledger.append(attribution)
+            check(runCatching { ledger.append(attribution) }.isFailure)
+            check(ledger.snapshot().debts.single { it.direction == DebtDirection.PAY }.remaining == 4000L)
             first.database.openHelper.writableDatabase.query("PRAGMA cipher_version").use {
                 check(it.moveToFirst() && it.getString(0).isNotBlank())
             }
             val recoveryData = BackupPayload.export(first.database)
-            check(BackupPayload.preview(recoveryData).movements == 5)
+            check(BackupPayload.preview(recoveryData).movements == 7)
             first.close()
             val header = context.getDatabasePath(name).inputStream().use { it.readNBytes(16) }
             check(!header.contentEquals("SQLite format 3\u0000".toByteArray()))
@@ -114,9 +122,10 @@ class SecurityInstrumentation : Instrumentation() {
                 val savedPeople = PeopleRepository(it.database).all()
                 check(savedPeople.size == 12 && savedPeople.any { person -> person.name == "Pessoa de teste" })
                 val saved = MovementRepository(it.database).all()
-                check(saved.size == 5 && saved.any { row -> row.category == "Alimentação" && row.status == "CONFIRMED" })
+                check(saved.size == 7 && saved.any { row -> row.category == "Alimentação" && row.status == "CONFIRMED" })
                 val ledgerSaved = LedgerRepository(it.database).snapshot()
-                check(ledgerSaved.actions.size == 3)
+                check(ledgerSaved.actions.size == 4)
+                check(ledgerSaved.actions.filterIsInstance<LedgerAction.InvoiceAllocation>().single() == attribution)
                 check(ledgerSaved.debts.single { debt -> debt.direction == DebtDirection.PAY }.remaining == 4000L)
             }
             val freshName = "$name-fresh"
@@ -125,12 +134,13 @@ class SecurityInstrumentation : Instrumentation() {
                 SecureDatabaseSession.open(context, originalKey.copyOf(), freshName).use {
                     check(PeopleRepository(it.database).all().size == 11)
                     BackupPayload.restore(it.database, recoveryData)
-                    check(MovementRepository(it.database).all().size == 5)
+                    check(MovementRepository(it.database).all().size == 7)
                     check(PeopleRepository(it.database).all().size == 12)
+                    check(LedgerRepository(it.database).snapshot().actions.filterIsInstance<LedgerAction.InvoiceAllocation>().single() == attribution)
                     check(LedgerRepository(it.database).snapshot().debts.single { d -> d.direction == DebtDirection.PAY }.remaining == 4000L)
                     val invalidBackup = org.json.JSONObject(recoveryData.toString(Charsets.UTF_8)).put("version", 999).toString().toByteArray()
                     check(runCatching { BackupPayload.restore(it.database, invalidBackup) }.isFailure)
-                    check(MovementRepository(it.database).all().size == 5)
+                    check(MovementRepository(it.database).all().size == 7)
                 }
             } finally { context.deleteDatabase(freshName) }
             recoveryData.fill(0)

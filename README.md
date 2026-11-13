@@ -13,6 +13,8 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 
 Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Responsáveis, parcelas, pagamentos, estornos, planejamento, patrimônio manual e backup cifrado foram implementados na continuação da PR #9; veja [o estado detalhado](DESENVOLVIMENTO_COMPLEXIDADES.md). A versão 0.9.0 acrescenta cotação pública BTC/BRL, revisão de PDF de custódia Nubank e retomada temporária após bloqueio. Veja [comportamento e roteiro de validação](VALIDACAO_CUSTODIA_RETOMADA.md). A metodologia de projeção de rendimentos do FGTS continua pendente. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
 
+A versão 0.18.0 reorganiza a navegação com a aba Faturas e mantém Movimentações pelo Início. Faturas reúne resumo bancário, compras agrupadas por pessoa, rateio de pagamentos, recebimentos, pendências anteriores e parcelas futuras. As regras e o roteiro no aparelho estão em [VALIDACAO_FATURAS.md](VALIDACAO_FATURAS.md). Patrimônio inclui os gráficos e as consultas de Bitcoin/FIPE, além da importação de investimentos.
+
 ## Atualizar pelo PC ou pelo celular
 
 O [pipeline de distribuição](PIPELINE.md) funciona sem Codex: PR → checks → candidato separado → aprovação → merge → APK definitivo no [GitHub Releases](https://github.com/Yuri-Medeiros/App-Controle-Financeiro/releases). O workflow manual tem os modos `test` (Gerar APK de teste) e `release` (Publicar versão). Requer integração inicial em `work` e configuração dos Secrets descritos no guia; não há publicação automática por commit.

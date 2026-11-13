@@ -500,7 +500,7 @@ private fun AssetChoice(label: String, value: String, options: List<Pair<String,
 }
 
 @Composable
-private fun AssetInfoButton(description: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun AssetInfoButton(description: String, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = description }) {
@@ -509,7 +509,7 @@ private fun AssetInfoButton(description: String, content: @Composable ColumnScop
                     style = MaterialTheme.typography.titleMedium)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
+        DropdownMenu(expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
             }

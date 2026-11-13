@@ -26,6 +26,7 @@ internal sealed interface LedgerAction {
     data class Payment(val personId: Long, val direction: DebtDirection, val movementId: Long, val date: LocalDate, val allocations: Map<String, Long>) : LedgerAction
     data class Refund(val purchaseId: String, val movementId: Long, val date: LocalDate, val credits: Map<String, Long>) : LedgerAction
     data class Postpone(val debtId: String, val due: LocalDate, val reason: String) : LedgerAction
+    data class InvoiceAllocation(val reference: LocalDate, val accountMovementId: Long, val cardMovementId: Long, val allocations: Map<Long, Long>) : LedgerAction
     data class InvoicePaid(val reference: LocalDate, val accountMovementId: Long, val cardMovementId: Long) : LedgerAction
 }
 internal data class DebtBalance(
@@ -50,6 +51,7 @@ internal data class LedgerSnapshot(
             is LedgerAction.Payment -> add(a.movementId)
             is LedgerAction.Refund -> add(a.movementId)
             is LedgerAction.InvoicePaid -> { add(a.accountMovementId); add(a.cardMovementId) }
+            is LedgerAction.InvoiceAllocation -> { add(a.accountMovementId); add(a.cardMovementId) }
             else -> Unit
         } }
     }
@@ -210,6 +212,12 @@ internal object FinanceLedger {
                 val d = debts.single { it.id == a.debtId }
                 require(d.purchaseId == null && d.remaining > 0 && a.reason.isNotBlank()) { "Só dívidas fora do cartão podem ser prorrogadas; informe o motivo." }
                 debts = debts.map { if (it.id == d.id) it.copy(due = a.due) else it }
+            }
+            is LedgerAction.InvoiceAllocation -> {
+                require(a.accountMovementId > 0 && a.cardMovementId > 0 && a.accountMovementId != a.cardMovementId)
+                require(a.allocations.isNotEmpty() && a.allocations.keys.all { it >= 0 } && a.allocations.values.all { it > 0 })
+                a.allocations.values.fold(0L, Math::addExact)
+                require(s.actions.filterIsInstance<LedgerAction.InvoiceAllocation>().none { it.cardMovementId == a.cardMovementId || it.accountMovementId == a.accountMovementId }) { "Pagamento já dividido." }
             }
             is LedgerAction.InvoicePaid -> {
                 require(a.accountMovementId > 0 && a.cardMovementId > 0 && a.accountMovementId != a.cardMovementId)

@@ -31,6 +31,7 @@ internal object LedgerCodec {
             is LedgerAction.Payment -> { put("type", "payment"); put("person", a.personId); put("direction", a.direction); put("movement", a.movementId); put("date", a.date); put("allocations", JSONObject(a.allocations)) }
             is LedgerAction.Refund -> { put("type", "refund"); put("purchase", a.purchaseId); put("movement", a.movementId); put("date", a.date); put("allocations", JSONObject(a.credits)) }
             is LedgerAction.Postpone -> { put("type", "postpone"); put("debt", a.debtId); put("due", a.due); put("reason", a.reason) }
+            is LedgerAction.InvoiceAllocation -> { put("type", "invoice-allocation"); put("reference", a.reference); put("account", a.accountMovementId); put("card", a.cardMovementId); put("allocations", JSONObject(a.allocations.mapKeys { it.key.toString() })) }
             is LedgerAction.InvoicePaid -> { put("type", "invoice"); put("reference", a.reference); put("account", a.accountMovementId); put("card", a.cardMovementId) }
         }
     }.toString()
@@ -62,6 +63,7 @@ internal object LedgerCodec {
             "payment" -> LedgerAction.Payment(o.getLong("person"), DebtDirection.valueOf(o.getString("direction")), o.getLong("movement"), date("date"), o.allocations())
             "refund" -> LedgerAction.Refund(o.getString("purchase"), o.getLong("movement"), date("date"), o.allocations())
             "postpone" -> LedgerAction.Postpone(o.getString("debt"), date("due"), o.getString("reason"))
+            "invoice-allocation" -> LedgerAction.InvoiceAllocation(date("reference"), o.getLong("account"), o.getLong("card"), o.allocations().mapKeys { it.key.toLong() })
             "invoice" -> LedgerAction.InvoicePaid(date("reference"), o.getLong("account"), o.getLong("card"))
             else -> error("Histórico financeiro não reconhecido. Dados preservados.")
         }

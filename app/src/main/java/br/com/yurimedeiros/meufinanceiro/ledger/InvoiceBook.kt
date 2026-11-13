@@ -5,7 +5,7 @@ import br.com.yurimedeiros.meufinanceiro.planning.BankCalendar
 import java.time.LocalDate
 import java.time.YearMonth
 
-internal data class InvoiceItem(val title: String, val cents: Long, val date: LocalDate?, val installment: String? = null)
+internal data class InvoiceItem(val title: String, val cents: Long, val date: LocalDate?, val installment: String? = null, val movementId: Long = 0)
 internal data class InvoicePerson(val id: Long, val cents: Long, val received: Long, val receivable: Long, val bankPaid: Long, val items: List<InvoiceItem>) {
     val bankCapacity get() = (items.filter { it.cents > 0 }.sumOf { it.cents } - bankPaid).coerceAtLeast(0)
 }
@@ -43,12 +43,12 @@ internal object InvoiceBook {
             val items = linkedMapOf<Long, MutableList<InvoiceItem>>()
             fun item(id: Long, value: InvoiceItem) { if (value.cents != 0L) items.getOrPut(id) { mutableListOf() }.add(value) }
             parts.forEach { (p, part) ->
-                p.shares.forEach { (id, amounts) -> item(id, InvoiceItem(p.title, amounts[part.number - 1], byId[part.movementId]?.row?.date, "${part.number}/${p.parts.size}")) }
+                p.shares.forEach { (id, amounts) -> item(id, InvoiceItem(p.title, amounts[part.number - 1], byId[part.movementId]?.row?.date, "${part.number}/${p.parts.size}", movementId = part.movementId)) }
             }
             valid.filter { !PaymentMatching.isPayment(it.row) && it.id !in linked }.forEach { row ->
                 val refund = ledger.actions.filterIsInstance<LedgerAction.Refund>().firstOrNull { it.movementId == row.id }
-                if (refund == null) item(UNASSIGNED, InvoiceItem(row.friendlyName.ifBlank { row.row.description }, row.row.cents, row.row.date))
-                else refund.credits.forEach { (key, cents) -> item(key.substringAfterLast(':').toLong(), InvoiceItem("Estorno · ${row.friendlyName.ifBlank { row.row.description }}", -cents, row.row.date)) }
+                if (refund == null) item(UNASSIGNED, InvoiceItem(row.friendlyName.ifBlank { row.row.description }, row.row.cents, row.row.date, movementId = row.id))
+                else refund.credits.forEach { (key, cents) -> item(key.substringAfterLast(':').toLong(), InvoiceItem("Estorno · ${row.friendlyName.ifBlank { row.row.description }}", -cents, row.row.date, movementId = row.id)) }
             }
             val payments = valid.filter { c -> PaymentMatching.isPayment(c.row) && c.status == "PAYMENT" &&
                 byId[c.pairedMovementId]?.let { a -> a.pairedMovementId == c.id && a.status == "PAYMENT" && a.row.kind == DocumentKind.NUBANK_ACCOUNT && a.row.cents == c.row.cents } == true }

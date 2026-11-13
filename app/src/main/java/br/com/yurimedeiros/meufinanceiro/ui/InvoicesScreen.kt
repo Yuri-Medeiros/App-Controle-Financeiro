@@ -37,6 +37,8 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
     val invoice = invoices.firstOrNull { it.month == selected } ?: invoices.firstOrNull { it.month == InvoiceBook.defaultMonth(invoices, LocalDate.now()) }
     var dialog by remember { mutableStateOf("") }
     LaunchedEffect(state.invoiceResetNotice) { if (state.invoiceResetNotice != null) dialog = "" }
+    var selectedMovementId by remember { mutableStateOf<Long?>(null) }
+    val movementsById = remember(state.movements) { state.movements.associateBy { it.id } }
     var receiptPerson by remember { mutableStateOf<Long?>(null) }
     val expanded = remember(invoice?.month) { mutableStateMapOf<Long, Boolean>() }
     fun select(month: YearMonth) { selected = month; dialog = ""; onMonthChanged() }
@@ -119,17 +121,24 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
                 }
                 person.items.forEach { item ->
                     HorizontalDivider(color = Color.White.copy(alpha = .07f))
-                    Column(Modifier.fillMaxWidth().padding(start = 17.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val source = movementsById[item.movementId]
+                    val canAssign = source != null && source.row.kind == DocumentKind.NUBANK_CARD && source.row.cents > 0 &&
+                        source.id !in state.ledger.usedMovementIds && source.status !in setOf("CONFLICT", "IGNORED", "ARCHIVED")
+                    Column(Modifier.fillMaxWidth().then(if (source != null) Modifier.clickable(enabled = !state.syncing, role = Role.Button) {
+                        selectedMovementId = source.id
+                    } else Modifier).padding(start = 17.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(item.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             Text(ledgerMoney(item.cents), style = MaterialTheme.typography.bodyMedium)
+                            if (source != null) Icon(AssetChevronIcon, null, Modifier.size(16.dp))
                         }
                         val details = listOfNotNull(item.date?.let(AppDates::date), item.installment?.let { "Parcela $it" })
                         if (details.isNotEmpty()) Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (canAssign) Text("Definir responsáveis", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        else if (source != null && person.id < 0) Text("Revisar lançamento", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 if (person.id > 0 && person.receivable > 0) TextButton(onClick = { receiptPerson = person.id }, enabled = !state.syncing) { Text("Registrar recebimento") }
-                if (person.id < 0) TextButton(onClick = onMovements) { Text("Revisar em Movimentações") }
             }
         }
         if (invoice.unallocated > 0) TextButton(onClick = { dialog = "payment" }) { Text("Dividir pagamentos · ${ledgerMoney(invoice.unallocated)}") }
@@ -174,6 +183,14 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
         "due" -> InvoiceDueDialog(invoice, state, model) { dialog = "" }
     }
     receiptPerson?.let { id -> PersonTransferDialog(id, state, model, close = { receiptPerson = null }) }
+    selectedMovementId?.let { id -> movementsById[id]?.let { movement ->
+        key(id) {
+            val assignable = movement.row.kind == DocumentKind.NUBANK_CARD && movement.row.cents > 0 &&
+                id !in state.ledger.usedMovementIds && movement.status !in setOf("CONFLICT", "IGNORED", "ARCHIVED")
+            if (assignable) PurchaseDialog(movement, state, model) { selectedMovementId = null }
+            else MovementFinanceDialog(movement, state, model) { selectedMovementId = null }
+        }
+    } }
 }
 
 @Composable

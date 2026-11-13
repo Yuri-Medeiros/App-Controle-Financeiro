@@ -34,6 +34,28 @@ class InvoiceBookTest {
         assertEquals(999L, next.people.single { it.id == InvoiceBook.UNASSIGNED }.cents)
         assertTrue(next.warnings.any { "duas vezes" in it })
     }
+    @Test fun identicalUnassignedItemsKeepTheirOwnMovementIdentity() {
+        val movements = listOf(row(40, 12345), row(41, 12345))
+        val inv = invoice(LedgerSnapshot(), movements)
+        val items = inv.people.single { it.id == InvoiceBook.UNASSIGNED }.items
+        assertEquals(2, items.size)
+        assertEquals(setOf(40L, 41L), items.map { it.movementId }.toSet())
+        assertEquals(24690L, inv.total)
+        // Assigning one original source must leave the other row pending.
+        val action = LedgerAction.Purchase(PurchasePlan("new", "Compra", "Casa",
+            listOf(SchedulePart(1, due, 12345, items.first().movementId)), mapOf(7L to listOf(12345L)), familyStart = due))
+        val after = invoice(FinanceLedger.apply(LedgerSnapshot(), action), movements)
+        assertEquals(12345L, after.people.single { it.id == 7L }.receivable)
+        assertEquals(41L, after.people.single { it.id == InvoiceBook.UNASSIGNED }.items.single().movementId)
+        assertEquals(inv.total, after.total)
+    }
+    @Test fun linkedItemsKeepTheSourceAndForecastsHaveNoInventedSource() {
+        val all = InvoiceBook.invoices(snapshot(), rows())
+        assertEquals(1L, all.first().people.single { it.id == 7L }.items.single().movementId)
+        assertEquals(1L, all.first().people.single { it.id == 0L }.items.single().movementId)
+        assertTrue(all.last().people.flatMap { it.items }.all { it.movementId == 0L })
+    }
+
     @Test fun bankSettlementAndAttributionNeverPayFamilyReceivables() {
         val action = LedgerAction.InvoiceAllocation(due, 3, 2, mapOf(0L to 10000, 7L to 10000))
         InvoiceBook.validateAllocation(action, snapshot(), rows())
@@ -87,6 +109,7 @@ class InvoiceBookTest {
         val person = inv.people.single { it.id == 7L }
         assertEquals(16000L, inv.total)
         assertEquals(6000L, person.cents)
+        assertEquals(9L, person.items.single { it.cents < 0 }.movementId)
         assertEquals(10000L, person.received)
         assertEquals(4000L, state.debts.single { it.direction == DebtDirection.PAY }.remaining)
         // A bank payment made before the refund can still be attributed later in full.

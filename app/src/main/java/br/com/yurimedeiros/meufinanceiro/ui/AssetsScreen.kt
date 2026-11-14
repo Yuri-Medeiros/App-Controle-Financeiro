@@ -319,6 +319,7 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
     val vehicleId = remember { UUID.randomUUID().toString() }
     val id = remember { UUID.randomUUID().toString() }
     var name by remember { mutableStateOf("") }
+    val titleEditor = remember { ModalTitleEditState() }
     var amount by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -330,6 +331,11 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
             Icon(AddVehicleIcon, contentDescription = "Adicionar veículo", modifier = Modifier.size(24.dp),
                 tint = MaterialTheme.colorScheme.primary)
         }
+    }, confirmEnabled = !titleEditor.editing && name.isNotBlank(), titleContent = {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Investimentos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EditableModalTitle(name, { name = it }, placeholder = "Novo investimento", enabled = !state.syncing, editState = titleEditor)
+        }
     }, confirm = {
         try {
             val cents = FinanceLedger.money(amount)
@@ -337,7 +343,6 @@ private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close
                 AssetKind.INVESTMENT, cents, 0, AppDates.parse(date)))), close)
         } catch (_: Exception) { error = "Revise nome, valor e data." }
     }) {
-        AssetEntryField("Nome", name, !state.syncing) { name = it }
         AssetEntryField("Valor", amount, !state.syncing, monetary = true) { amount = it }
         AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

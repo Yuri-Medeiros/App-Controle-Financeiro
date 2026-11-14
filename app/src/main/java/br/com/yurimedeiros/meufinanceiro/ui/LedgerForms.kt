@@ -6,13 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.selected
 import br.com.yurimedeiros.meufinanceiro.domain.PaymentDivision
 import br.com.yurimedeiros.meufinanceiro.domain.DivisionMode
@@ -88,8 +84,7 @@ private fun ImportedPurchaseEditor(movement: ReviewMovement, state: FinanceUiSta
     val numbering = runCatching { ImportedInstallments.schedule(movement.row.description) }
     val linkOptions = runCatching { ImportedInstallments.options(state.ledger, movement, state.movements) }.getOrDefault(emptyList())
     var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
-    var editingTitle by remember { mutableStateOf(false) }
-    val titleFocus = remember { FocusRequester() }
+    val titleEditor = remember { ModalTitleEditState() }
     val focus = LocalFocusManager.current
     var category by remember { mutableStateOf(movement.category) }
     val invoiceDue = runCatching { InvoiceSchedule.due(movement.row, state.ledger.planning.invoiceDates) }.getOrNull()
@@ -149,22 +144,10 @@ private fun ImportedPurchaseEditor(movement: ReviewMovement, state: FinanceUiSta
     val interactive = LocalFinanceInteractive.current
     AssetDialog(title, state, ::dismiss,
         titleContent = {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                if (editingTitle) {
-                    BasicTextField(title, { title = it }, modifier = Modifier.fillMaxWidth().focusRequester(titleFocus), singleLine = true,
-                        textStyle = titleStyle, enabled = !state.syncing, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
-                    LaunchedEffect(Unit) { titleFocus.requestFocus() }
-                } else Text(title, style = titleStyle)
-                Text(movement.row.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-            IconButton(onClick = { editingTitle = !editingTitle; if (!editingTitle) focus.clearFocus() }, enabled = !state.syncing) {
-                if (editingTitle) Text("✓", modifier = Modifier.semantics { contentDescription = "Concluir edição do título" }, color = MaterialTheme.colorScheme.primary)
-                else Icon(EditTitleIcon, "Editar título", Modifier.size(19.dp), tint = MaterialTheme.colorScheme.primary)
-            }
+            EditableModalTitle(title, { title = it }, Modifier.weight(1f), original = movement.row.description,
+                enabled = !state.syncing, editState = titleEditor)
         },
-        confirmEnabled = people.isNotEmpty() && allocation.isSuccess && validInputs && title.isNotBlank() && title.trim().length <= 120 && numbering.isSuccess,
+        confirmEnabled = !titleEditor.editing && people.isNotEmpty() && allocation.isSuccess && validInputs && title.isNotBlank() && title.trim().length <= 120 && numbering.isSuccess,
         confirmLabel = when { chosenLink != null -> "Vincular"; draft != null -> "Salvar"; (numbering.getOrNull()?.count ?: 1) > 1 || people.any { it > 0 } -> "Revisar valores"; else -> "Salvar" },
         confirm = ::save) {
         if (draft == null) {

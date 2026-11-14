@@ -245,6 +245,39 @@ class SecurityInstrumentation : Instrumentation() {
                     afterReset.fill(0)
                 }
             } finally { context.deleteDatabase(windowName) }
+            val automaticName = "$name-automatic"
+            try {
+                context.deleteDatabase(automaticName)
+                SecureDatabaseSession.open(context, originalKey.copyOf(), automaticName).use { automatic ->
+                    val repository = MovementRepository(automatic.database)
+                    val financial = LedgerRepository(automatic.database)
+                    fun installment(number: Int, month: String) = MailDocument("auto@test.invalid:$number", "Nubank_${month}-08.csv", DocumentKind.NUBANK_CARD,
+                        "date,title,amount\n2027-02-01,Loja - Parcela $number/3,\"100,00\"\n".toByteArray())
+                    repository.import(installment(1, "2027-02"))
+                    check(repository.all().size == 1)
+                    check(InvoiceBook.invoices(financial.snapshot(), repository.all()).size == 3)
+                    check(financial.snapshot().purchases.isEmpty())
+                    val owner = PeopleRepository(automatic.database).all().first().id
+                    val imported = repository.all().single()
+                    val parts = InvoiceSchedule.parts(imported.row, 1, 3, imported.id)
+                    financial.appendNamedPurchase(LedgerAction.Purchase(PurchasePlan("automatic", "Loja", "Casa", parts,
+                        linkedMapOf(0L to listOf(5000L, 5000L, 5000L), owner to listOf(5000L, 5000L, 5000L)), familyStart = parts.first().due)), imported.id, "Loja")
+                    repository.import(installment(2, "2027-03"))
+                    val saved = financial.snapshot()
+                    check(saved.purchases.single().parts[1].movementId > 0)
+                    check(saved.actions.filterIsInstance<LedgerAction.Link>().size == 1)
+                    check(InvoiceBook.invoices(saved, repository.all()).map { it.total } == listOf(10000L, 10000L, 10000L))
+                    check(InvoiceBook.invoices(saved, repository.all()).last().people.single { it.id == owner }.cents == 5000L)
+                    val count = automatic.database.financialEvents().all().size
+                    repository.import(installment(2, "2027-03"))
+                    check(automatic.database.financialEvents().all().size == count)
+                    val backup = BackupPayload.export(automatic.database)
+                    BackupPayload.restore(automatic.database, backup)
+                    check(LedgerRepository(automatic.database).snapshot().purchases.single().parts[1].movementId > 0)
+                    check(MovementRepository(automatic.database).all().size == 2)
+                    backup.fill(0)
+                }
+            } finally { context.deleteDatabase(automaticName) }
             recoveryData.fill(0)
             result.putString("result", "PASS: backup restore and malformed backup rejection; financial history and shares order; people seed, uniqueness and persistence; encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
             resultCode = Activity.RESULT_OK

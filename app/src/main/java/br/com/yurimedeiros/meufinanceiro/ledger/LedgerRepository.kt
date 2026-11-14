@@ -20,6 +20,12 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             snapshot.purchases.sumOf { it.parts.size }, affected.size, mixed)
     }
 
+    fun reconcileImportedInstallments() {
+        val state = snapshot()
+        val rows = MovementRepository(db).all()
+        AutomaticInstallments.links(state, rows).forEach { append(it) }
+    }
+
     fun appendNamedPurchase(action: LedgerAction, sourceId: Long, title: String) = db.runInTransaction {
         require(title.isNotBlank() && title.trim().length <= 120) { "Informe um título de até 120 caracteres." }
         require(when (action) {
@@ -148,5 +154,6 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             is LedgerAction.InvoicePaid -> { mark(action.accountMovementId, "PAYMENT", pair = action.cardMovementId); mark(action.cardMovementId, "PAYMENT", pair = action.accountMovementId) }
             else -> Unit
         }
+        if (action is LedgerAction.Purchase) reconcileImportedInstallments()
     }
 }

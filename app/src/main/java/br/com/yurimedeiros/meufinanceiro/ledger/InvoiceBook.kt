@@ -31,10 +31,11 @@ internal object InvoiceBook {
 
     fun invoices(ledger: LedgerSnapshot, rows: List<ReviewMovement>): List<Invoice> {
         val byId = rows.associateBy { it.id }
+        val automatic = AutomaticInstallments.forecasts(ledger, rows)
         val card = rows.filter { it.row.kind == DocumentKind.NUBANK_CARD && it.status != "IGNORED" }
         val partMonths = ledger.purchases.flatMap { p -> p.parts.map { (p.id to it.number) to month(it, byId) } }.toMap()
         val debtsByMonth = ledger.debts.filter { it.direction == DebtDirection.RECEIVE }.groupBy { partMonths[it.purchaseId to it.number] }
-        val months = (card.mapNotNull { it.row.statement?.let(YearMonth::from) } + ledger.purchases.flatMap { p -> p.parts.map { month(it, byId) } }).distinct().sorted()
+        val months = (automatic.keys + card.mapNotNull { it.row.statement?.let(YearMonth::from) } + ledger.purchases.flatMap { p -> p.parts.map { month(it, byId) } }).distinct().sorted()
         return months.map { m ->
             val imported = card.filter { it.row.statement?.let(YearMonth::from) == m }
             val valid = imported.filter { it.status != "CONFLICT" }
@@ -50,6 +51,7 @@ internal object InvoiceBook {
                 if (refund == null) item(UNASSIGNED, InvoiceItem(row.friendlyName.ifBlank { row.row.description }, row.row.cents, row.row.date, movementId = row.id))
                 else refund.credits.forEach { (key, cents) -> item(key.substringAfterLast(':').toLong(), InvoiceItem("Estorno · ${row.friendlyName.ifBlank { row.row.description }}", -cents, row.row.date, movementId = row.id)) }
             }
+            automatic[m].orEmpty().forEach { item(UNASSIGNED, it) }
             val payments = valid.filter { c -> PaymentMatching.isPayment(c.row) && c.status == "PAYMENT" &&
                 byId[c.pairedMovementId]?.let { a -> a.pairedMovementId == c.id && a.status == "PAYMENT" && a.row.kind == DocumentKind.NUBANK_ACCOUNT && a.row.cents == c.row.cents } == true }
             val allocations = ledger.actions.filterIsInstance<LedgerAction.InvoiceAllocation>().filter { a -> payments.any { it.id == a.cardMovementId } }

@@ -11,6 +11,12 @@ internal object ImportedInstallments {
         require(count in 1..120 && number in 1..count) { "A numeração de parcelas da descrição original é inválida." }
         ImportedInstallment(number, count)
     }
+    fun identity(description: String): String = pattern.replace(description, " ").trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)
+    fun forecastDescription(description: String, number: Int): String {
+        val original = requireNotNull(parse(description))
+        require(number in 1..original.count)
+        return pattern.replaceFirst(description, "$number/${original.count}")
+    }
     fun schedule(description: String) = parse(description) ?: ImportedInstallment(1, 1)
     fun options(snapshot: LedgerSnapshot, source: ReviewMovement, movements: List<ReviewMovement>): List<Pair<PurchasePlan, SchedulePart>> {
         if (source.row.kind != br.com.yurimedeiros.meufinanceiro.importing.DocumentKind.NUBANK_CARD || source.row.cents <= 0) return emptyList()

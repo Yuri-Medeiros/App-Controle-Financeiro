@@ -65,6 +65,7 @@ internal class MovementRepository(private val db: FinanceDatabase) {
             }
             dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = statement?.toString().orEmpty() })
             reconcilePayments()
+            br.com.yurimedeiros.meufinanceiro.ledger.LedgerRepository(db).reconcileImportedInstallments()
             importedCount -= excludedPayments(raw()).count { id -> insertedIds.contains(id) }
         }
         return MovementImportResult(review, importedCount)

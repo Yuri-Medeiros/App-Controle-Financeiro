@@ -44,7 +44,11 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
     val expanded = remember(invoice?.month) { mutableStateMapOf<Long, Boolean>() }
     fun select(month: YearMonth) { selected = month; dialog = ""; onMonthChanged() }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Faturas", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Row(Modifier.weight(1f).clickable(enabled = invoice != null, role = Role.Button) { dialog = "months" }, verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(invoice?.month?.let(::invoiceMonth) ?: "Faturas", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            if (invoice != null) Icon(AssetChevronIcon, null, Modifier.size(15.dp).graphicsLayer { rotationZ = 90f }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
             if (state.syncing) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
             else Icon(RefreshIcon, contentDescription = "Atualizar faturas pelo Gmail", tint = MaterialTheme.colorScheme.primary)
@@ -69,26 +73,22 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
         Button(onClick = onRefresh) { Text("Atualizar") }
         return
     }
-    Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { dialog = "months" }.padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(invoiceMonth(invoice.month), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Icon(AssetChevronIcon, null, Modifier.size(15.dp).graphicsLayer { rotationZ = 90f }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(invoice.due?.let { AppDates.date(it) } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Total da fatura", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-            Text(when { !invoice.imported -> "Prevista"; invoice.warnings.isNotEmpty() -> "A revisar"; invoice.remaining == 0L -> "Quitada"; else -> "Em aberto" }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+            val status = when { !invoice.imported -> "Prevista"; invoice.warnings.isNotEmpty() -> "A revisar"; invoice.remaining == 0L -> "Quitada"; else -> null }
+            status?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium) }
         }
-        Text(ledgerMoney(invoice.total), fontSize = 36.sp, fontWeight = FontWeight.Normal)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(ledgerMoney(invoice.total), fontSize = 36.sp, fontWeight = FontWeight.Normal)
+            Text(invoice.due?.let { AppDates.date(it) } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         LinearProgressIndicator(progress = { if (invoice.total > 0) (invoice.paid.toDouble() / invoice.total).toFloat().coerceIn(0f, 1f) else 0f }, modifier = Modifier.fillMaxWidth().height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             InvoiceMetric("Pago ao banco", invoice.paid)
             InvoiceMetric("Falta pagar", invoice.remaining, trailing = true)
         }
         if (invoice.paid > invoice.total) Text("Crédito na fatura: ${ledgerMoney(invoice.paid - invoice.total)}", style = MaterialTheme.typography.bodySmall)
-        if (invoice.imported) Button(onClick = { dialog = "payment" }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = FinanceInputShape) { Text("Registrar pagamento") }
         if (invoice.warnings.isNotEmpty()) {
             Surface(color = Color(0xFFF5BA79).copy(alpha = .09f), shape = RoundedCornerShape(16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -152,13 +152,14 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
                 if (person.id > 0 && person.receivable > 0) TextButton(onClick = { receiptPerson = person.id }, enabled = !state.syncing) { Text("Registrar recebimento") }
             }
         }
-        if (invoice.unallocated > 0) TextButton(onClick = { dialog = "payment" }) { Text("Dividir pagamentos · ${ledgerMoney(invoice.unallocated)}") }
+        if (invoice.unallocated > 0) TextButton(onClick = { dialog = "allocation" }) { Text("Dividir pagamentos · ${ledgerMoney(invoice.unallocated)}") }
     }
     val previous = InvoiceBook.previousDebts(invoice, invoices, state.ledger, state.movements)
     if (previous.isNotEmpty()) InvoiceShortcut("Pendências anteriores", "${previous.map { it.personId }.distinct().size} pessoas · Faturas quitadas", ledgerMoney(previous.sumOf { it.remaining })) { dialog = "debts" }
     val future = invoices.filter { it.month > invoice.month }
     if (future.isNotEmpty()) InvoiceShortcut("Próximas faturas", "${invoiceMonth(future.first().month)} · ${ledgerMoney(future.first().total)}", "Ver todas") { dialog = "future" }
     when (dialog) {
+        "allocation" -> InvoiceAllocationDialog(invoice, state, model) { dialog = "" }
         "months" -> AssetDialog("Selecionar fatura", state, { dialog = "" }) {
             invoices.groupBy { it.month.year }.forEach { (year, list) ->
                 Text(year.toString(), style = MaterialTheme.typography.titleSmall)
@@ -190,7 +191,6 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
                 HorizontalDivider()
             }
         }
-        "payment" -> InvoicePaymentDialog(invoice, state, model) { dialog = "" }
         "due" -> InvoiceDueDialog(invoice, state, model) { dialog = "" }
     }
     receiptPerson?.let { id -> PersonTransferDialog(id, state, model, close = { receiptPerson = null }) }
@@ -245,7 +245,7 @@ private fun InvoiceDueDialog(invoice: Invoice, state: FinanceUiState, model: Fin
 }
 
 @Composable
-private fun InvoicePaymentDialog(invoice: Invoice, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+private fun InvoiceAllocationDialog(invoice: Invoice, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     var selected by remember { mutableLongStateOf(0) }
     var reconcile by remember { mutableStateOf<ReviewMovement?>(null) }
     val divided = state.ledger.actions.filterIsInstance<LedgerAction.InvoiceAllocation>()
@@ -258,7 +258,7 @@ private fun InvoicePaymentDialog(invoice: Invoice, state: FinanceUiState, model:
         source?.let { InvoiceBook.suggestBankAllocation(invoice, -it.row.cents).forEach { (id, cents) -> amounts[id] = invoiceEdit(cents) } }
     }
     if (reconcile != null) { MovementFinanceDialog(reconcile!!, state, model) { reconcile = null }; return }
-    AssetDialog("Pagamento ao banco", state, close, confirmLabel = "Confirmar divisão", confirmEnabled = source != null, confirm = {
+    AssetDialog("Dividir pagamento importado", state, close, confirmLabel = "Confirmar divisão", confirmEnabled = source != null, confirm = {
         try {
             val row = requireNotNull(source) { "Selecione o pagamento." }
             val allocation = amounts.mapValues { FinanceLedger.money(it.value.ifBlank { "0" }) }.filterValues { it > 0 }

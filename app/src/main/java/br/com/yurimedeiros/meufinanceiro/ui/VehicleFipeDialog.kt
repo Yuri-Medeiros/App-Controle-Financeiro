@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit, isNew: Boolean = false) {
     val initial = remember(asset.id) { FipeVehicle.parse(asset.vehiclePath) }
     var name by remember { mutableStateOf(if (isNew) "" else asset.name) }
+    val titleEditor = remember { ModalTitleEditState() }
     var type by remember { mutableStateOf(initial?.type) }
     var brand by remember { mutableStateOf(initial?.brand.orEmpty()) }
     var vehicleModel by remember { mutableStateOf(initial?.model.orEmpty()) }
@@ -50,13 +51,14 @@ internal fun VehicleFipeDialog(asset: AssetPosition, state: FinanceUiState, mode
     val identityUnchanged = !isNew && initial != null && type == initial.type && brand == initial.brand &&
         vehicleModel == initial.model && year == initial.year
     AssetDialog(if (isNew) "Adicionar veículo" else "Editar veículo", state, close, eyebrow = null, confirmLabel = if (isNew) "Adicionar veículo" else "Salvar",
-        confirmEnabled = (!loading || identityUnchanged) && !state.quotingVehicles && (complete || identityUnchanged) && name.isNotBlank(), confirm = {
+        confirmEnabled = !titleEditor.editing && (!loading || identityUnchanged) && !state.quotingVehicles && (complete || identityUnchanged) && name.isNotBlank(), confirm = {
             val path = FipeVehicle(checkNotNull(type), brand, vehicleModel, year).path
             if (isNew) model.registerVehicle(asset.id, name.trim(), path, close)
             else model.configureVehicle(asset.id, name.trim(), path, close)
+        }, titleContent = {
+            EditableModalTitle(name, { name = it }, Modifier.weight(1f), placeholder = "Novo veículo",
+                original = if (isNew) "Adicionar veículo" else "Editar veículo", enabled = !state.syncing, editState = titleEditor)
         }) {
-        OutlinedTextField(name, { name = it }, label = { Text("Nome") },
-            enabled = !state.syncing, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FipeOptionField("Tipo", type?.key.orEmpty(), FipeType.entries.map { FipeOption(it.key, it.label) }, !state.syncing && !loading) { code ->
                 type = FipeType.entries.single { it.key == code }

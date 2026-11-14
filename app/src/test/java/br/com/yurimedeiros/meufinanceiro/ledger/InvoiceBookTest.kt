@@ -20,6 +20,14 @@ class InvoiceBookTest {
     private fun snapshot(vararg extra: LedgerAction) = FinanceLedger.replay(listOf(plan()) + extra)
     private fun invoice(ledger: LedgerSnapshot = snapshot(), movements: List<ReviewMovement> = rows()) = InvoiceBook.invoices(ledger, movements).single { it.month == month }
 
+    @Test fun linkedInvoiceItemsUseTheFriendlyTitleWithoutRewritingThePlanOrOriginalDescription() {
+        val original = snapshot()
+        val imported = rows().map { if (it.id == 1L) it.copy(friendlyName = "Nome editado") else it }
+        val inv = invoice(original, imported)
+        assertTrue(inv.people.flatMap { it.items }.all { it.title == "Nome editado" })
+        assertEquals("Compartilhada", original.purchases.single().title)
+        assertEquals("Compra", imported.single { it.id == 1L }.row.description)
+    }
     @Test fun importedAndPlannedInstallmentAreNeverCountedTwiceAfterLink() {
         val invoices = InvoiceBook.invoices(snapshot(), rows())
         assertEquals(listOf(20000L, 20000L), invoices.map { it.total })

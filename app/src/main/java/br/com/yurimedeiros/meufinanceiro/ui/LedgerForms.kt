@@ -5,6 +5,17 @@ import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.selected
+import br.com.yurimedeiros.meufinanceiro.domain.PaymentDivision
+import br.com.yurimedeiros.meufinanceiro.domain.DivisionMode
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
@@ -56,7 +67,7 @@ internal fun LedgerDialog(
     confirmLabel: String = "Confirmar", confirm: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (LocalFinanceInteractive.current) AlertDialog(
+    if (LocalFinanceInteractive.current) AppAlertDialog(
         onDismissRequest = { if (!state.syncing) close() }, title = { Text(title) },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             content()
@@ -69,15 +80,21 @@ internal fun LedgerDialog(
 
 @Composable
 internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    val parsed = remember(movement.id) { Regex("(\\d{1,3})\\s*/\\s*(\\d{1,3})").find(movement.row.description) }
-    var count by remember { mutableStateOf(parsed?.groupValues?.get(2) ?: "1") }
-    var current by remember { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
+    key(movement.id) { ImportedPurchaseEditor(movement, state, model, close) }
+}
+
+@Composable
+private fun ImportedPurchaseEditor(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    val numbering = runCatching { ImportedInstallments.schedule(movement.row.description) }
+    val linkOptions = runCatching { ImportedInstallments.options(state.ledger, movement, state.movements) }.getOrDefault(emptyList())
     var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
+    var editingTitle by remember { mutableStateOf(false) }
+    val titleFocus = remember { FocusRequester() }
+    val focus = LocalFocusManager.current
     var category by remember { mutableStateOf(movement.category) }
     val invoiceDue = runCatching { InvoiceSchedule.due(movement.row, state.ledger.planning.invoiceDates) }.getOrNull()
-    var participants by remember { mutableStateOf(listOf(0L)) }
-    var split by remember { mutableIntStateOf(0) }
-    val values = remember { mutableStateMapOf<Long, String>() }
+    var division by remember { mutableStateOf(PaymentDivision(movement.row.cents)) }
+    val inputs = remember { mutableStateMapOf<Long, String>() }
     var draft by remember { mutableStateOf<PurchasePlan?>(null) }
     var chosenLink by remember { mutableStateOf<Pair<PurchasePlan, SchedulePart>?>(null) }
     var chooseLink by remember { mutableStateOf(false) }
@@ -85,64 +102,86 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
     var localError by remember { mutableStateOf<String?>(null) }
     val id = remember { UUID.randomUUID().toString() }
     val invalidInputs = remember { mutableStateMapOf<String, Boolean>() }
-    fun amounts(): List<Long> = when (split) {
-        0 -> PurchaseSplit.equally(movement.row.cents, participants.size)
-        1 -> PurchaseSplit.byPercentages(movement.row.cents, participants.map { BigDecimal(values[it].orEmpty().replace(',', '.')) })
-        else -> participants.map { FinanceLedger.money(values[it].orEmpty()) }.also {
-            require(it.fold(0L, Math::addExact) == movement.row.cents) { "A divisão precisa somar ${ledgerMoney(movement.row.cents)}." }
-        }
+    val people = division.people
+    val allocation = runCatching { division.amounts() }
+    val validInputs = inputs.values.all { runCatching { FinanceLedger.money(it) }.isSuccess }
+    fun resetPeople() { division = PaymentDivision(movement.row.cents); inputs.clear(); chosenLink = null; chooseLink = false; localError = null }
+    fun dismiss() { resetPeople(); close() }
+    fun updatePeople(next: List<Long>) {
+        division = division.copy(people = next, fixed = division.fixed.filterKeys { it in next }, initial = null)
+        inputs.keys.toList().filter { it !in next }.forEach { inputs.remove(it) }
     }
-    fun changeSplit(next: Int) {
-        val prior = runCatching { amounts() }.getOrElse { PurchaseSplit.equally(movement.row.cents, participants.size) }
-        val seeded = if (next == 1) PurchaseSplit.proportionally(10000, prior) else prior
-        values.clear()
-        participants.forEachIndexed { i, person -> values[person] = editMoney(seeded[i]) }
-        split = next
-        localError = null
+    fun edit(person: Long, value: String) {
+        val normalized = normalizeMoneyInput(value) ?: return
+        inputs[person] = normalized
+        val units = runCatching { FinanceLedger.money(normalized) }.getOrNull()
+        division = if (units == null) division.copy(fixed = division.fixed - person, initial = null) else division.edit(person, units)
     }
+    fun record(action: LedgerAction) = model.saveNamedPurchase(action, movement.id, title.trim(), ::dismiss)
     fun save() {
         try {
             localError = null
+            require(people.isNotEmpty()) { "Defina ao menos uma pessoa." }
+            require(title.isNotBlank() && title.trim().length <= 120) { "Informe um título de até 120 caracteres." }
+            require(validInputs) { "Preencha os valores da divisão." }
+            val amounts = division.amounts()
             val link = chosenLink
             if (link != null) {
-                val shares = participants.zip(amounts()).toMap()
-                val action = InvoiceSchedule.linkAction(state.ledger, link.first.id, link.second.number, movement, shares)
-                FinanceLedger.apply(state.ledger, action)
-                model.saveLedger(action, close)
+                require(linkOptions.any { it.first.id == link.first.id && it.second.number == link.second.number }) { "A parcela prevista não está mais disponível." }
+                val action = InvoiceSchedule.linkAction(state.ledger, link.first.id, link.second.number, movement, people.zip(amounts).toMap())
+                FinanceLedger.apply(state.ledger, action); record(action)
             } else if (draft == null) {
-                require(title.isNotBlank()) { "Informe o título." }
                 if (category.isBlank()) { details = true; error("Escolha uma categoria.") }
-                val parts = InvoiceSchedule.parts(movement.row, current.toInt(), count.toInt(), movement.id, state.ledger.planning.invoiceDates)
-                val shares = participants.zip(amounts()).associate { (person, cents) -> person to List(parts.size) { cents } }
+                val number = numbering.getOrThrow()
+                val parts = InvoiceSchedule.parts(movement.row, number.number, number.count, movement.id, state.ledger.planning.invoiceDates)
+                val shares = people.zip(amounts).associate { (person, cents) -> person to List(parts.size) { cents } }
                 val plan = PersonReconciliation.purchase(state.ledger, id, title.trim(), category.trim(), parts, shares)
                 FinanceLedger.apply(state.ledger, LedgerAction.Purchase(plan))
-                if (parts.size == 1 && participants.none { it > 0 }) model.saveLedger(LedgerAction.Purchase(plan), close)
+                if (parts.size == 1 && people.none { it > 0 }) record(LedgerAction.Purchase(plan))
                 else { draft = plan; invalidInputs.clear() }
             } else {
                 require(invalidInputs.values.none { it }) { "Corrija os campos inválidos da prévia." }
-                FinanceLedger.apply(state.ledger, LedgerAction.Purchase(draft!!))
-                model.saveLedger(LedgerAction.Purchase(draft!!), close)
+                val plan = draft!!.copy(title = title.trim())
+                FinanceLedger.apply(state.ledger, LedgerAction.Purchase(plan)); record(LedgerAction.Purchase(plan))
             }
         } catch (e: Exception) { localError = e.message ?: "Revise os valores e a divisão." }
     }
-    AssetDialog(if (draft == null) "Lançamento" else "Revisar parcelas", state, close,
-        confirmLabel = when { chosenLink != null -> "Vincular"; draft != null -> "Salvar"; (count.toIntOrNull() ?: 1) > 1 || participants.any { it > 0 } -> "Revisar valores"; else -> "Salvar" },
+    val interactive = LocalFinanceInteractive.current
+    AssetDialog(title, state, ::dismiss,
+        titleContent = {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                if (editingTitle) {
+                    BasicTextField(title, { title = it }, modifier = Modifier.fillMaxWidth().focusRequester(titleFocus), singleLine = true,
+                        textStyle = titleStyle, enabled = !state.syncing, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
+                    LaunchedEffect(Unit) { titleFocus.requestFocus() }
+                } else Text(title, style = titleStyle)
+                Text(movement.row.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = { editingTitle = !editingTitle; if (!editingTitle) focus.clearFocus() }, enabled = !state.syncing) {
+                if (editingTitle) Text("✓", modifier = Modifier.semantics { contentDescription = "Concluir edição do título" }, color = MaterialTheme.colorScheme.primary)
+                else Icon(EditTitleIcon, "Editar título", Modifier.size(19.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        },
+        confirmEnabled = people.isNotEmpty() && allocation.isSuccess && validInputs && title.isNotBlank() && title.trim().length <= 120 && numbering.isSuccess,
+        confirmLabel = when { chosenLink != null -> "Vincular"; draft != null -> "Salvar"; (numbering.getOrNull()?.count ?: 1) > 1 || people.any { it > 0 } -> "Revisar valores"; else -> "Salvar" },
         confirm = ::save) {
         if (draft == null) {
-            OutlinedTextField(title, { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth(),
-                shape = FinanceInputShape, enabled = !state.syncing && chosenLink == null)
             Text(ledgerMoney(movement.row.cents), style = MaterialTheme.typography.headlineMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Data de movimentação", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(AppDates.date(movement.row.date), style = MaterialTheme.typography.bodyMedium)
             }
-            Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f)) {
-                Row(Modifier.fillMaxWidth().toggleable(chosenLink != null, enabled = !state.syncing, role = Role.Checkbox, onValueChange = { checked ->
-                    if (checked) chooseLink = true
-                    else { chosenLink = null; participants = listOf(0L); split = 0; values.clear() }
-                    localError = null
-                }).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(chosenLink != null, null)
+            numbering.getOrNull()?.takeIf { ImportedInstallments.parse(movement.row.description) != null }?.let {
+                Text("Parcela ${it.number}/${it.count}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (linkOptions.isNotEmpty()) Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f)) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(chosenLink != null, enabled = !state.syncing, role = Role.Checkbox, onValueChange = { checked ->
+                    if (checked) { focus.clearFocus(); chooseLink = true } else resetPeople()
+                }).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(chosenLink != null, null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Vincular parcela", style = MaterialTheme.typography.bodyMedium)
                         chosenLink?.let { (plan, part) -> Text("${plan.title} · ${part.number}/${plan.parts.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -157,44 +196,49 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Pessoas", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 listOf("=" to "Dividir igualmente", "%" to "Dividir por percentual", "R$" to "Informar valores").forEachIndexed { index, option ->
-                    FilledTonalIconToggleButton(checked = split == index, onCheckedChange = { if (it) changeSplit(index) }, enabled = !state.syncing,
-                        modifier = Modifier.size(44.dp).semantics { contentDescription = option.second }) {
-                        Text(option.first, style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = { focus.clearFocus(); division = division.mode(DivisionMode.entries[index]); inputs.clear(); localError = null }, enabled = !state.syncing,
+                        modifier = Modifier.size(44.dp).semantics { contentDescription = option.second; selected = division.mode.ordinal == index }) {
+                        Text(option.first, style = MaterialTheme.typography.titleMedium,
+                            color = if (division.mode.ordinal == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-            val displayed = runCatching { amounts() }.getOrNull()
-            participants.forEachIndexed { index, person ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val amounts = allocation.getOrNull()
+            val percentages = runCatching { division.percentages() }.getOrNull()
+            people.forEachIndexed { index, person ->
+                val fixed = person in division.fixed
+                val color = when { allocation.isFailure && fixed -> MaterialTheme.colorScheme.error; fixed -> MaterialTheme.colorScheme.primary; else -> MaterialTheme.colorScheme.onSurfaceVariant }
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(personLabel(state, person), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    if (split == 0) Text(ledgerMoney(displayed?.get(index) ?: 0), style = MaterialTheme.typography.bodyMedium)
-                    else Column(Modifier.width(132.dp), horizontalAlignment = Alignment.End) {
-                        OutlinedTextField(values[person].orEmpty(), { input ->
-                            if (split == 2) normalizeMoneyInput(input)?.let { values[person] = it }
-                            else values[person] = input
-                        }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape, enabled = !state.syncing,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            suffix = if (split == 1) ({ Text("%") }) else null,
-                            visualTransformation = if (split == 2) MoneyInputVisualTransformation else VisualTransformation.None)
-                        if (split == 1) Text(displayed?.get(index)?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.bodySmall)
+                    Column(Modifier.width(124.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val editableAmount = division.mode == DivisionMode.AMOUNT
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("R$ ", style = MaterialTheme.typography.bodyMedium, color = color)
+                            BasicTextField(if (editableAmount && person in inputs) inputs.getValue(person) else amounts?.get(index)?.let(::editMoney).orEmpty(), { edit(person, it) },
+                                modifier = Modifier.weight(1f).semantics { contentDescription = "Valor de ${personLabel(state, person)}" },
+                                enabled = !state.syncing, readOnly = !editableAmount, singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = color, textAlign = TextAlign.End),
+                                visualTransformation = MoneyInputVisualTransformation, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
+                        }
+                        val editablePercent = division.mode == DivisionMode.PERCENT
+                        Row(Modifier.width(84.dp).heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                            BasicTextField(if (editablePercent && person in inputs) inputs.getValue(person) else percentages?.get(index)?.let(::editMoney).orEmpty(), { edit(person, it) },
+                                modifier = Modifier.weight(1f).semantics { contentDescription = "Percentual de ${personLabel(state, person)}" },
+                                enabled = !state.syncing, readOnly = !editablePercent, singleLine = true,
+                                textStyle = MaterialTheme.typography.labelSmall.copy(color = color, textAlign = TextAlign.End),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
+                            Text("%", style = MaterialTheme.typography.labelSmall, color = color)
+                        }
                     }
-                    if (chosenLink == null) IconButton(onClick = { participants = participants - person; split = 0; values.clear() },
-                        enabled = !state.syncing && participants.size > 1, modifier = Modifier.size(32.dp).semantics { contentDescription = "Remover ${personLabel(state, person)}" }) { Text("×", style = MaterialTheme.typography.titleLarge) }
+                    if (chosenLink == null) IconButton(onClick = { updatePeople(people - person) }, enabled = !state.syncing && people.size > 1,
+                        modifier = Modifier.size(32.dp).semantics { contentDescription = "Remover ${personLabel(state, person)}" }) { Text("×", style = MaterialTheme.typography.titleLarge) }
                 }
             }
+            if (allocation.isFailure) Text(allocation.exceptionOrNull()?.message ?: "Revise a divisão.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             if (chosenLink == null) {
-                LedgerChoice("Adicionar pessoa", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in participants }.map { person ->
-                    personLabel(state, person) to { participants = participants + person; split = 0; values.clear() }
-                })
-                TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp)) { Text("Categoria e parcelas") }
-                if (details) {
-                    CategoryDropdown(category, { category = it }, !state.syncing)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(current, { current = it }, label = { Text("Parcela atual") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
-                        OutlinedTextField(count, { count = it }, label = { Text("Total de parcelas") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
-                    }
-                }
+                LedgerChoice("Adicionar pessoa", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in people }.map { person -> personLabel(state, person) to { updatePeople(people + person) } })
+                TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp)) { Text("Categoria") }
+                if (details) CategoryDropdown(category, { category = it }, !state.syncing)
             }
         } else {
             val p = draft!!
@@ -245,24 +289,21 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
             }
             TextButton(onClick = { draft = null }) { Text("Voltar à divisão") }
         }
+        numbering.exceptionOrNull()?.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
-    if (chooseLink && LocalFinanceInteractive.current) AlertDialog(onDismissRequest = { chooseLink = false },
+    if (chooseLink && interactive) AppAlertDialog(onDismissRequest = ::resetPeople,
         title = { Text("Escolher parcela") }, shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-        containerColor = androidx.compose.ui.graphics.Color(0xFF0C162B),
-        text = {
+        containerColor = androidx.compose.ui.graphics.Color(0xFF0C162B), text = {
             Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val options = state.ledger.purchases.flatMap { plan -> plan.parts.filter { it.movementId == 0L }.map { plan to it } }
-                if (options.isEmpty()) Text("Nenhuma parcela prevista disponível.")
-                options.forEach { (plan, part) ->
-                    Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f),
-                        onClick = {
-                            chosenLink = plan to part
-                            participants = plan.shares.keys.toList()
-                            val suggested = PurchaseSplit.proportionally(movement.row.cents, participants.map { plan.shares.getValue(it)[part.number - 1] })
-                            values.clear(); participants.forEachIndexed { i, person -> values[person] = editMoney(suggested[i]) }
-                            split = 2; chooseLink = false; localError = null
-                        }) {
+                linkOptions.forEach { (plan, part) ->
+                    Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f), onClick = {
+                        chosenLink = plan to part
+                        val participants = plan.shares.keys.toList()
+                        val amounts = PurchaseSplit.proportionally(movement.row.cents, participants.map { plan.shares.getValue(it)[part.number - 1] })
+                        division = PaymentDivision(movement.row.cents, participants, DivisionMode.AMOUNT, initial = amounts)
+                        inputs.clear(); chooseLink = false; localError = null
+                    }) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(plan.title, style = MaterialTheme.typography.titleSmall)
                             Text("${part.number}/${plan.parts.size} · ${ledgerMoney(part.cents)}", style = MaterialTheme.typography.bodyMedium)
@@ -271,7 +312,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                     }
                 }
             }
-        }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseLink = false }) { Text("Cancelar") } })
+        }, confirmButton = {}, dismissButton = { TextButton(onClick = ::resetPeople) { Text("Cancelar") } })
 }
 
 @Composable

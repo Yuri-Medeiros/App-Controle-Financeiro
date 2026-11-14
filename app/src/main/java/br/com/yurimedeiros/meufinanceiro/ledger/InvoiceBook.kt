@@ -43,7 +43,7 @@ internal object InvoiceBook {
             val items = linkedMapOf<Long, MutableList<InvoiceItem>>()
             fun item(id: Long, value: InvoiceItem) { if (value.cents != 0L) items.getOrPut(id) { mutableListOf() }.add(value) }
             parts.forEach { (p, part) ->
-                p.shares.forEach { (id, amounts) -> item(id, InvoiceItem(p.title, amounts[part.number - 1], byId[part.movementId]?.row?.date, "${part.number}/${p.parts.size}", movementId = part.movementId)) }
+                p.shares.forEach { (id, amounts) -> item(id, InvoiceItem(byId[part.movementId]?.friendlyName?.ifBlank { p.title } ?: p.title, amounts[part.number - 1], byId[part.movementId]?.row?.date, "${part.number}/${p.parts.size}", movementId = part.movementId)) }
             }
             valid.filter { !PaymentMatching.isPayment(it.row) && it.id !in linked }.forEach { row ->
                 val refund = ledger.actions.filterIsInstance<LedgerAction.Refund>().firstOrNull { it.movementId == row.id }

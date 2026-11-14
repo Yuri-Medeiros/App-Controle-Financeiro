@@ -20,6 +20,18 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             snapshot.purchases.sumOf { it.parts.size }, affected.size, mixed)
     }
 
+    fun appendNamedPurchase(action: LedgerAction, sourceId: Long, title: String) = db.runInTransaction {
+        require(title.isNotBlank() && title.trim().length <= 120) { "Informe um título de até 120 caracteres." }
+        require(when (action) {
+            is LedgerAction.Purchase -> action.plan.parts.any { it.movementId == sourceId }
+            is LedgerAction.Link -> action.movementId == sourceId
+            is LedgerAction.AdjustLink -> action.movementId == sourceId
+            else -> false
+        })
+        append(action)
+        MovementRepository(db).saveFriendlyName(sourceId, title)
+    }
+
     fun append(action: LedgerAction) = db.runInTransaction {
         val snapshot = snapshot()
         (action as? LedgerAction.Asset)?.let { AssetRules.validateNew(snapshot.assets, it.change) }
@@ -59,11 +71,21 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             is LedgerAction.Purchase -> {
                 action.plan.shares.keys.forEach(::person)
                 require(action.plan.shares.keys.none { it > 0 } || action.plan.familyStart != null) { "Confirme a data inicial da conciliação familiar." }
-                action.plan.parts.filter { it.movementId > 0 }.forEach { purchaseSource(it.movementId, it.cents) }
+                action.plan.parts.filter { it.movementId > 0 }.forEach {
+                    purchaseSource(it.movementId, it.cents)
+                    val imported = ImportedInstallments.schedule(movement(it.movementId).row.description)
+                    require(imported.count == action.plan.parts.size && imported.number == it.number) { "As parcelas devem corresponder à descrição original do lançamento." }
+                }
                 require(action.plan.parts.any { it.movementId > 0 }) { "Vincule a compra ao extrato para não duplicar valores." }
             }
-            is LedgerAction.Link -> purchaseSource(action.movementId, snapshot.purchases.single { it.id == action.purchaseId }.parts.single { it.number == action.number }.cents)
-            is LedgerAction.AdjustLink -> purchaseSource(action.movementId, action.cents)
+            is LedgerAction.Link -> {
+                require(ImportedInstallments.options(snapshot, movement(action.movementId), movements.values.toList()).any { it.first.id == action.purchaseId && it.second.number == action.number }) { "Selecione uma parcela prevista compatível com a descrição original." }
+                purchaseSource(action.movementId, snapshot.purchases.single { it.id == action.purchaseId }.parts.single { it.number == action.number }.cents)
+            }
+            is LedgerAction.AdjustLink -> {
+                require(ImportedInstallments.options(snapshot, movement(action.movementId), movements.values.toList()).any { it.first.id == action.purchaseId && it.second.number == action.number }) { "Selecione uma parcela prevista compatível com a descrição original." }
+                purchaseSource(action.movementId, action.cents)
+            }
             is LedgerAction.Debt -> { require(action.personId > 0); person(action.personId) }
             is LedgerAction.Payment -> {
                 person(action.personId)

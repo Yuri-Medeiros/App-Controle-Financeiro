@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 import br.com.yurimedeiros.meufinanceiro.importing.CustodyPosition
@@ -27,7 +26,7 @@ internal fun CustodyReviewScreen(
     // Keep expansion and scroll state outside the lock gate, just like the pending document.
     var expanded by remember(statement) { mutableStateOf(emptySet<String>()) }
     val scroll = androidx.compose.foundation.lazy.rememberLazyListState()
-    if (LocalFinanceInteractive.current) Dialog(
+    if (LocalFinanceInteractive.current) AppDialog(
         onDismissRequest = { if (!state.syncing) onCancel() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {

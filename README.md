@@ -75,3 +75,13 @@ A versão 0.23.0 calcula o vencimento das faturas pela referência importada: di
 A versão 0.24.0 limita novas importações de fatura a dezembro/2026 em diante e retira dos cálculos os pagamentos da fatura anterior presentes na referência inicial de cada conta. Estornos e reembolsos são preservados. A interface recebe ajustes no seletor e nos avisos, e o acesso a movimentações passa a Extratos. Veja [VALIDACAO_INICIO_FATURAS.md](VALIDACAO_INICIO_FATURAS.md).
 
 A versão 0.25.0 transfere a data de conciliação para o perfil individual em Pessoas e redesenha o modal de lançamento importado com valores por pessoa, divisão por ícones e seleção de parcela em modal separado. Datas individuais valem para novas divisões e preservam o histórico existente. Veja [VALIDACAO_MODAL_LANCAMENTO.md](VALIDACAO_MODAL_LANCAMENTO.md).
+
+A versão 0.26.0 padroniza os diálogos do app com desfoque leve do fundo pela janela do Android, mantendo o modal nítido. O efeito acompanha abertura, fechamento e modais sobrepostos. Quando o sistema desativa desfoque entre janelas, permanece o escurecimento padrão. Precisa de conferência visual no aparelho.
+
+A versão 0.27.0 simplifica a inclusão manual de investimentos: título fixo Investimentos, campos de nome/valor/data e ícone de carro no cabeçalho que abre diretamente o cadastro FIPE de veículo. A seleção de tipo deixa de aparecer nesse formulário. Validação visual no aparelho pendente.
+
+A versão 0.28.0 coloca a configuração de depósitos previstos do FGTS na seção Previsão, expansível no próprio modal. Os históricos de investimentos, Bitcoin, FGTS e veículos usam a mesma dinâmica, recolhidos por padrão, sem botão de abertura ou janela adicional. Campos de previsão são preservados ao recolher; só Salvar grava a configuração. Validação visual no aparelho pendente.
+
+A versão 0.29.0 mostra a evolução das avaliações patrimoniais em percentuais, com base em zero por série, sem grade ou escala vertical visível. Movimentações registradas são neutralizadas; o botão de informação distingue a variação observada de rentabilidade líquida. Veja [VALIDACAO_EVOLUCAO_PERCENTUAL.md](VALIDACAO_EVOLUCAO_PERCENTUAL.md).
+
+A versão 0.30.0 refina o lançamento importado: título no cabeçalho com edição discreta e origem preservada, numeração de parcelas somente pela descrição original, vínculo apenas com previsões compatíveis e divisão com valores fixados e restante sugerido. Nome amigável e ação financeira são gravados juntos. Veja [VALIDACAO_DIVISAO_LANCAMENTOS.md](VALIDACAO_DIVISAO_LANCAMENTOS.md).

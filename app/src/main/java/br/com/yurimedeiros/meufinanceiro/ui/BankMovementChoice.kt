@@ -14,7 +14,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 import br.com.yurimedeiros.meufinanceiro.importing.CounterpartySuggestion
 import br.com.yurimedeiros.meufinanceiro.importing.ReviewMovement
@@ -60,7 +59,7 @@ internal fun BankMovementChoice(
             Text("⌄", color = MaterialTheme.colorScheme.primary)
         }
     }
-    if (open && LocalFinanceInteractive.current) Dialog(onDismissRequest = { open = false }) {
+    if (open && LocalFinanceInteractive.current) AppDialog(onDismissRequest = { open = false }) {
         Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF0C162B),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))) {
             Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(20.dp),

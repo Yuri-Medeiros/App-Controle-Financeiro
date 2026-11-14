@@ -19,8 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.style.TextOverflow
 import java.time.LocalDate
-import br.com.yurimedeiros.meufinanceiro.assets.AssetHistoryPoint
-import br.com.yurimedeiros.meufinanceiro.assets.AssetKind
+import java.util.Locale
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
 // Returned centers preserve the vertical ordering of the endpoints, with enough
@@ -42,12 +41,11 @@ internal fun evolutionLabelPositions(desired: List<Float>, labelHeight: Float, h
     return centers.toList()
 }
 
-internal data class EvolutionSeriesPoint(val date: LocalDate, val values: Map<String, Long?>)
+internal data class EvolutionSeriesPoint(val date: LocalDate, val values: Map<String, Double?>)
 
-@Composable
-internal fun EvolutionLineChart(history: List<AssetHistoryPoint>, colors: Map<AssetKind, Color>, names: Map<AssetKind, String>) {
-    EvolutionSeriesChart(history.map { point -> EvolutionSeriesPoint(point.date, point.byKind.mapKeys { it.key.name }) },
-        colors.mapKeys { it.key.name }, names.mapKeys { it.key.name })
+internal fun evolutionPercent(value: Double): String {
+    val normalized = if (kotlin.math.abs(value) < .005) 0.0 else value
+    return String.format(Locale.forLanguageTag("pt-BR"), "%s%.2f%%", if (normalized > 0) "+" else "", normalized)
 }
 
 @Composable
@@ -59,7 +57,7 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelBackground = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     val labelHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
-        measurer.measure("Investimento\nNome\nR$ 100.000,00", style).size.height.toDp()
+        measurer.measure("Investimento\nNome\n+100,00%", style).size.height.toDp()
     }
     val chartHeight = maxOf(200.dp, (labelHeightDp + 8.dp) * kinds.size + 16.dp)
     val axisHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
@@ -67,7 +65,7 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
     } + 12.dp
     val description = if (points.isEmpty()) "Evolução: sem atualizações registradas" else points.joinToString("; ") { point ->
         AppDates.date(point.date) + ": " + kinds.joinToString(", ") { kind ->
-            names.getValue(kind) + " " + (point.values[kind]?.let(::ledgerMoney) ?: "sem valor disponível")
+            names.getValue(kind) + " " + (point.values[kind]?.let(::evolutionPercent) ?: "sem avaliação disponível")
         }
     }
     Canvas(Modifier.fillMaxWidth().height(chartHeight + axisHeight).semantics { contentDescription = description }) {
@@ -75,7 +73,7 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
         val bottom = size.height - axisHeight.toPx()
         val labels = kinds.map { kind ->
             val last = points.last().values[kind]
-            measurer.measure(names.getValue(kind).let { if (it.length > 32) it.take(29) + "…" else it } + "\n" + (last?.let(::ledgerMoney) ?: "Sem cotação"), style,
+            measurer.measure(names.getValue(kind).let { if (it.length > 32) it.take(29) + "…" else it } + "\n" + (last?.let(::evolutionPercent) ?: "Sem avaliação"), style,
                 softWrap = true, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 constraints = Constraints(maxWidth = (size.width * 0.43f).toInt().coerceAtLeast(1)))
         }
@@ -85,16 +83,18 @@ internal fun EvolutionSeriesChart(history: List<EvolutionSeriesPoint>, colors: M
         val height = (bottom - top).coerceAtLeast(1f)
         val left = 4.dp.toPx()
         val right = (size.width - 4.dp.toPx()).coerceAtLeast(left)
-        val max = points.flatMap { it.values.values }.filterNotNull().maxOrNull()?.coerceAtLeast(1L) ?: 1L
+        val values = points.flatMap { it.values.values }.filterNotNull()
+        val low = minOf(0.0, values.minOrNull() ?: 0.0)
+        val high = maxOf(0.0, values.maxOrNull() ?: 0.0)
+        val center = (low + high) / 2
+        // A shared minimum band keeps small relative changes visually close.
+        val span = maxOf(20.0, high - low) * 1.2
+        val lower = center - span / 2
         val firstDay = points.firstOrNull()?.date?.toEpochDay() ?: 0L
         val days = ((points.lastOrNull()?.date?.toEpochDay() ?: firstDay) - firstDay).coerceAtLeast(1L)
         fun x(point: EvolutionSeriesPoint) = if (points.size == 1) right else
             left + (point.date.toEpochDay() - firstDay).toFloat() / days * (right - left)
-        fun y(cents: Long) = top + height * (1f - (cents.toDouble() / max).toFloat())
-        repeat(3) { tick ->
-            val at = top + height * tick / 2f
-            drawLine(textColor.copy(alpha = 0.1f), Offset(left, at), Offset(right, at))
-        }
+        fun y(percent: Double) = top + height * (1f - ((percent - lower) / span).toFloat())
         if (kinds.isEmpty()) {
             val empty = measurer.measure("Sem atualizações", style)
             drawText(empty, textColor, Offset((size.width - empty.size.width) / 2f, height / 2f))

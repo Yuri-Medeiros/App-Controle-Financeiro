@@ -346,7 +346,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
     if (financeOpen) MovementFinanceDialog(movement, state, model) { financeOpen = false }
     if (descriptionOpen) {
-        if (LocalFinanceInteractive.current) AlertDialog(
+        if (LocalFinanceInteractive.current) AppAlertDialog(
             onDismissRequest = { descriptionOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),
@@ -445,7 +445,7 @@ internal fun BatchCategoryDialog(
     onConfirm: (String) -> Unit,
 ) {
     var category by remember { mutableStateOf("") }
-    if (LocalFinanceInteractive.current) AlertDialog(
+    if (LocalFinanceInteractive.current) AppAlertDialog(
         onDismissRequest = { if (enabled) onDismiss() },
         shape = RoundedCornerShape(22.dp),
         containerColor = Color(0xFF080F24),
@@ -529,7 +529,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
         }
     }
     if (customOpen) {
-        if (LocalFinanceInteractive.current) AlertDialog(
+        if (LocalFinanceInteractive.current) AppAlertDialog(
             onDismissRequest = { customOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),

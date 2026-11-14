@@ -94,6 +94,7 @@ private val PlanIcon = symbol("Planejamento", "M6,2H8V4H16V2H18V4H21V22H3V4H6ZM5
 private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V16ZM13,16V7H16V16ZM18,16V3H21V16Z")
 internal val AssetChevronIcon = symbol("Abrir", "M9,5L16,12L9,19L7.6,17.6L13.2,12L7.6,6.4Z")
 internal val AddAssetIcon = symbol("Adicionar patrimônio", "M11,5H13V11H19V13H13V19H11V13H5V11H11Z")
+internal val EditTitleIcon = symbol("Editar título", "M3,17.25V21H6.75L17.81,9.94L14.06,6.19ZM20.71,7.04C21.1,6.65 21.1,6.02 20.71,5.63L18.37,3.29C17.98,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87Z")
 internal val InvoiceNoticeIcon = symbol("Aviso", "M12,2L23,22H1ZM11,8V15H13V8ZM11,17V19H13V17Z")
 internal val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A7,7 0,1 1,16.5,5.5L14,8H20Z")
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")

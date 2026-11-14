@@ -214,6 +214,16 @@ class SecurityInstrumentation : Instrumentation() {
                     val profileLedger = LedgerRepository(window.database)
                     val reconciliationPerson = PeopleRepository(window.database).all().first().id
                     profileLedger.append(LedgerAction.PersonReconciliation(reconciliationPerson, LocalDate.of(2026, 12, 8)))
+                    val namedSource = repository.all().single { it.row.statement == LocalDate.of(2027, 1, 8) && it.row.cents > 0 }
+                    val wrongNumbering = PurchasePlan("bad-count", "Compra", "Casa", listOf(SchedulePart(1, LocalDate.of(2027, 1, 8), namedSource.row.cents, namedSource.id), SchedulePart(2, LocalDate.of(2027, 2, 10), namedSource.row.cents)), mapOf(0L to listOf(namedSource.row.cents, namedSource.row.cents)))
+                    val eventsBeforeName = window.database.financialEvents().all().size
+                    check(runCatching { profileLedger.appendNamedPurchase(LedgerAction.Purchase(wrongNumbering), namedSource.id, "Não salvar") }.isFailure)
+                    check(window.database.financialEvents().all().size == eventsBeforeName)
+                    check(repository.all().single { it.id == namedSource.id }.friendlyName.isBlank())
+                    val own = PurchasePlan("named", "Compra de teste", "Casa", listOf(SchedulePart(1, LocalDate.of(2027, 1, 8), namedSource.row.cents, namedSource.id)), mapOf(0L to listOf(namedSource.row.cents)))
+                    profileLedger.appendNamedPurchase(LedgerAction.Purchase(own), namedSource.id, "Compra de teste")
+                    check(repository.all().single { it.id == namedSource.id }.friendlyName == "Compra de teste")
+                    check(repository.all().single { it.id == namedSource.id }.row.description == namedSource.row.description)
                     val visible = repository.all()
                     val backup = BackupPayload.export(window.database)
                     BackupPayload.restore(window.database, backup)

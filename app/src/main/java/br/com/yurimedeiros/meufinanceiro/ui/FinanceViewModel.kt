@@ -530,7 +530,12 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun saveLedger(action: LedgerAction, onSaved: () -> Unit) {
+    fun saveLedger(action: LedgerAction, onSaved: () -> Unit) = saveLedgerInternal(action, null, onSaved)
+
+    fun saveNamedPurchase(action: LedgerAction, sourceId: Long, title: String, onSaved: () -> Unit) =
+        saveLedgerInternal(action, sourceId to title, onSaved)
+
+    private fun saveLedgerInternal(action: LedgerAction, name: Pair<Long, String>?, onSaved: () -> Unit) {
         if (!state.value.unlocked || state.value.syncing) return
         val attempt = generation
         mutableState.value = mutableState.value.copy(syncing = true, error = null)
@@ -538,7 +543,8 @@ internal class FinanceViewModel(application: Application) : AndroidViewModel(app
             try {
                 withContext(Dispatchers.IO) { synchronized(databaseGuard) {
                     check(attempt == generation)
-                    LedgerRepository(checkNotNull(session).database).append(action)
+                    val repository = LedgerRepository(checkNotNull(session).database)
+                    if (name == null) repository.append(action) else repository.appendNamedPurchase(action, name.first, name.second)
                 } }
                 if (attempt == generation) onSaved()
             } catch (cancelled: CancellationException) { throw cancelled }

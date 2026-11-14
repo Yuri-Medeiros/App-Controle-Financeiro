@@ -1,10 +1,44 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import br.com.yurimedeiros.meufinanceiro.assets.*
 import br.com.yurimedeiros.meufinanceiro.importing.*
@@ -20,19 +54,82 @@ private fun assetEdit(cents: Long) = BigDecimal.valueOf(cents, 2).toPlainString(
 private fun btcEdit(satoshis: Long) = BigDecimal.valueOf(satoshis, 8).toPlainString()
 
 @Composable
-internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
+internal fun AssetRefreshButton(loading: Boolean, enabled: Boolean,
+    description: String = "Atualizar Bitcoin, investimentos e veículos pela FIPE", onClick: () -> Unit) {
+    val accent = NeonPalette[0]
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = Modifier.size(48.dp).semantics {
+            contentDescription = if (loading) "Atualizando patrimônios" else description
+        },
+        shape = CircleShape,
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        contentPadding = PaddingValues(0.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = accent.copy(alpha = 0.12f), contentColor = accent,
+            disabledContainerColor = accent.copy(alpha = 0.06f), disabledContentColor = accent.copy(alpha = 0.6f),
+        ),
+    ) {
+        if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accent, strokeWidth = 2.dp)
+        else Icon(RefreshIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel, onRefreshInvestments: () -> Unit,
+    active: Boolean = true, onRouteChanged: () -> Unit = {}) {
+    LaunchedEffect(state.unlocked, state.visible, state.ledger.assets.assets.map { it.id to it.vehiclePath }) {
+        if (state.unlocked && state.visible) {
+            while (true) { model.refreshBitcoin(); model.refreshVehicles(); kotlinx.coroutines.delay(300_000L) }
+        }
+    }
     val book = state.ledger.assets
     var adding by remember { mutableStateOf(false) }
     var goalOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<String?>(null) }
+    var selectedType by remember { mutableStateOf<AssetKind?>(null) }
+    var investmentsOpen by remember { mutableStateOf(false) }
+    if (investmentsOpen) {
+        fun back() { investmentsOpen = false; selected = null; onRouteChanged() }
+        BackHandler(enabled = active && state.unlocked && state.visible && selected == null) { back() }
+        InvestmentsScreen(state, onBack = { back() }, onRefresh = onRefreshInvestments, onAsset = { selected = it })
+        selected?.let { id -> book.assets.firstOrNull { it.id == id && it.kind == AssetKind.INVESTMENT }?.let {
+            AssetDetails(it, state, model) { selected = null }
+        } }
+        return
+    }
     val live = book.assets.filter { !it.disposed }
     val known = live.mapNotNull { it.valueCents }.sum()
     val incomplete = live.any { it.valueCents == null }
-    GlassPanel(highlighted = true) {
-        Text("Patrimônio registrado", style = MaterialTheme.typography.titleSmall)
-        Text(ledgerMoney(known), style = MaterialTheme.typography.headlineLarge)
-        Text(if (incomplete) "Parcial: há ativos sem cotação." else "Fora do saldo bancário e do Flash", style = MaterialTheme.typography.bodySmall)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Patrimônio", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold)
+        AssetRefreshButton(
+            loading = state.syncing || state.quoting || state.quotingVehicles,
+            enabled = state.unlocked && state.visible && state.statements.isEmpty() && state.custody.isEmpty(),
+            onClick = {
+                model.refreshBitcoin(manual = true)
+                model.refreshVehicles(manual = true)
+                onRefreshInvestments()
+            },
+        )
+        FilledTonalIconButton(onClick = { adding = true }, enabled = !state.syncing,
+            modifier = Modifier.size(48.dp), shape = CircleShape,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = NeonPalette[0].copy(alpha = 0.12f), contentColor = NeonPalette[0]),
+        ) {
+            Icon(AddAssetIcon, contentDescription = "Adicionar patrimônio", modifier = Modifier.size(22.dp))
+        }
     }
+    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.vehicleError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.vehicleNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    state.bitcoinError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    state.bitcoinNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    Text(ledgerMoney(known), style = MaterialTheme.typography.headlineLarge)
+    if (incomplete) Text("Parcial: há ativos sem cotação.", style = MaterialTheme.typography.bodySmall)
     val planning = PlanningRules.view(state.ledger.planning, state.ledger, state.movements, LocalDate.now())
     val selectedValues = live.filter { it.id in book.goal.selectedAssets }.map { it.valueCents }
     val flashRows = state.movements.filter { it.row.kind == DocumentKind.FLASH }
@@ -43,158 +140,547 @@ internal fun AssetsScreen(state: FinanceUiState, model: FinanceViewModel) {
         if (book.goal.includeFlash) flash else null,
         if (book.goal.includeReceivables) state.ledger.debts.filter { it.direction == DebtDirection.RECEIVE }.sumOf { it.remaining } else null,
     )
-    val goalPartial = selectedValues.any { it == null } || (book.goal.includeBank && planning.balance == null) || (book.goal.includeFlash && flash == null)
     val progress = goalValues.filterNotNull().sum()
-    GlassPanel {
-        Text("Sua meta · ${ledgerMoney(book.goal.targetCents)}", style = MaterialTheme.typography.titleSmall)
-        Text("${ledgerMoney(progress)}${if (goalPartial) " · parcial" else ""}")
-        LinearProgressIndicator(progress = { (progress.toDouble() / book.goal.targetCents).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-        TextButton(onClick = { goalOpen = true }) { Text("Escolher componentes") }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LinearProgressIndicator(
+                progress = { (progress.toDouble() / book.goal.targetCents).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.weight(1f),
+            )
+            Text(ledgerMoney(book.goal.targetCents), style = MaterialTheme.typography.labelLarge)
+        }
+        TextButton(onClick = { goalOpen = true }) { Text("Alterar") }
     }
-    OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar patrimônio") }
-    if (book.assets.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
-    book.assets.forEach { asset -> GlassPanel {
-        Text(asset.name, style = MaterialTheme.typography.titleMedium)
-        Text(if (asset.disposed) "Vendido · histórico preservado" else asset.valueCents?.let(::ledgerMoney) ?: "Cotação ainda indisponível")
-        Text("${assetLabel(asset.kind)} · confirmado em ${asset.confirmedDate}", style = MaterialTheme.typography.bodySmall)
-        if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
-        asset.quotedAt?.let { Text("${asset.quoteSource} · $it", style = MaterialTheme.typography.labelSmall) }
-        TextButton(onClick = { selected = asset.id }) { Text("Ver detalhes") }
-    } }
-    if (adding) AddAssetDialog(state, model) { adding = false }
-    selected?.let { id -> book.assets.firstOrNull { it.id == id }?.let { AssetDetails(it, state, model) { selected = null } } }
-    if (goalOpen) {
-        var target by remember { mutableStateOf(assetEdit(book.goal.targetCents)) }
-        var selectedIds by remember { mutableStateOf(book.goal.selectedAssets) }
-        var bank by remember { mutableStateOf(book.goal.includeBank) }
-        var flashChosen by remember { mutableStateOf(book.goal.includeFlash) }
-        var receivables by remember { mutableStateOf(book.goal.includeReceivables) }
-        var error by remember { mutableStateOf<String?>(null) }
-        LedgerDialog("Componentes da meta", state, { goalOpen = false }, confirm = {
-            try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables)))) { goalOpen = false } }
-            catch (_: Exception) { error = "Informe uma meta positiva." }
-        }) {
-            LedgerField("Meta R$", target) { target = it }
-            book.assets.forEach { asset -> OutlinedButton(onClick = { selectedIds = if (asset.id in selectedIds) selectedIds - asset.id else selectedIds + asset.id }) { Text("${if (asset.id in selectedIds) "✓ " else ""}${asset.name}") } }
-            OutlinedButton(onClick = { bank = !bank }) { Text("${if (bank) "✓ " else ""}Saldo bancário") }
-            OutlinedButton(onClick = { flashChosen = !flashChosen }) { Text("${if (flashChosen) "✓ " else ""}Flash") }
-            OutlinedButton(onClick = { receivables = !receivables }) { Text("${if (receivables) "✓ " else ""}Valores a receber") }
-            Text("Esta seleção altera apenas a meta. Flash e valores a receber começam desmarcados e não passam a integrar o disponível para gastar.", style = MaterialTheme.typography.bodySmall)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    AssetCharts(book)
+    AssetGroupList(book, onGroup = { kind ->
+        val vehicles = book.assets.filter { it.kind == AssetKind.VEHICLE }
+        if (kind == AssetKind.INVESTMENT) {
+            investmentsOpen = true; selected = null; selectedType = null; onRouteChanged()
+        } else if (kind == AssetKind.VEHICLE && vehicles.size == 1) selected = vehicles.single().id
+        else selectedType = kind
+    }, onAsset = { selected = it })
+    selectedType?.let { kind ->
+        if (selected == null) AssetDialog(assetGroupLabel(kind), state, { selectedType = null },
+            subtitle = "Selecione um patrimônio para ver os detalhes.") {
+            book.assets.filter { it.kind == kind }.forEach { asset ->
+                AssetRecordRow(asset, onClick = { selected = asset.id })
+            }
         }
     }
+    if (adding) AddAssetDialog(state, model) { adding = false }
+    selected?.let { id -> book.assets.firstOrNull { it.id == id }?.let { AssetDetails(it, state, model) { selected = null } } }
+    if (goalOpen) GoalDialog(state, model) { goalOpen = false }
 }
 
 @Composable
-private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var name by remember { mutableStateOf("") }; var kind by remember { mutableStateOf(AssetKind.INVESTMENT) }
-    var amount by remember { mutableStateOf("") }; var date by remember { mutableStateOf(LocalDate.now().toString()) }
-    var error by remember { mutableStateOf<String?>(null) }; val id = remember { UUID.randomUUID().toString() }
-    LedgerDialog("Adicionar patrimônio", state, close, confirm = {
-        try {
-            val cents = if (kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount)
-            val satoshis = if (kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0
-            model.saveLedger(LedgerAction.Asset(AssetChange.Register(AssetPosition(id, name.trim(), kind, cents, satoshis, LocalDate.parse(date)))), close)
-        } catch (_: Exception) { error = "Revise nome, valor/quantidade e data." }
+internal fun GoalDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    val book = state.ledger.assets
+    var target by remember { mutableStateOf(assetEdit(book.goal.targetCents)) }
+    var selectedIds by remember { mutableStateOf(book.goal.selectedAssets) }
+    var expandedTypes by remember { mutableStateOf(emptySet<AssetKind>()) }
+    var bank by remember { mutableStateOf(book.goal.includeBank) }
+    var flashChosen by remember { mutableStateOf(book.goal.includeFlash) }
+    var receivables by remember { mutableStateOf(book.goal.includeReceivables) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AssetDialog("Meta", state, close, eyebrow = null, confirmLabel = "Salvar", confirm = {
+        try { model.saveLedger(LedgerAction.Asset(AssetChange.Goal(GoalSettings(FinanceLedger.money(target), selectedIds, bank, flashChosen, receivables))), close) }
+        catch (_: Exception) { error = "Informe uma meta positiva." }
     }) {
-        LedgerField("Nome", name) { name = it }
-        LedgerChoice("Tipo", assetLabel(kind), AssetKind.entries.map { k -> assetLabel(k) to { kind = k; amount = "" } })
-        LedgerField(if (kind == AssetKind.BITCOIN) "Quantidade BTC (até 8 casas)" else "Saldo ou valor confirmado R$", amount) { amount = it }
-        LedgerField("Data da confirmação AAAA-MM-DD", date) { date = it }
-        Text("Cadastrar um saldo não cria transferência bancária. Aportes, resgates e vendas serão vinculados ao extrato.", style = MaterialTheme.typography.bodySmall)
+        AssetEntryField("Meta", target, !state.syncing, monetary = true) { target = it }
+        Text("Composição do patrimônio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        GoalAssetTree(book, selectedIds, expandedTypes, !state.syncing,
+            onSelectionChange = { selectedIds = it }, onExpandedChange = { expandedTypes = it })
+        Text("Outros componentes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        AssetSelectionRow("Saldo bancário", bank, !state.syncing) { bank = it }
+        AssetSelectionRow("Flash", flashChosen, !state.syncing) { flashChosen = it }
+        AssetSelectionRow("Valores a receber", receivables, !state.syncing) { receivables = it }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 
 @Composable
+internal fun GoalAssetTree(
+    book: AssetBook, selectedIds: Set<String>, expandedTypes: Set<AssetKind>, enabled: Boolean,
+    onSelectionChange: (Set<String>) -> Unit, onExpandedChange: (Set<AssetKind>) -> Unit,
+) {
+    AssetKind.entries.forEach { kind ->
+        val assets = book.assets.filter { it.kind == kind }
+        if (assets.isNotEmpty()) {
+            val ids = assets.map { it.id }.toSet()
+            val selectedCount = ids.count { it in selectedIds }
+            val checked = when (selectedCount) {
+                0 -> ToggleableState.Off
+                ids.size -> ToggleableState.On
+                else -> ToggleableState.Indeterminate
+            }
+            val expanded = kind in expandedTypes
+            val partial = assets.any { !it.disposed && it.valueCents == null }
+            val amount = if (assets.all { it.valueCents == null }) "Sem cotação"
+                else ledgerMoney(assets.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else ""
+            Surface(shape = FinanceInputShape,
+                color = if (selectedCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.025f),
+                border = BorderStroke(1.dp, if (selectedCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.outlineVariant)) {
+                Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TriStateCheckbox(state = checked, enabled = enabled,
+                        modifier = Modifier.semantics { contentDescription = "Selecionar todos: ${assetGroupLabel(kind)}" },
+                        onClick = { onSelectionChange(if (checked == ToggleableState.On) selectedIds - ids else selectedIds + ids) })
+                    Row(Modifier.weight(1f).heightIn(min = 64.dp)
+                        .clickable(enabled = enabled, role = Role.Button,
+                            onClickLabel = if (expanded) "Recolher ${assetGroupLabel(kind)}" else "Expandir ${assetGroupLabel(kind)}") {
+                            onExpandedChange(if (expanded) expandedTypes - kind else expandedTypes + kind)
+                        }.semantics { stateDescription = if (expanded) "Expandido" else "Recolhido" },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(assetGroupLabel(kind), style = MaterialTheme.typography.bodyMedium)
+                            Text(amount, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(AssetChevronIcon, contentDescription = null,
+                            modifier = Modifier.size(18.dp).rotate(if (expanded) 90f else 0f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (expanded) Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                assets.forEach { asset ->
+                    AssetSelectionRow(InvestmentPresentation.label(asset), asset.id in selectedIds, enabled,
+                        detail = if (asset.disposed) "Vendido · ${ledgerMoney(0)}" else asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação") {
+                        onSelectionChange(if (it) selectedIds + asset.id else selectedIds - asset.id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun assetGroupLabel(kind: AssetKind) = if (kind == AssetKind.VEHICLE) "Veículos" else assetLabel(kind)
+
+@Composable
+internal fun AssetGroupList(book: AssetBook, onGroup: (AssetKind) -> Unit, onAsset: (String) -> Unit) {
+    val groups = AssetKind.entries.mapNotNull { kind ->
+        book.assets.filter { it.kind == kind }.takeIf { it.isNotEmpty() }?.let { kind to it }
+    }
+    GlassPanel {
+        Text("Patrimônios", style = MaterialTheme.typography.titleMedium)
+        if (groups.isEmpty()) Text("Cadastre apenas os saldos e bens que você possui.")
+        Column {
+            groups.forEachIndexed { index, (kind, assets) ->
+                val live = assets.filter { !it.disposed }
+                val partial = live.any { it.valueCents == null }
+                val amount = if (live.isNotEmpty() && live.all { it.valueCents == null }) "—"
+                    else ledgerMoney(live.mapNotNull { it.valueCents }.sum()) + if (partial) " · parcial" else ""
+                val multipleAllowed = kind == AssetKind.INVESTMENT || kind == AssetKind.VEHICLE || assets.size > 1
+                val actionLabel = if (multipleAllowed) "Ver ${assetGroupLabel(kind).lowercase()}" else "Ver detalhes de ${assetGroupLabel(kind)}"
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClickLabel = actionLabel) {
+                        if (multipleAllowed) onGroup(kind) else onAsset(assets.single().id)
+                    }.padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(assetGroupLabel(kind), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(amount, Modifier.weight(1f).semantics {
+                        if (amount == "—") contentDescription = "Cotação ainda indisponível"
+                    }, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
+                    Icon(AssetChevronIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp))
+                }
+                if (index < groups.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AssetRecordRow(asset: AssetPosition, onClick: () -> Unit) {
+    GlassPanel(modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Ver detalhes de ${InvestmentPresentation.label(asset)}", onClick = onClick)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(InvestmentPresentation.label(asset), style = MaterialTheme.typography.titleMedium)
+                Text(if (asset.disposed) "Fora do patrimônio · histórico preservado" else asset.valueCents?.let(::ledgerMoney)
+                    ?: "Cotação ainda indisponível")
+                Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(AssetChevronIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+private val AddVehicleIcon = ImageVector.Builder("Adicionar veículo", 24.dp, 24.dp, 24f, 24f)
+    .addPath(PathParser().parsePathString("M5,10L7,5H17L19,10M4,10H20V18H4ZM7,18V20M17,18V20M7,13H8M16,13H17").toNodes(),
+        fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.6f,
+        strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round).build()
+
+@Composable
+private fun AddAssetDialog(state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var vehicleDialog by remember { mutableStateOf(false) }
+    val vehicleId = remember { UUID.randomUUID().toString() }
+    val id = remember { UUID.randomUUID().toString() }
+    var name by remember { mutableStateOf("") }
+    val titleEditor = remember { ModalTitleEditState() }
+    var amount by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
+    var error by remember { mutableStateOf<String?>(null) }
+    if (vehicleDialog) {
+        VehicleFipeDialog(AssetPosition(vehicleId, "", AssetKind.VEHICLE, 0, 0, LocalDate.now()), state, model,
+            { vehicleDialog = false; close() }, isNew = true)
+    } else AssetDialog("Investimentos", state, close, confirmLabel = "Adicionar investimento", headerActions = {
+        IconButton(onClick = { vehicleDialog = true }, enabled = !state.syncing) {
+            Icon(AddVehicleIcon, contentDescription = "Adicionar veículo", modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary)
+        }
+    }, confirmEnabled = !titleEditor.editing && name.isNotBlank(), titleContent = {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Investimentos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EditableModalTitle(name, { name = it }, placeholder = "Novo investimento", enabled = !state.syncing, editState = titleEditor)
+        }
+    }, confirm = {
+        try {
+            val cents = FinanceLedger.money(amount)
+            model.saveLedger(LedgerAction.Asset(AssetChange.Register(AssetPosition(id, name.trim(),
+                AssetKind.INVESTMENT, cents, 0, AppDates.parse(date)))), close)
+        } catch (_: Exception) { error = "Revise nome, valor e data." }
+    }) {
+        AssetEntryField("Valor", amount, !state.syncing, monetary = true) { amount = it }
+        AssetEntryField("Data da confirmação", date, !state.syncing) { date = it }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+@Composable
+private fun AssetEntryField(label: String, value: String, enabled: Boolean = true, monetary: Boolean = false, change: (String) -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = { if (monetary) normalizeMoneyInput(it)?.let(change) else change(it) }, enabled = enabled,
+        visualTransformation = if (monetary) MoneyInputVisualTransformation else VisualTransformation.None,
+        label = { Text(label) }, modifier = Modifier.fillMaxWidth(),
+        shape = FinanceInputShape, singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = Color.White.copy(alpha = 0.025f),
+            focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        ),
+    )
+}
+
+@Composable
+internal fun AssetDialog(
+    title: String, state: FinanceUiState, close: () -> Unit,
+    subtitle: String? = null, confirmLabel: String = "Salvar", confirm: (() -> Unit)? = null,
+    eyebrow: String? = null, confirmEnabled: Boolean = true,
+    headerActions: @Composable RowScope.() -> Unit = {},
+    titleContent: (@Composable RowScope.() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (LocalFinanceInteractive.current) AppDialog(onDismissRequest = { if (!state.syncing) close() }) {
+        Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF0C162B),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp)) {
+                eyebrow?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (titleContent == null) Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    else titleContent()
+                    headerActions()
+                }
+                subtitle?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(20.dp))
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    content()
+                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+                Spacer(Modifier.height(20.dp))
+                if (confirm != null) Button(onClick = confirm, enabled = !state.syncing && confirmEnabled,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = FinanceInputShape) {
+                    if (state.syncing) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (state.syncing) "Salvando…" else confirmLabel)
+                }
+                TextButton(onClick = close, enabled = !state.syncing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(if (confirm == null) "Fechar" else "Cancelar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetSelectionRow(label: String, selected: Boolean, enabled: Boolean, detail: String? = null, change: (Boolean) -> Unit) {
+    Surface(shape = FinanceInputShape,
+        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.025f),
+        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.outlineVariant)) {
+        Row(Modifier.fillMaxWidth().toggleable(selected, enabled = enabled, role = Role.Checkbox, onValueChange = change)
+            .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium)
+                detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetChoice(label: String, value: String, options: List<Pair<String, () -> Unit>>) {
+    var open by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box {
+            OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                shape = FinanceInputShape, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text("⌄", color = MaterialTheme.colorScheme.primary)
+            }
+            DropdownMenu(expanded = open && LocalFinanceInteractive.current, onDismissRequest = { open = false }) {
+                options.forEach { (text, action) ->
+                    DropdownMenuItem(text = { Text(text) }, onClick = { action(); open = false })
+                }
+                if (options.isEmpty()) DropdownMenuItem(text = { Text("Nenhuma movimentação disponível") },
+                    onClick = {}, enabled = false)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AssetInfoButton(description: String, alignToEnd: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = description }) {
+            Surface(shape = CircleShape, border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary), color = Color.Transparent) {
+                Text("i", Modifier.size(22.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        if (alignToEnd) {
+            val belowIcon = with(LocalDensity.current) { 48.dp.roundToPx() }
+            if (expanded && LocalFinanceInteractive.current) Popup(
+                alignment = Alignment.TopEnd, offset = IntOffset(0, belowIcon),
+                onDismissRequest = { expanded = false }, properties = PopupProperties(focusable = true),
+            ) {
+                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 3.dp, shadowElevation = 8.dp) {
+                    Column(Modifier.widthIn(max = 320.dp).heightIn(max = 480.dp).verticalScroll(rememberScrollState())
+                        .padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
+                    }
+                }
+            }
+        } else DropdownMenu(expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false }, modifier = Modifier.widthIn(max = 320.dp)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VehicleValuationInfo(details: VehicleValuationDetails) {
+    AssetInfoButton("Informações da cotação") {
+        Text("Atualizado em ${details.updated}")
+        Text("Fonte: ${details.source}")
+        Text("Referência: ${details.reference}")
+    }
+}
+
+@Composable
+private fun FgtsDetailsInfo(asset: AssetPosition) {
+    AssetInfoButton("Informações sobre o FGTS") {
+        Text("Confirmado em ${AppDates.date(asset.confirmedDate)}")
+        asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}") }
+        Text("Depósito previsto no dia 20 · ${ledgerMoney(asset.monthlyFgts)} · ${if (asset.fgtsDepositsActive) "ativo" else "interrompido"}")
+        Text("Saldo exibido é a última confirmação real. Rendimentos futuros dependem de metodologia validada; nenhuma taxa fixa foi aplicada.")
+    }
+}
+
+@Composable
+private fun BitcoinDetailsInfo(asset: AssetPosition) {
+    AssetInfoButton("Informações sobre o Bitcoin") {
+        Text("Confirmado em ${AppDates.date(asset.confirmedDate)}")
+        asset.quotedAt?.let { Text("Atualizado em ${AppDates.timestamp(it)}") }
+        asset.quoteSource?.let { Text("Fonte: $it") }
+    }
+}
+
+@Composable
+private fun AssetExpandableSection(
+    title: String, expanded: Boolean, enabled: Boolean, toggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .semantics { stateDescription = if (expanded) "Expandido" else "Recolhido" }
+            .clickable(enabled = enabled, role = Role.Button, onClick = toggle), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            Icon(AssetChevronIcon, null, Modifier.size(18.dp).rotate(if (expanded) 90f else 0f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        }
+    }
+}
+
+@Composable
 private fun AssetDetails(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var showHistory by remember(asset.id) { mutableStateOf(false) }
+    var showForecast by remember(asset.id) { mutableStateOf(false) }
+    var monthly by remember(asset.id, asset.monthlyFgts) { mutableStateOf(assetEdit(asset.monthlyFgts)) }
+    var deposits by remember(asset.id, asset.fgtsDepositsActive) { mutableStateOf(asset.fgtsDepositsActive) }
+    var forecastError by remember(asset.id) { mutableStateOf<String?>(null) }
     var action by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    LedgerDialog(asset.name, state, close) {
-        Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação")
-        Text("Saldo confirmado em ${asset.confirmedDate}", style = MaterialTheme.typography.bodySmall)
+    val valuation = VehicleValuationDetails.from(asset)
+    if (action.isEmpty()) AssetDialog(InvestmentPresentation.label(asset), state, close, subtitle = assetLabel(asset.kind), headerActions = {
+        when (asset.kind) {
+            AssetKind.VEHICLE -> VehicleValuationInfo(valuation)
+            AssetKind.FGTS -> FgtsDetailsInfo(asset)
+            AssetKind.BITCOIN -> BitcoinDetailsInfo(asset)
+            else -> Unit
+        }
+    }) {
+        GlassPanel(highlighted = true) {
+            Text(asset.valueCents?.let(::ledgerMoney) ?: "Sem cotação",
+                style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            if (asset.kind == AssetKind.INVESTMENT) Text("Confirmado em ${AppDates.date(asset.confirmedDate)}", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (asset.kind == AssetKind.BITCOIN) Text("${btcEdit(asset.satoshis)} BTC", style = MaterialTheme.typography.bodySmall)
+            if (asset.kind == AssetKind.VEHICLE) Text(valuation.model, style = MaterialTheme.typography.bodySmall)
+            else if (asset.kind == AssetKind.INVESTMENT) asset.quotedAt?.let { Text("${asset.quoteSource} · ${AppDates.timestamp(it)}", style = MaterialTheme.typography.labelSmall) }
+        }
+        if (asset.kind == AssetKind.VEHICLE && !asset.disposed) {
+            if (state.quotingVehicles) Text("Consultando FIPE…", style = MaterialTheme.typography.bodySmall)
+            state.vehicleError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            state.vehicleNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
         if (!asset.disposed) {
-            Button(onClick = { action = "confirm" }) { Text("Confirmar saldo real") }
-            if (asset.kind != AssetKind.FGTS) OutlinedButton(onClick = { action = "transfer" }) { Text("Aporte, resgate ou venda") }
-            if (asset.kind == AssetKind.FGTS) OutlinedButton(onClick = { action = "configure" }) { Text("Configurar") }
+            if (asset.kind == AssetKind.INVESTMENT) Button(onClick = { action = "confirm" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Confirmar saldo real") }
+            if (asset.kind == AssetKind.VEHICLE) OutlinedButton(onClick = { action = "configure" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Editar") }
+            OutlinedButton(onClick = { action = if (asset.kind == AssetKind.VEHICLE) "remove" else "transfer" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text(if (asset.kind == AssetKind.VEHICLE) "Remover" else "Aporte ou resgate") }
+            if (asset.kind == AssetKind.FGTS) AssetExpandableSection("Previsão", showForecast, !state.syncing, { showForecast = !showForecast }) {
+                AssetEntryField("Depósito mensal previsto", monthly, !state.syncing, monetary = true) { monthly = it }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Prever depósitos", Modifier.weight(1f))
+                    Switch(deposits, { deposits = it }, enabled = !state.syncing)
+                }
+                Text("Depósitos previstos não são adicionados ao saldo real confirmado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                forecastError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = {
+                    try {
+                        forecastError = null
+                        model.saveLedger(LedgerAction.Asset(AssetChange.Configure(asset.id, asset.vehiclePath, FinanceLedger.money(monthly), deposits))) { showForecast = false }
+                    } catch (_: Exception) { forecastError = "Revise o valor do depósito mensal." }
+                }, enabled = !state.syncing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) {
+                    Text(if (state.syncing) "Salvando…" else "Salvar")
+                }
+            }
         }
-        if (asset.kind == AssetKind.FGTS) {
-            Text("Depósito previsto no dia 20 · ${ledgerMoney(asset.monthlyFgts)} · ${if (asset.fgtsDepositsActive) "ativo" else "interrompido"}", style = MaterialTheme.typography.bodySmall)
-            Text("Saldo exibido é a última confirmação real. Rendimentos futuros dependem de metodologia validada; nenhuma taxa fixa foi aplicada.", style = MaterialTheme.typography.bodySmall)
+        AssetExpandableSection("Histórico", showHistory, !state.syncing, { showHistory = !showHistory }) {
+            state.ledger.assets.history.filter { change -> when (change) {
+                is AssetChange.Register -> change.asset.id == asset.id
+                is AssetChange.Confirm -> change.id == asset.id
+                is AssetChange.Configure -> change.id == asset.id
+                is AssetChange.Remove -> change.id == asset.id
+                is AssetChange.Transfer -> change.id == asset.id
+                is AssetChange.Quote -> change.id == asset.id
+                is AssetChange.Goal -> false
+            } }.reversed().forEach { change -> Text(when (change) {
+                is AssetChange.Register -> "${AppDates.date(change.asset.confirmedDate)} · saldo inicial ${ledgerMoney(change.asset.cents)}"
+                is AssetChange.Confirm -> "${AppDates.date(change.date)} · confirmação ${if (asset.kind == AssetKind.BITCOIN) btcEdit(change.satoshis) + " BTC" else ledgerMoney(change.cents)}"
+                is AssetChange.Transfer -> "${AppDates.date(change.date)} · ${change.kind} ${ledgerMoney(change.bankCents)} · custos ${ledgerMoney(change.feesCents)}"
+                is AssetChange.Quote -> "${AppDates.timestamp(change.timestamp)} · avaliação ${change.source}" + if (asset.kind == AssetKind.VEHICLE) " · ${ledgerMoney(change.cents)}" else ""
+                is AssetChange.Configure -> "Configuração atualizada; versão anterior preservada"
+                is AssetChange.Remove -> "${AppDates.date(change.date)} · veículo removido do patrimônio"
+                is AssetChange.Goal -> ""
+            }, style = MaterialTheme.typography.bodySmall) }
         }
-        Text("Histórico", style = MaterialTheme.typography.titleSmall)
-        state.ledger.assets.history.filter { change -> when (change) {
-            is AssetChange.Register -> change.asset.id == asset.id
-            is AssetChange.Confirm -> change.id == asset.id
-            is AssetChange.Configure -> change.id == asset.id
-            is AssetChange.Transfer -> change.id == asset.id
-            is AssetChange.Quote -> change.id == asset.id
-            is AssetChange.Goal -> false
-        } }.takeLast(30).reversed().forEach { change -> Text(when (change) {
-            is AssetChange.Register -> "${change.asset.confirmedDate} · saldo inicial ${ledgerMoney(change.asset.cents)}"
-            is AssetChange.Confirm -> "${change.date} · confirmação ${if (asset.kind == AssetKind.BITCOIN) btcEdit(change.satoshis) + " BTC" else ledgerMoney(change.cents)}"
-            is AssetChange.Transfer -> "${change.date} · ${change.kind} ${ledgerMoney(change.bankCents)} · custos ${ledgerMoney(change.feesCents)}"
-            is AssetChange.Quote -> "${change.timestamp} · avaliação ${change.source}"
-            is AssetChange.Configure -> "Configuração atualizada; versão anterior preservada"
-            is AssetChange.Goal -> ""
-        }, style = MaterialTheme.typography.bodySmall) }
     }
-    if (action == "confirm") {
+    if (action == "remove" && asset.kind == AssetKind.VEHICLE) {
+        AssetDialog("Remover veículo", state, { action = "" }, confirmLabel = "Remover", confirm = {
+            model.saveLedger(LedgerAction.Asset(AssetChange.Remove(asset.id, LocalDate.now())), close)
+        }) {
+            Text("Remover ${InvestmentPresentation.label(asset)} do patrimônio? O histórico será preservado, sem vínculo com o extrato.")
+        }
+    }
+    if (action == "confirm" && asset.kind == AssetKind.INVESTMENT) {
         var amount by remember { mutableStateOf(if (asset.kind == AssetKind.BITCOIN) btcEdit(asset.satoshis) else assetEdit(asset.cents)) }
-        var date by remember { mutableStateOf(LocalDate.now().toString()) }
-        LedgerDialog("Confirmar saldo real", state, { action = ""; error = null }, confirm = {
-            try { model.saveLedger(LedgerAction.Asset(AssetChange.Confirm(asset.id, if (asset.kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount), if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0, LocalDate.parse(date)))) { action = "" } }
+        var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
+        AssetDialog("Confirmar saldo real", state, { action = ""; error = null }, confirm = {
+            try { model.saveLedger(LedgerAction.Asset(AssetChange.Confirm(asset.id, if (asset.kind == AssetKind.BITCOIN) 0 else FinanceLedger.money(amount), if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(amount) else 0, AppDates.parse(date)))) { action = "" } }
             catch (_: Exception) { error = "Revise valor e data da confirmação." }
         }) {
-            LedgerField(if (asset.kind == AssetKind.BITCOIN) "Quantidade BTC" else "Saldo real R$", amount) { amount = it }
-            LedgerField("Data AAAA-MM-DD", date) { date = it }
+            AssetEntryField(if (asset.kind == AssetKind.BITCOIN) "Quantidade de bitcoin" else "Saldo real", amount, monetary = asset.kind != AssetKind.BITCOIN) { amount = it }
+            AssetEntryField("Data", date) { date = it }
             Text("A confirmação cria uma nova base, preservando saldos anteriores e operações no histórico.", style = MaterialTheme.typography.bodySmall)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
-    if (action == "configure") {
-        var path by remember { mutableStateOf(asset.vehiclePath) }; var monthly by remember { mutableStateOf(assetEdit(asset.monthlyFgts)) }
-        var deposits by remember { mutableStateOf(asset.fgtsDepositsActive) }
-        LedgerDialog("Configurar ${assetLabel(asset.kind)}", state, { action = ""; error = null }, confirm = {
-            try { model.saveLedger(LedgerAction.Asset(AssetChange.Configure(asset.id, path, FinanceLedger.money(monthly), deposits))) { action = "" } }
-            catch (_: Exception) { error = "Revise os dados informados." }
-        }) {
-            if (asset.kind == AssetKind.FGTS) {
-                LedgerField("Depósito mensal previsto R$", monthly) { monthly = it }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Prever depósitos", Modifier.weight(1f)); Switch(deposits, { deposits = it }) }
-                Text("Depósitos previstos não são adicionados ao saldo real confirmado.", style = MaterialTheme.typography.bodySmall)
-            } else {
-                LedgerField("Identificação FIPE", path) { path = it }
-                Text("Tipo/marca/modelo/ano são necessários à consulta. Nenhum valor é inventado a partir do nome do veículo.", style = MaterialTheme.typography.bodySmall)
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        }
-    }
-    if (action == "transfer") AssetTransferDialog(asset, state, model) { action = "" }
+    if (action == "configure" && asset.kind == AssetKind.VEHICLE) VehicleFipeDialog(asset, state, model, { action = "" })
+    if (action == "transfer" && asset.kind == AssetKind.FGTS) FgtsTransferDialog(asset, state, model) { action = "" }
+    if (action == "transfer" && asset.kind != AssetKind.FGTS) AssetTransferDialog(asset, state, model) { action = "" }
 }
 
 @Composable
 private fun AssetTransferDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
-    var kind by remember { mutableStateOf(AssetTransferKind.CONTRIBUTION) }; var movementId by remember { mutableLongStateOf(0) }
+    var kind by remember { mutableStateOf(if (asset.kind == AssetKind.VEHICLE) AssetTransferKind.SALE else AssetTransferKind.CONTRIBUTION) }; var movementId by remember { mutableLongStateOf(0) }
     var fees by remember { mutableStateOf("0,00") }; var quantity by remember { mutableStateOf("") }; var included by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val sources = state.movements.filter { it.id !in state.ledger.usedMovementIds && it.status !in setOf("CONFLICT", "IGNORED") && it.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(it.row) && if (kind == AssetTransferKind.CONTRIBUTION) it.row.cents < 0 else it.row.cents > 0 }
     val source = sources.firstOrNull { it.id == movementId }
-    LedgerDialog("Vincular operação patrimonial", state, close, confirm = {
+    AssetDialog("Vincular operação", state, close, subtitle = InvestmentPresentation.label(asset), confirmLabel = "Vincular operação", confirm = {
         try {
             require(source != null) { "Selecione a movimentação bancária." }
             val satoshis = if (asset.kind == AssetKind.BITCOIN) AssetRules.satoshis(quantity) else 0
             model.saveLedger(LedgerAction.Asset(AssetChange.Transfer(asset.id, source.id, kind, abs(source.row.cents), FinanceLedger.money(fees), satoshis, source.row.date, included)), close)
         } catch (e: Exception) { error = e.message ?: "Revise os dados da operação." }
     }) {
-        val options = if (asset.kind == AssetKind.VEHICLE) listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.SALE) else listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.REDEMPTION)
+        val options = if (asset.kind == AssetKind.VEHICLE) listOf(AssetTransferKind.SALE) else listOf(AssetTransferKind.CONTRIBUTION, AssetTransferKind.REDEMPTION)
         fun label(k: AssetTransferKind) = when (k) { AssetTransferKind.CONTRIBUTION -> "Aporte / compra"; AssetTransferKind.REDEMPTION -> "Resgate / venda parcial"; AssetTransferKind.SALE -> "Venda do veículo" }
-        LedgerChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
-        LedgerChoice("Extrato", source?.let { "${it.row.date} · ${ledgerMoney(it.row.cents)}" } ?: "Escolher", sources.map { m -> "${m.row.date} · ${ledgerMoney(m.row.cents)} · ${m.row.description}" to { movementId = m.id; included = kind != AssetTransferKind.SALE && m.row.date <= asset.confirmedDate } })
-        LedgerField("Custos incluídos na operação R$", fees) { fees = it }
-        if (asset.kind == AssetKind.BITCOIN) LedgerField("Quantidade efetiva BTC", quantity) { quantity = it }
-        if (kind != AssetTransferKind.SALE) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Já incluída no saldo confirmado", Modifier.weight(1f)); Switch(included, { included = it }) }
-        Text(if (kind == AssetTransferKind.SALE) "A venda retira o veículo do patrimônio e preserva avaliações anteriores. A entrada líquida será contada uma única vez, pelo extrato." else "A operação será vinculada ao extrato, sem criar outra entrada ou saída nem consumir orçamento como despesa comum.", style = MaterialTheme.typography.bodySmall)
+        AssetChoice("Operação", label(kind), options.map { k -> label(k) to { kind = k; movementId = 0; included = false } })
+        BankMovementChoice(if (kind == AssetTransferKind.CONTRIBUTION) "Destino" else "Origem", source, sources, !state.syncing) { movement ->
+            movementId = movement.id
+            included = kind != AssetTransferKind.SALE && movement.row.date <= asset.confirmedDate
+        }
+        AssetEntryField("Custos da operação", fees, monetary = true) { fees = it }
+        if (asset.kind == AssetKind.BITCOIN) AssetEntryField("Quantidade de bitcoin", quantity) { quantity = it }
+        if (kind != AssetTransferKind.SALE) AssetSelectionRow("Já incluída no saldo confirmado", included, !state.syncing) { included = it }
+        Text(if (kind == AssetTransferKind.SALE) "A venda retira o veículo do patrimônio e preserva avaliações anteriores. A entrada líquida será contada uma única vez, pelo extrato." else "Vincula ao extrato sem duplicar movimentações ou consumir o orçamento.", style = MaterialTheme.typography.bodySmall)
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun FgtsTransferDialog(asset: AssetPosition, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var amount by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(AppDates.date(LocalDate.now())) }
+    var contribution by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AssetDialog("Aporte ou saque do FGTS", state, close, headerActions = {
+        AssetInfoButton("Informações da movimentação do FGTS") {
+            Text("Registra somente o FGTS. Uma entrada na conta será contabilizada pelo extrato bancário.")
+        }
+    }, confirm = {
+        try {
+            model.saveLedger(LedgerAction.Asset(AssetChange.Transfer(asset.id, 0,
+                if (contribution) AssetTransferKind.CONTRIBUTION else AssetTransferKind.REDEMPTION,
+                FinanceLedger.money(amount), 0, 0, AppDates.parse(date), false)), close)
+        } catch (_: Exception) { error = "Revise valor e data." }
+    }) {
+        AssetChoice("Operação", if (contribution) "Aporte" else "Saque", listOf("Aporte" to { contribution = true }, "Saque" to { contribution = false }))
+        AssetEntryField("Valor", amount, monetary = true) { amount = it }
+        AssetEntryField("Data", date) { date = it }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }

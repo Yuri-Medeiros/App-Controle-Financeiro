@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -16,6 +18,7 @@ internal fun BackupSettings(state: FinanceUiState, model: FinanceViewModel, auth
     // Deliberately not rememberSaveable: recovery passwords never enter saved instance state.
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
+    LaunchedEffect(state.unlocked) { if (!state.unlocked) { password = ""; confirmation = "" } }
     GlassPanel {
         Text("Backup e recuperação", style = MaterialTheme.typography.titleMedium)
         Text(if (state.backupEnabled) "Automático nesta sessão · mudanças agrupadas por 30 segundos" else "Senha de recuperação independente do bloqueio e da assinatura", style = MaterialTheme.typography.bodySmall)
@@ -38,7 +41,7 @@ internal fun BackupSettings(state: FinanceUiState, model: FinanceViewModel, auth
             if (state.backupEnabled) TextButton(onClick = model::backupNow, enabled = !state.backupWorking && !state.syncing) { Text("Salvar agora") }
             Text("Mais recente e uma versão diária dos últimos 15 dias. Versões antigas só são removidas após verificar o novo envio.", style = MaterialTheme.typography.bodySmall)
             state.backupFiles.forEach { file ->
-                TextButton(onClick = { model.previewBackup(file) }, enabled = !state.backupWorking && !state.syncing) { Text("Revisar backup · ${file.created}") }
+                TextButton(onClick = { model.previewBackup(file) }, enabled = !state.backupWorking && !state.syncing) { Text("Revisar backup · ${AppDates.timestamp(file.created)}") }
             }
         }
     }
@@ -49,7 +52,7 @@ internal fun BackupSettings(state: FinanceUiState, model: FinanceViewModel, auth
     }
     state.backupPreview?.let { preview -> LedgerDialog("Prévia da restauração", state, model::cancelRestore,
         confirmLabel = "Restaurar estes dados", confirm = if (state.backupWorking || state.syncing) null else model::confirmRestore) {
-        Text("Backup de ${preview.date}")
+        Text("Backup de ${AppDates.timestamp(preview.date)}")
         Text("${preview.movements} movimentações · ${preview.people} pessoas · ${preview.financialActions} registros financeiros")
         Text("A restauração substitui os dados locais pelos deste backup. Antes, o estado atual será salvo e verificado no Drive. O bloqueio continua usando a segurança deste aparelho.")
     } }

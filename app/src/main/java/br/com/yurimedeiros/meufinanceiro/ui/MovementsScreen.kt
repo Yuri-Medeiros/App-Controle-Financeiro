@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -44,7 +46,7 @@ internal fun MovementsScreen(
     if (installmentsOpen) InstallmentsDialog(state) { installmentsOpen = false }
     var query by remember { mutableStateOf("") }
     val currentPeriod = YearMonth.now()
-    var selectedPeriod by remember { mutableStateOf(YearMonth.now()) }
+    var selectedPeriod by remember { mutableStateOf(state.movements.maxOfOrNull { YearMonth.from(it.row.date) } ?: currentPeriod) }
     val friendlyDescriptions = remember(state.movements) { MovementFilters.friendlyNames(state.movements) }
     val years = (state.movements.map { it.row.date.year } + currentPeriod.year + selectedPeriod.year)
         .distinct().sortedDescending()
@@ -78,7 +80,7 @@ internal fun MovementsScreen(
                 Text(if (accountsOpen) "⌃" else "⌄", color = NeonPalette[0])
             }
             DropdownMenu(
-                expanded = accountsOpen,
+                expanded = accountsOpen && LocalFinanceInteractive.current,
                 onDismissRequest = { accountsOpen = false },
                 modifier = Modifier.width(maxWidth),
                 shape = accountShape,
@@ -169,7 +171,7 @@ internal fun MovementsScreen(
             Text("Crédito previsto de R$ 150,00 aos domingos. Benefício separado do dinheiro disponível.", style = MaterialTheme.typography.bodySmall)
             val confirmed = state.ledger.actions.filterIsInstance<br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.FlashCredit>().map { it.sunday }.toSet()
             flash.filter { it.row.cents == 15000L && it.row.date.dayOfWeek == java.time.DayOfWeek.SUNDAY && it.row.date !in confirmed && it.id !in state.ledger.usedMovementIds }.takeLast(8).forEach { source ->
-                TextButton(onClick = { model.saveLedger(br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.FlashCredit(source.id, source.row.date)) {} }, enabled = !state.syncing) { Text("Confirmar crédito previsto · ${source.row.date}") }
+                TextButton(onClick = { model.saveLedger(br.com.yurimedeiros.meufinanceiro.ledger.LedgerAction.FlashCredit(source.id, source.row.date)) {} }, enabled = !state.syncing) { Text("Confirmar crédito previsto · ${AppDates.date(source.row.date)}") }
             }
         }
     }
@@ -179,47 +181,7 @@ internal fun MovementsScreen(
         Text("Consultando seus extratos…", style = MaterialTheme.typography.bodySmall)
     }
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    state.statements.firstOrNull()?.let { statement ->
-        var reference by remember(statement.source.source) { mutableStateOf(statement.document.proposedStatement?.toString().orEmpty()) }
-        // This pending action has its own light surface and readable field colors.
-        // A native filled button avoids stacking the glass border with its outline.
-        MaterialTheme(
-            colorScheme = lightColorScheme(
-                primary = Color(0xFF6554E8),
-                onPrimary = Color.White,
-                surface = Color(0xFFEFEDFA),
-                onSurface = Color(0xFF202039),
-                onSurfaceVariant = Color(0xFF55536B),
-                outline = Color(0xFF858198),
-            ),
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Confirme a referência da fatura", fontWeight = FontWeight.SemiBold)
-                    Text(statement.source.filename, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(
-                        reference, { reference = it },
-                        label = { Text("Referência AAAA-MM-DD") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = FinanceInputShape,
-                        singleLine = true,
-                        enabled = !state.syncing,
-                    )
-                    Button(
-                        onClick = { model.confirmStatement(reference) },
-                        enabled = !state.syncing,
-                        shape = FinanceInputShape,
-                        border = null,
-                    ) { Text("Confirmar referência") }
-                }
-            }
-        }
-    }
+    StatementReferenceReview(state, model)
     // Filter and sort the entire result before selecting the visible page.
     var page by remember { mutableIntStateOf(0) }
     LaunchedEffect(query, account, selectedPeriod) {
@@ -230,7 +192,7 @@ internal fun MovementsScreen(
         state.movements, account, selectedPeriod, query, friendlyDescriptions,
     )
     if (state.movements.isNotEmpty()) {
-        Text("${rows.count { it.status !in setOf("CONFIRMED", "PAYMENT", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") }} pendentes · ${MonthNames[selectedPeriod.monthValue - 1]} de ${selectedPeriod.year}")
+        Text("${rows.count { it.status !in setOf("CONFIRMED", "PAYMENT", "REFUND", "FAMILY_PAYMENT", "IGNORED", "ASSET_TRANSFER", "CARD_CREDIT", "FLASH_CREDIT") }} pendentes · ${AppDates.month(selectedPeriod)}")
     }
     val pages = ((rows.size + 29) / 30).coerceAtLeast(1)
     val current = page.coerceAtMost(pages - 1)
@@ -321,7 +283,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val date = movement.row.date.format(DateTimeFormatter.ofPattern("dd/MM/uuuu"))
+                val date = AppDates.date(movement.row.date)
                 val time = movement.row.time?.format(DateTimeFormatter.ofPattern("HH:mm"))
                 Text(
                     if (time == null) date else "$date · $time",
@@ -384,7 +346,7 @@ private fun MovementCard(movement: ReviewMovement, state: FinanceUiState, model:
     }
     if (financeOpen) MovementFinanceDialog(movement, state, model) { financeOpen = false }
     if (descriptionOpen) {
-        AlertDialog(
+        if (LocalFinanceInteractive.current) AppAlertDialog(
             onDismissRequest = { descriptionOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),
@@ -457,7 +419,7 @@ private fun PeriodDropdown(
             Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
         }
         DropdownMenu(
-            expanded = expanded, onDismissRequest = { expanded = false },
+            expanded = expanded && LocalFinanceInteractive.current, onDismissRequest = { expanded = false },
             modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
             shape = FinanceInputShape,
             containerColor = Color(0xFF080F24).copy(alpha = 0.94f),
@@ -483,7 +445,7 @@ internal fun BatchCategoryDialog(
     onConfirm: (String) -> Unit,
 ) {
     var category by remember { mutableStateOf("") }
-    AlertDialog(
+    if (LocalFinanceInteractive.current) AppAlertDialog(
         onDismissRequest = { if (enabled) onDismiss() },
         shape = RoundedCornerShape(22.dp),
         containerColor = Color(0xFF080F24),
@@ -538,7 +500,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
             Text(if (expanded) "⌃" else "⌄", color = NeonPalette[0])
         }
         DropdownMenu(
-            expanded = expanded && enabled,
+            expanded = expanded && enabled && LocalFinanceInteractive.current,
             onDismissRequest = { expanded = false },
             modifier = Modifier.width(maxWidth).background(neonGradient(0.16f), FinanceInputShape),
             shape = FinanceInputShape,
@@ -567,7 +529,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
         }
     }
     if (customOpen) {
-        AlertDialog(
+        if (LocalFinanceInteractive.current) AppAlertDialog(
             onDismissRequest = { customOpen = false },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color(0xFF080F24),
@@ -577,7 +539,7 @@ internal fun CategoryDropdown(value: String, onValueChange: (String) -> Unit, en
             text = {
                 OutlinedTextField(
                     custom, { custom = it }, modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Categoria ou Categoria / Subcategoria") }, shape = FinanceInputShape, singleLine = true,
+                    label = { Text("Categoria") }, shape = FinanceInputShape, singleLine = true,
                 )
             },
             confirmButton = {

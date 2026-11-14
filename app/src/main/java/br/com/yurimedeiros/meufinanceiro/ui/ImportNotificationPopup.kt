@@ -1,34 +1,35 @@
 package br.com.yurimedeiros.meufinanceiro.ui
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-
-private val CloseNotificationIcon = ImageVector.Builder(
-    "Fechar", 24.dp, 24.dp, 24f, 24f,
-).addPath(
-    PathParser().parsePathString("M6,4L12,10L18,4L20,6L14,12L20,18L18,20L12,14L6,20L4,18L10,12L4,6Z").toNodes(),
-    fill = SolidColor(Color.Black),
-).build()
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 internal fun ImportNotificationPopup(
@@ -37,15 +38,28 @@ internal fun ImportNotificationPopup(
     modifier: Modifier = Modifier,
 ) {
     val accessibilityManager = LocalAccessibilityManager.current
-    LaunchedEffect(notification.id) {
-        val duration = accessibilityManager?.calculateRecommendedTimeoutMillis(
-            originalTimeoutMillis = if (notification.failed || notification.hasWarnings) 10000L else 6000L,
-            containsIcons = true,
-            containsText = true,
-            containsControls = true,
-        ) ?: if (notification.failed || notification.hasWarnings) 10000L else 6000L
-        delay(duration)
-        onDismiss()
+    val dismiss by rememberUpdatedState(onDismiss)
+    val scope = rememberCoroutineScope()
+    var offset by remember(notification.id) { mutableStateOf(Offset.Zero) }
+    var width by remember(notification.id) { mutableFloatStateOf(0f) }
+    var dragging by remember(notification.id) { mutableStateOf(false) }
+    var returnAnimation by remember { mutableStateOf<Job?>(null) }
+    val minimum = with(LocalDensity.current) { 48.dp.toPx() }
+    LaunchedEffect(notification.id, dragging) {
+        if (!dragging) {
+            val duration = accessibilityManager?.calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis = 4000L, containsIcons = true, containsText = true, containsControls = false,
+            ) ?: 4000L
+            delay(duration)
+            dismiss()
+        }
+    }
+    fun returnToPosition() {
+        returnAnimation?.cancel()
+        returnAnimation = scope.launch {
+            val start = offset
+            animate(0f, 1f, animationSpec = tween(160)) { progress, _ -> offset = start * (1f - progress) }
+        }
     }
     val accent = when {
         notification.failed -> Color(0xFFFF809D)
@@ -53,7 +67,27 @@ internal fun ImportNotificationPopup(
         else -> NeonPalette[0]
     }
     Surface(
-        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        modifier = modifier.fillMaxWidth().offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+            .onSizeChanged { width = it.width.toFloat() }
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+                dismiss { dismiss(); true }
+            }
+            .pointerInput(notification.id, minimum) {
+                detectDragGestures(
+                    onDragStart = { returnAnimation?.cancel(); dragging = true },
+                    onDrag = { change, delta ->
+                        change.consume()
+                        offset = Offset(offset.x + delta.x, (offset.y + delta.y).coerceAtMost(0f))
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        if (ImportNotificationSwipe.shouldDismiss(offset.x, offset.y, width, minimum)) dismiss()
+                        else returnToPosition()
+                    },
+                    onDragCancel = { dragging = false; returnToPosition() },
+                )
+            },
         shape = RoundedCornerShape(22.dp),
         color = Color(0xFF080F24).copy(alpha = 0.96f),
         border = BorderStroke(1.dp, GlassBorder),
@@ -65,7 +99,7 @@ internal fun ImportNotificationPopup(
                 .background(Brush.verticalGradient(listOf(
                     Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.02f),
                 )))
-                .padding(start = 16.dp, top = 12.dp, end = 4.dp, bottom = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
@@ -78,15 +112,9 @@ internal fun ImportNotificationPopup(
                     color = accent, style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
             }
-            Column(
-                Modifier.weight(1f).padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+            Column(Modifier.weight(1f).padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(notification.title, color = accent, style = MaterialTheme.typography.titleSmall)
                 Text(notification.message, style = MaterialTheme.typography.bodySmall)
-            }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
-                Icon(CloseNotificationIcon, contentDescription = "Fechar notificação", modifier = Modifier.size(18.dp))
             }
         }
     }

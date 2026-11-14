@@ -13,9 +13,11 @@ internal data class PurchasePlan(
     val familyOpening: Set<Int> = parts.map { it.number }.toSet(), val familyStart: LocalDate? = null, val openingBalances: Map<String, Long> = emptyMap(),
 )
 internal sealed interface LedgerAction {
+    data class ResetInvoices(val movementIds: Set<Long>, val purchaseIds: Set<String>, val documents: Map<String, String>) : LedgerAction
     data class CardCredit(val movementId: Long, val reason: String) : LedgerAction
     data class FlashCredit(val movementId: Long, val sunday: LocalDate) : LedgerAction
     data class Asset(val change: AssetChange) : LedgerAction
+    data class PersonReconciliation(val personId: Long, val start: LocalDate) : LedgerAction
     data class Planning(val settings: PlanningState) : LedgerAction
     data class ForecastMatch(val expenseId: String, val nominal: LocalDate, val movementId: Long) : LedgerAction
     data class ResolveConflict(val movementId: Long, val keepDistinct: Boolean) : LedgerAction
@@ -26,6 +28,7 @@ internal sealed interface LedgerAction {
     data class Payment(val personId: Long, val direction: DebtDirection, val movementId: Long, val date: LocalDate, val allocations: Map<String, Long>) : LedgerAction
     data class Refund(val purchaseId: String, val movementId: Long, val date: LocalDate, val credits: Map<String, Long>) : LedgerAction
     data class Postpone(val debtId: String, val due: LocalDate, val reason: String) : LedgerAction
+    data class InvoiceAllocation(val reference: LocalDate, val accountMovementId: Long, val cardMovementId: Long, val allocations: Map<Long, Long>) : LedgerAction
     data class InvoicePaid(val reference: LocalDate, val accountMovementId: Long, val cardMovementId: Long) : LedgerAction
 }
 internal data class DebtBalance(
@@ -40,16 +43,18 @@ internal data class LedgerSnapshot(
     val purchases: List<PurchasePlan> = emptyList(), val debts: List<DebtBalance> = emptyList(),
     val actions: List<LedgerAction> = emptyList(), val planning: PlanningState = PlanningState(), val assets: AssetBook = AssetBook(),
 ) {
+    val reconciliationStarts: Map<Long, LocalDate> get() = actions.filterIsInstance<LedgerAction.PersonReconciliation>().associate { it.personId to it.start }
     val usedMovementIds: Set<Long> get() = buildSet {
         purchases.forEach { p -> p.parts.forEach { if (it.movementId > 0) add(it.movementId) } }
         actions.forEach { a -> when (a) {
-            is LedgerAction.Asset -> (a.change as? AssetChange.Transfer)?.let { add(it.movementId) }
+            is LedgerAction.Asset -> (a.change as? AssetChange.Transfer)?.let { if (it.movementId > 0) add(it.movementId) }
             is LedgerAction.CardCredit -> add(a.movementId)
             is LedgerAction.FlashCredit -> add(a.movementId)
             is LedgerAction.ForecastMatch -> add(a.movementId)
             is LedgerAction.Payment -> add(a.movementId)
             is LedgerAction.Refund -> add(a.movementId)
             is LedgerAction.InvoicePaid -> { add(a.accountMovementId); add(a.cardMovementId) }
+            is LedgerAction.InvoiceAllocation -> { add(a.accountMovementId); add(a.cardMovementId) }
             else -> Unit
         } }
     }
@@ -82,11 +87,13 @@ internal object FinanceLedger {
         return result
     }
     fun apply(s: LedgerSnapshot, a: LedgerAction): LedgerSnapshot {
+        if (a is LedgerAction.ResetInvoices) return InvoiceReset.apply(s, a)
         var purchases = s.purchases
         var debts = s.debts
         var planning = s.planning
         var assets = s.assets
         when (a) {
+            is LedgerAction.ResetInvoices -> error("Reset handled before ordinary actions")
             is LedgerAction.CardCredit -> require(a.movementId > 0 && a.movementId !in s.usedMovementIds && a.reason.isNotBlank() && a.reason.length <= 240)
             is LedgerAction.FlashCredit -> {
                 require(a.movementId > 0 && a.movementId !in s.usedMovementIds && a.sunday.dayOfWeek == java.time.DayOfWeek.SUNDAY)
@@ -96,6 +103,7 @@ internal object FinanceLedger {
                 (a.change as? AssetChange.Transfer)?.let { require(it.movementId !in s.usedMovementIds) }
                 assets = AssetRules.apply(assets, a.change)
             }
+            is LedgerAction.PersonReconciliation -> require(a.personId > 0 && a.start.year in 1900..9999)
             is LedgerAction.Planning -> { PlanningRules.validate(a.settings, planning); planning = a.settings }
             is LedgerAction.ForecastMatch -> {
                 require(a.movementId > 0 && a.movementId !in s.usedMovementIds)
@@ -210,6 +218,12 @@ internal object FinanceLedger {
                 val d = debts.single { it.id == a.debtId }
                 require(d.purchaseId == null && d.remaining > 0 && a.reason.isNotBlank()) { "Só dívidas fora do cartão podem ser prorrogadas; informe o motivo." }
                 debts = debts.map { if (it.id == d.id) it.copy(due = a.due) else it }
+            }
+            is LedgerAction.InvoiceAllocation -> {
+                require(a.accountMovementId > 0 && a.cardMovementId > 0 && a.accountMovementId != a.cardMovementId)
+                require(a.allocations.isNotEmpty() && a.allocations.keys.all { it >= 0 } && a.allocations.values.all { it > 0 })
+                a.allocations.values.fold(0L, Math::addExact)
+                require(s.actions.filterIsInstance<LedgerAction.InvoiceAllocation>().none { it.cardMovementId == a.cardMovementId || it.accountMovementId == a.accountMovementId }) { "Pagamento já dividido." }
             }
             is LedgerAction.InvoicePaid -> {
                 require(a.accountMovementId > 0 && a.cardMovementId > 0 && a.accountMovementId != a.cardMovementId)

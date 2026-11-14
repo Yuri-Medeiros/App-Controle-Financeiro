@@ -35,19 +35,35 @@ class FinancialImportTest {
         assertEquals(2, ImportComparison.compare(items, emptyList()).count { it.disposition == ImportDisposition.NEW_FOR_REVIEW })
     }
 
-    @Test fun cardPreservesNegativeCreditAndProposesButDoesNotConfirmStatement() {
+    @Test fun cardPreservesNegativeCreditAndUsesFilenameReference() {
         val doc = parse("date,title,amount\n2026-09-06,Pagamento recebido,\"- 2.980,26\"\n", DocumentKind.NUBANK_CARD, "Nubank_2026-10-08.csv")
         assertEquals(-298026L, doc.rows.single().cents)
         assertEquals(LocalDate.of(2026, 10, 8), doc.proposedStatement)
-        // The repository/UI must still record a confirmation before using this proposal.
-        assertEquals(LocalDate.of(2026, 11, 8), ImportComparison.withStatement(doc, LocalDate.of(2026, 11, 8)).single().statement)
+        val reference = ImportComparison.statementReference(doc)
+        assertEquals(LocalDate.of(2026, 10, 8), reference)
+        assertEquals(reference, ImportComparison.withStatement(doc, requireNotNull(reference)).single().statement)
     }
 
     @Test fun unknownCardFilenameDoesNotInventAReference() {
         val doc = parse("date,title,amount\n2026-09-01,Loja,\"10,00\"", DocumentKind.NUBANK_CARD)
         assertNull(doc.proposedStatement)
+        assertNull(ImportComparison.statementReference(doc))
         assertNull(parse("date,title,amount\n2026-09-01,Loja,\"10,00\"", DocumentKind.NUBANK_CARD, "Nubank_2026-02-31.csv").proposedStatement)
         assertThrows(IllegalArgumentException::class.java) { ImportComparison.compare(doc.rows, emptyList()) }
+    }
+
+    @Test fun filenameWinsOverManualFallbackAndIsNotAdjustedToBusinessDay() {
+        val doc = parse("date,title,amount\n2026-10-01,Loja,\"10,00\"\n", DocumentKind.NUBANK_CARD, "Nubank_2026-11-08.csv")
+        assertEquals(LocalDate.of(2026, 11, 8), ImportComparison.statementReference(doc, LocalDate.of(2026, 11, 9)))
+        val rows = ImportComparison.withStatement(doc, requireNotNull(ImportComparison.statementReference(doc)))
+        assertEquals(LocalDate.of(2026, 10, 1), rows.single().date)
+        assertEquals(LocalDate.of(2026, 11, 8), rows.single().statement)
+    }
+
+    @Test fun accountAndFlashNeverAcquireCardReferenceFromFilenameOrFallback() {
+        val doc = parse(account(), DocumentKind.NUBANK_ACCOUNT, "Nubank_2026-11-08.csv")
+        assertNull(ImportComparison.statementReference(doc, LocalDate.of(2026, 11, 8)))
+        assertNull(ImportComparison.statementReference(ParsedDocument(DocumentKind.FLASH, emptyList()), LocalDate.of(2026, 11, 8)))
     }
 
     @Test fun csvSupportsEmbeddedCommasNewlinesQuotesAndTrailingEmptyCells() {

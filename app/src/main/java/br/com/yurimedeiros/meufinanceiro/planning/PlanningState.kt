@@ -1,5 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.planning
 
+import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
+
 import br.com.yurimedeiros.meufinanceiro.domain.*
 import br.com.yurimedeiros.meufinanceiro.importing.*
 import br.com.yurimedeiros.meufinanceiro.ledger.*
@@ -113,17 +115,16 @@ internal object PlanningRules {
         ledger.debts.filter { it.direction == DebtDirection.PAY && it.remaining > 0 && (!projecting || (cycle != null && it.due >= cycle.start)) }.forEach { obligations += AvailableObligation("person:${it.id}", it.remaining, it.due) }
         val importedCard = rows.filter { it.row.kind == DocumentKind.NUBANK_CARD && it.status !in setOf("CONFLICT", "IGNORED") }
         if (rows.any { it.row.kind == DocumentKind.NUBANK_CARD && it.status == "CONFLICT" }) warnings += "Há divergências na fatura."
-        val allMonths = (importedCard.mapNotNull { it.row.statement?.let(YearMonth::from) } + ledger.purchases.flatMap { p -> p.parts.map { YearMonth.from(it.due) } }).distinct()
+        val automatic = AutomaticInstallments.forecasts(ledger, rows)
+        val allMonths = (automatic.keys + importedCard.mapNotNull { it.row.statement?.let(YearMonth::from) } + ledger.purchases.flatMap { p -> p.parts.map { YearMonth.from(it.due) } }).distinct()
         allMonths.forEach { month ->
             val projected = ledger.purchases.flatMap { plan -> plan.parts.filter { it.movementId == 0L && YearMonth.from(it.due) == month }.map { plan to it } }
             val imported = importedCard.filter { it.row.statement?.let(YearMonth::from) == month }
-            if (projected.isNotEmpty() && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Vincule as parcelas de $month para evitar contar importação e previsão juntas."
-            val due = p.invoiceDates[month.toString()] ?: ledger.purchases.flatMap { it.parts }.filter { YearMonth.from(it.due) == month }.map { it.due }.distinct().singleOrNull() ?: BankCalendar.adjust(month.atDay(8))
-            if (due == null) {
-                if (next != null && month <= YearMonth.from(next)) warnings += "Confirme o vencimento da fatura de $month."
-            } else if (next != null && due < next && (!projecting || due >= checkNotNull(cycle).start)) {
-                if (due in cycle && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Confirme os responsáveis das compras de $month para fechar o orçamento sem dupla contagem."
-                val charges = imported.filter { !PaymentMatching.isPayment(it.row) }.sumOf { it.row.cents } + projected.sumOf { it.second.cents }
+            if (projected.isNotEmpty() && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Vincule as parcelas de ${AppDates.month(month)} para evitar contar importação e previsão juntas."
+            val due = InvoiceDueCalendar.due(month, p.invoiceDates[month.toString()])
+            if (next != null && due < next && (!projecting || due >= checkNotNull(cycle).start)) {
+                if (due in cycle && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Confirme os responsáveis das compras de ${AppDates.month(month)} para fechar o orçamento sem dupla contagem."
+                val charges = imported.filter { !PaymentMatching.isPayment(it.row) }.sumOf { it.row.cents } + projected.sumOf { it.second.cents } + automatic[month].orEmpty().sumOf { it.cents }
                 val paid = imported.filter { it.status == "PAYMENT" && rows.any { account -> account.id == it.pairedMovementId && account.row.date <= today } }.sumOf { -it.row.cents }
                 obligations += AvailableObligation("invoice:$month", (charges - paid).coerceAtLeast(0), due)
             }

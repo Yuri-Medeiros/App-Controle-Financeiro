@@ -11,7 +11,17 @@ Aplicativo Android pessoal, com Kotlin, Jetpack Compose e Material 3. Android m�
 - Tema escuro com paleta roxa, cartões em degradê e destaques em ciano. Movimentações está em desenvolvimento; demais áreas financeiras permanecem vazias.
 - Registro local de inicialização preservado entre aberturas para validar persistência; nenhum extrato, pessoa ou saldo fictício é criado.
 
-Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Responsáveis, parcelas, pagamentos, estornos, planejamento, patrimônio manual e backup cifrado foram implementados na continuação da PR #9; veja [o estado detalhado](DESENVOLVIMENTO_COMPLEXIDADES.md). Cotações externas, metodologia de projeção do FGTS e importação do PDF ainda têm pendências explícitas. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
+Nesta branch, Movimentações conecta Gmail à revisão e persistência cifrada dos CSVs Nubank/Flash. Responsáveis, parcelas, pagamentos, estornos, planejamento, patrimônio manual e backup cifrado foram implementados na continuação da PR #9; veja [o estado detalhado](DESENVOLVIMENTO_COMPLEXIDADES.md). A versão 0.9.0 acrescenta cotação pública BTC/BRL, revisão de PDF de custódia Nubank e retomada temporária após bloqueio. Veja [comportamento e roteiro de validação](VALIDACAO_CUSTODIA_RETOMADA.md). A metodologia de projeção de rendimentos do FGTS continua pendente. A implementação precisa de validação no S23; não confundir código nesta branch com APK já publicado. Não usar como único registro financeiro antes de validar recuperação e atualização no Android.
+
+A versão 0.18.0 reorganiza a navegação com a aba Faturas e mantém Movimentações pelo Início. Faturas reúne resumo bancário, compras agrupadas por pessoa, rateio de pagamentos, recebimentos, pendências anteriores e parcelas futuras. As regras e o roteiro no aparelho estão em [VALIDACAO_FATURAS.md](VALIDACAO_FATURAS.md). Patrimônio inclui os gráficos e as consultas de Bitcoin/FIPE, além da importação de investimentos.
+
+A versão 0.19.0 acrescenta resumos financeiros em Pessoas, referência por fatura, filtros, perfil individual em página própria e detalhes expansíveis. Recebimentos, pagamentos ao banco, dívidas avulsas e parcelas futuras permanecem separados. Comportamento e roteiro de conferência em [VALIDACAO_PESSOAS.md](VALIDACAO_PESSOAS.md).
+
+A versão 0.20.0 adiciona atualização pelo Gmail diretamente em Faturas e redefinição exclusiva das faturas com conferência e confirmação digitada. O reset arquiva os registros originais, remove os vínculos ativos do cartão e permite nova importação, preservando as demais áreas. Veja [VALIDACAO_REDEFINICAO_FATURAS.md](VALIDACAO_REDEFINICAO_FATURAS.md).
+
+A versão 0.21.0 usa automaticamente a referência do nome dos arquivos de fatura e torna a notificação de importação temporária, dispensável por arraste lateral ou para cima. Os ajustes de apresentação de Faturas também estão incluídos. Roteiro em [VALIDACAO_IMPORTACAO_AUTOMATICA.md](VALIDACAO_IMPORTACAO_AUTOMATICA.md).
+
+A versão 0.22.0 permite definir responsáveis diretamente nos lançamentos de Faturas: expandir A revisar e tocar no item abre o mesmo fluxo de divisão e parcelamento de Movimentações. Cada item mantém a identidade da movimentação original, inclusive quando descrição e valor se repetem. Roteiro em [VALIDACAO_RESPONSAVEIS_FATURAS.md](VALIDACAO_RESPONSAVEIS_FATURAS.md).
 
 ## Atualizar pelo PC ou pelo celular
 
@@ -59,3 +69,21 @@ A camada de domínio já calcula a divisão de uma compra única por partes igua
 ## Desenvolvimento de Movimentações
 
 O fluxo Gmail/importação inclui busca paginada de anexos, validação dos CSVs, confirmação de referência de fatura, revisão individual/em lote, sugestões de categoria, persistência no Room/SQLCipher com migração aditiva e conciliação única de pagamentos de fatura. Estornos, resolução manual de conflitos e fluxos completos de pessoas/parcelas seguem pendentes. Regras aprovadas em [ESPECIFICACAO_IMPORTACAO.md](ESPECIFICACAO_IMPORTACAO.md), configuração OAuth em [CONFIGURACAO_GOOGLE.md](CONFIGURACAO_GOOGLE.md), etapas e evidências em [DESENVOLVIMENTO_MOVIMENTACOES.md](DESENVOLVIMENTO_MOVIMENTACOES.md). O APK anterior não contém automaticamente estas mudanças; candidato e teste no aparelho continuam necessários.
+
+A versão 0.23.0 calcula o vencimento das faturas pela referência importada: dia 8, avançando para o próximo dia útil. Cada parcela usa seu próprio mês, com feriados recorrentes bancários, de SP e de Ribeirão Preto. Roteiro em [VALIDACAO_VENCIMENTOS_AUTOMATICOS.md](VALIDACAO_VENCIMENTOS_AUTOMATICOS.md).
+
+A versão 0.24.0 limita novas importações de fatura a dezembro/2026 em diante e retira dos cálculos os pagamentos da fatura anterior presentes na referência inicial de cada conta. Estornos e reembolsos são preservados. A interface recebe ajustes no seletor e nos avisos, e o acesso a movimentações passa a Extratos. Veja [VALIDACAO_INICIO_FATURAS.md](VALIDACAO_INICIO_FATURAS.md).
+
+A versão 0.25.0 transfere a data de conciliação para o perfil individual em Pessoas e redesenha o modal de lançamento importado com valores por pessoa, divisão por ícones e seleção de parcela em modal separado. Datas individuais valem para novas divisões e preservam o histórico existente. Veja [VALIDACAO_MODAL_LANCAMENTO.md](VALIDACAO_MODAL_LANCAMENTO.md).
+
+A versão 0.26.0 padroniza os diálogos do app com desfoque leve do fundo pela janela do Android, mantendo o modal nítido. O efeito acompanha abertura, fechamento e modais sobrepostos. Quando o sistema desativa desfoque entre janelas, permanece o escurecimento padrão. Precisa de conferência visual no aparelho.
+
+A versão 0.27.0 simplifica a inclusão manual de investimentos: título fixo Investimentos, campos de nome/valor/data e ícone de carro no cabeçalho que abre diretamente o cadastro FIPE de veículo. A seleção de tipo deixa de aparecer nesse formulário. Validação visual no aparelho pendente.
+
+A versão 0.28.0 coloca a configuração de depósitos previstos do FGTS na seção Previsão, expansível no próprio modal. Os históricos de investimentos, Bitcoin, FGTS e veículos usam a mesma dinâmica, recolhidos por padrão, sem botão de abertura ou janela adicional. Campos de previsão são preservados ao recolher; só Salvar grava a configuração. Validação visual no aparelho pendente.
+
+A versão 0.29.0 mostra a evolução das avaliações patrimoniais em percentuais, com base em zero por série, sem grade ou escala vertical visível. Movimentações registradas são neutralizadas; o botão de informação distingue a variação observada de rentabilidade líquida. Veja [VALIDACAO_EVOLUCAO_PERCENTUAL.md](VALIDACAO_EVOLUCAO_PERCENTUAL.md).
+
+A versão 0.30.0 refina o lançamento importado: título no cabeçalho com edição discreta e origem preservada, numeração de parcelas somente pela descrição original, vínculo apenas com previsões compatíveis e divisão com valores fixados e restante sugerido. Nome amigável e ação financeira são gravados juntos. Veja [VALIDACAO_DIVISAO_LANCAMENTOS.md](VALIDACAO_DIVISAO_LANCAMENTOS.md).
+
+A versão 0.31.0 padroniza a edição de títulos com ações junto ao teclado, coloca a referência no cabeçalho de Faturas e o vencimento abaixo do total, remove o registro manual de pagamento e provisiona parcelas futuras diretamente da importação. Rateios confirmados são preservados e fontes futuras só se vinculam automaticamente quando a correspondência é única. Veja [VALIDACAO_FATURAS_AUTOMATICAS.md](VALIDACAO_FATURAS_AUTOMATICAS.md).

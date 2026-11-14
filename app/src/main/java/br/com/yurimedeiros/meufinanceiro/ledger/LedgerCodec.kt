@@ -11,9 +11,11 @@ internal object LedgerCodec {
     fun encode(a: LedgerAction): String = JSONObject().apply {
         put("version", 1)
         when (a) {
+            is LedgerAction.ResetInvoices -> { put("type", "reset-invoices"); put("movements", JSONArray(a.movementIds.sorted())); put("purchases", JSONArray(a.purchaseIds.sorted())); put("documents", JSONObject(a.documents)) }
             is LedgerAction.CardCredit -> { put("type", "card-credit"); put("movement", a.movementId); put("reason", a.reason) }
             is LedgerAction.FlashCredit -> { put("type", "flash-credit"); put("movement", a.movementId); put("sunday", a.sunday) }
             is LedgerAction.Asset -> { put("type", "asset"); put("change", AssetCodec.encode(a.change)) }
+            is LedgerAction.PersonReconciliation -> { put("type", "person-reconciliation"); put("person", a.personId); put("start", a.start) }
             is LedgerAction.Planning -> { put("type", "planning"); put("settings", PlanningCodec.encode(a.settings)) }
             is LedgerAction.ForecastMatch -> { put("type", "forecast-match"); put("expense", a.expenseId); put("nominal", a.nominal); put("movement", a.movementId) }
             is LedgerAction.ResolveConflict -> { put("type", "resolve-conflict"); put("movement", a.movementId); put("distinct", a.keepDistinct) }
@@ -31,6 +33,7 @@ internal object LedgerCodec {
             is LedgerAction.Payment -> { put("type", "payment"); put("person", a.personId); put("direction", a.direction); put("movement", a.movementId); put("date", a.date); put("allocations", JSONObject(a.allocations)) }
             is LedgerAction.Refund -> { put("type", "refund"); put("purchase", a.purchaseId); put("movement", a.movementId); put("date", a.date); put("allocations", JSONObject(a.credits)) }
             is LedgerAction.Postpone -> { put("type", "postpone"); put("debt", a.debtId); put("due", a.due); put("reason", a.reason) }
+            is LedgerAction.InvoiceAllocation -> { put("type", "invoice-allocation"); put("reference", a.reference); put("account", a.accountMovementId); put("card", a.cardMovementId); put("allocations", JSONObject(a.allocations.mapKeys { it.key.toString() })) }
             is LedgerAction.InvoicePaid -> { put("type", "invoice"); put("reference", a.reference); put("account", a.accountMovementId); put("card", a.cardMovementId) }
         }
     }.toString()
@@ -38,9 +41,14 @@ internal object LedgerCodec {
         require(o.getInt("version") == 1)
         fun date(key: String) = LocalDate.parse(o.getString(key))
         when (o.getString("type")) {
+            "reset-invoices" -> LedgerAction.ResetInvoices(
+                o.getJSONArray("movements").let { list -> (0 until list.length()).map { list.getLong(it) }.toSet() },
+                o.getJSONArray("purchases").let { list -> (0 until list.length()).map { list.getString(it) }.toSet() },
+                o.getJSONObject("documents").let { obj -> obj.keys().asSequence().associateWith { obj.getString(it) } })
             "card-credit" -> LedgerAction.CardCredit(o.getLong("movement"), o.getString("reason"))
             "flash-credit" -> LedgerAction.FlashCredit(o.getLong("movement"), date("sunday"))
             "asset" -> LedgerAction.Asset(AssetCodec.decode(o.getJSONObject("change")))
+            "person-reconciliation" -> LedgerAction.PersonReconciliation(o.getLong("person"), date("start"))
             "planning" -> LedgerAction.Planning(PlanningCodec.decode(o.getJSONObject("settings")))
             "forecast-match" -> LedgerAction.ForecastMatch(o.getString("expense"), date("nominal"), o.getLong("movement"))
             "resolve-conflict" -> LedgerAction.ResolveConflict(o.getLong("movement"), o.getBoolean("distinct"))
@@ -62,6 +70,7 @@ internal object LedgerCodec {
             "payment" -> LedgerAction.Payment(o.getLong("person"), DebtDirection.valueOf(o.getString("direction")), o.getLong("movement"), date("date"), o.allocations())
             "refund" -> LedgerAction.Refund(o.getString("purchase"), o.getLong("movement"), date("date"), o.allocations())
             "postpone" -> LedgerAction.Postpone(o.getString("debt"), date("due"), o.getString("reason"))
+            "invoice-allocation" -> LedgerAction.InvoiceAllocation(date("reference"), o.getLong("account"), o.getLong("card"), o.allocations().mapKeys { it.key.toLong() })
             "invoice" -> LedgerAction.InvoicePaid(date("reference"), o.getLong("account"), o.getLong("card"))
             else -> error("Histórico financeiro não reconhecido. Dados preservados.")
         }

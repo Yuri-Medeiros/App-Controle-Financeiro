@@ -9,8 +9,38 @@ import kotlin.math.abs
 internal class LedgerRepository(private val db: FinanceDatabase) {
     fun snapshot(): LedgerSnapshot = FinanceLedger.replay(db.financialEvents().all().map { LedgerCodec.decode(it.payload) })
 
+    fun invoiceResetPreview(): InvoiceResetPreview {
+        val snapshot = snapshot()
+        // Reset also archives opening payments hidden from the active projection.
+        val ids = db.movements().all().filter { it.status != "ARCHIVED" && MovementRepository.decode(it.payload).kind == DocumentKind.NUBANK_CARD }.map { it.id }.toSet()
+        val documents = db.movements().documents().filter { it.reference.isNotBlank() }.associate { it.source to it.reference }
+        val affected = InvoiceReset.affectedDebts(snapshot)
+        val mixed = snapshot.actions.filterIsInstance<LedgerAction.Payment>().count { payment -> payment.allocations.keys.any { it in affected } && payment.allocations.keys.any { it !in affected } }
+        return InvoiceResetPreview(LedgerAction.ResetInvoices(ids, snapshot.purchases.map { it.id }.toSet(), documents),
+            snapshot.purchases.sumOf { it.parts.size }, affected.size, mixed)
+    }
+
+    fun reconcileImportedInstallments() {
+        val state = snapshot()
+        val rows = MovementRepository(db).all()
+        AutomaticInstallments.links(state, rows).forEach { append(it) }
+    }
+
+    fun appendNamedPurchase(action: LedgerAction, sourceId: Long, title: String) = db.runInTransaction {
+        require(title.isNotBlank() && title.trim().length <= 120) { "Informe um título de até 120 caracteres." }
+        require(when (action) {
+            is LedgerAction.Purchase -> action.plan.parts.any { it.movementId == sourceId }
+            is LedgerAction.Link -> action.movementId == sourceId
+            is LedgerAction.AdjustLink -> action.movementId == sourceId
+            else -> false
+        })
+        append(action)
+        MovementRepository(db).saveFriendlyName(sourceId, title)
+    }
+
     fun append(action: LedgerAction) = db.runInTransaction {
         val snapshot = snapshot()
+        (action as? LedgerAction.Asset)?.let { AssetRules.validateNew(snapshot.assets, it.change) }
         val people = db.people().all().map { it.id }.toSet()
         val movements = MovementRepository(db).all().associateBy { it.id }
         fun movement(id: Long): ReviewMovement = checkNotNull(movements[id]) { "Movimentação não encontrada." }.also {
@@ -22,14 +52,22 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             require(m.row.kind == DocumentKind.NUBANK_CARD && m.row.cents == cents && cents > 0) { "Valor ou origem não corresponde à parcela." }
         }
         when (action) {
+            is LedgerAction.ResetInvoices -> {
+                require(action == invoiceResetPreview().action) { "Os dados mudaram. Confira o reset novamente." }
+            }
             is LedgerAction.CardCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.NUBANK_CARD && m.row.cents < 0 && !PaymentMatching.isPayment(m.row)) }
             is LedgerAction.FlashCredit -> { val m = movement(action.movementId); require(m.row.kind == DocumentKind.FLASH && m.row.cents == 15000L && m.row.date == action.sunday) }
             is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { transfer ->
+                if (transfer.movementId == 0L) {
+                    require(snapshot.assets.assets.single { it.id == transfer.id }.kind == AssetKind.FGTS)
+                    return@let
+                }
                 val m = movement(transfer.movementId)
                 require(m.row.kind == DocumentKind.NUBANK_ACCOUNT && !PaymentMatching.isPayment(m.row))
                 require(if (transfer.kind == AssetTransferKind.CONTRIBUTION) m.row.cents < 0 else m.row.cents > 0)
                 require(abs(m.row.cents) == transfer.bankCents && m.row.date == transfer.date)
             }
+            is LedgerAction.PersonReconciliation -> person(action.personId)
             is LedgerAction.Planning -> Unit
             is LedgerAction.ResolveConflict -> require(movements.getValue(action.movementId).status == "CONFLICT")
             is LedgerAction.ForecastMatch -> {
@@ -39,11 +77,21 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             is LedgerAction.Purchase -> {
                 action.plan.shares.keys.forEach(::person)
                 require(action.plan.shares.keys.none { it > 0 } || action.plan.familyStart != null) { "Confirme a data inicial da conciliação familiar." }
-                action.plan.parts.filter { it.movementId > 0 }.forEach { purchaseSource(it.movementId, it.cents) }
+                action.plan.parts.filter { it.movementId > 0 }.forEach {
+                    purchaseSource(it.movementId, it.cents)
+                    val imported = ImportedInstallments.schedule(movement(it.movementId).row.description)
+                    require(imported.count == action.plan.parts.size && imported.number == it.number) { "As parcelas devem corresponder à descrição original do lançamento." }
+                }
                 require(action.plan.parts.any { it.movementId > 0 }) { "Vincule a compra ao extrato para não duplicar valores." }
             }
-            is LedgerAction.Link -> purchaseSource(action.movementId, snapshot.purchases.single { it.id == action.purchaseId }.parts.single { it.number == action.number }.cents)
-            is LedgerAction.AdjustLink -> purchaseSource(action.movementId, action.cents)
+            is LedgerAction.Link -> {
+                require(ImportedInstallments.options(snapshot, movement(action.movementId), movements.values.toList()).any { it.first.id == action.purchaseId && it.second.number == action.number }) { "Selecione uma parcela prevista compatível com a descrição original." }
+                purchaseSource(action.movementId, snapshot.purchases.single { it.id == action.purchaseId }.parts.single { it.number == action.number }.cents)
+            }
+            is LedgerAction.AdjustLink -> {
+                require(ImportedInstallments.options(snapshot, movement(action.movementId), movements.values.toList()).any { it.first.id == action.purchaseId && it.second.number == action.number }) { "Selecione uma parcela prevista compatível com a descrição original." }
+                purchaseSource(action.movementId, action.cents)
+            }
             is LedgerAction.Debt -> { require(action.personId > 0); person(action.personId) }
             is LedgerAction.Payment -> {
                 person(action.personId)
@@ -59,6 +107,10 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
                 require(action.date == m.row.date)
                 require(action.credits.values.fold(0L, Math::addExact) == abs(m.row.cents)) { "Distribua o valor integral do estorno." }
             }
+            is LedgerAction.InvoiceAllocation -> {
+                action.allocations.keys.forEach(::person)
+                InvoiceBook.validateAllocation(action, snapshot, movements.values.toList())
+            }
             is LedgerAction.InvoicePaid -> {
                 val account = movement(action.accountMovementId); val card = movement(action.cardMovementId)
                 require(account.row.kind == DocumentKind.NUBANK_ACCOUNT && card.row.kind == DocumentKind.NUBANK_CARD)
@@ -69,7 +121,7 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             }
             is LedgerAction.Postpone -> Unit
         }
-        FinanceLedger.apply(snapshot, action) // Validate before appending or changing review status.
+        val after = FinanceLedger.apply(snapshot, action) // Validate before appending or changing review status.
         db.financialEvents().append(FinancialEvent().apply { createdAt = System.currentTimeMillis(); payload = LedgerCodec.encode(action) })
         val rows = db.movements().all().associateBy { it.id }
         fun mark(id: Long, status: String, category: String = "", pair: Long = 0) {
@@ -77,9 +129,21 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             row.confirmedAt = System.currentTimeMillis(); db.movements().update(row)
         }
         when (action) {
+            is LedgerAction.ResetInvoices -> {
+                // Keep original rows and event payloads; only retire the active card view.
+                action.movementIds.forEach { id ->
+                    val card = rows.getValue(id)
+                    if (card.pairedMovementId > 0) mark(card.pairedMovementId, "PAYMENT_PENDING")
+                    mark(id, "ARCHIVED", card.category)
+                }
+                (snapshot.usedMovementIds - after.usedMovementIds - action.movementIds).forEach { id ->
+                    if (rows[id]?.status == "FAMILY_PAYMENT") mark(id, "PENDING")
+                }
+                action.documents.keys.forEach { db.movements().removeDocument(it) }
+            }
             is LedgerAction.CardCredit -> mark(action.movementId, "CARD_CREDIT")
             is LedgerAction.FlashCredit -> mark(action.movementId, "FLASH_CREDIT")
-            is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { mark(it.movementId, "ASSET_TRANSFER") }
+            is LedgerAction.Asset -> (action.change as? AssetChange.Transfer)?.let { if (it.movementId > 0) mark(it.movementId, "ASSET_TRANSFER") }
             is LedgerAction.ResolveConflict -> mark(action.movementId, if (action.keepDistinct) "PENDING" else "IGNORED")
             is LedgerAction.ForecastMatch -> mark(action.movementId, "CONFIRMED", snapshot.planning.expenses.single { it.id == action.expenseId }.category)
             is LedgerAction.Purchase -> action.plan.parts.filter { it.movementId > 0 }.forEach { mark(it.movementId, "CONFIRMED", action.plan.category) }
@@ -90,5 +154,6 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
             is LedgerAction.InvoicePaid -> { mark(action.accountMovementId, "PAYMENT", pair = action.cardMovementId); mark(action.cardMovementId, "PAYMENT", pair = action.accountMovementId) }
             else -> Unit
         }
+        if (action is LedgerAction.Purchase) reconcileImportedInstallments()
     }
 }

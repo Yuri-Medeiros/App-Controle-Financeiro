@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,9 +69,12 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
         Button(onClick = onRefresh) { Text("Atualizar") }
         return
     }
-    Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { dialog = "months" }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("${invoiceMonth(invoice.month)} ⌄", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Text(invoice.due?.let { "Vencimento em ${AppDates.date(it)}" } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { dialog = "months" }.padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(invoiceMonth(invoice.month), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Icon(AssetChevronIcon, null, Modifier.size(15.dp).graphicsLayer { rotationZ = 90f }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(invoice.due?.let { AppDates.date(it) } ?: "Vencimento a confirmar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -86,8 +90,15 @@ internal fun InvoicesScreen(state: FinanceUiState, model: FinanceViewModel, onMo
         if (invoice.paid > invoice.total) Text("Crédito na fatura: ${ledgerMoney(invoice.paid - invoice.total)}", style = MaterialTheme.typography.bodySmall)
         if (invoice.imported) Button(onClick = { dialog = "payment" }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = FinanceInputShape) { Text("Registrar pagamento") }
         if (invoice.warnings.isNotEmpty()) {
-            invoice.warnings.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-            TextButton(onClick = onMovements) { Text("Revisar em Movimentações") }
+            Surface(color = Color(0xFFF5BA79).copy(alpha = .09f), shape = RoundedCornerShape(16.dp)) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(InvoiceNoticeIcon, null, Modifier.size(20.dp), tint = Color(0xFFF5BA79))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        invoice.warnings.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface) }
+                        TextButton(onClick = onMovements, contentPadding = PaddingValues(0.dp)) { Text("Extratos") }
+                    }
+                }
+            }
         }
     }
     GlassPanel(contentPadding = PaddingValues(18.dp)) {
@@ -223,6 +234,7 @@ private fun InvoiceDueDialog(invoice: Invoice, state: FinanceUiState, model: Fin
         try {
             val date = AppDates.parse(due)
             require(YearMonth.from(date) == invoice.month) { "Informe uma data deste mês." }
+            require(br.com.yurimedeiros.meufinanceiro.planning.InvoiceDueCalendar.isBusinessDay(date)) { "Informe um dia útil." }
             model.saveLedger(LedgerAction.Planning(state.ledger.planning.copy(invoiceDates = state.ledger.planning.invoiceDates + (invoice.month.toString() to date))), close)
         } catch (e: Exception) { error = e.message }
     }) {

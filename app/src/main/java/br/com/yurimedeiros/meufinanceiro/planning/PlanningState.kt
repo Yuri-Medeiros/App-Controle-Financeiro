@@ -120,10 +120,8 @@ internal object PlanningRules {
             val projected = ledger.purchases.flatMap { plan -> plan.parts.filter { it.movementId == 0L && YearMonth.from(it.due) == month }.map { plan to it } }
             val imported = importedCard.filter { it.row.statement?.let(YearMonth::from) == month }
             if (projected.isNotEmpty() && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Vincule as parcelas de ${AppDates.month(month)} para evitar contar importação e previsão juntas."
-            val due = p.invoiceDates[month.toString()] ?: ledger.purchases.flatMap { it.parts }.filter { YearMonth.from(it.due) == month }.map { it.due }.distinct().singleOrNull() ?: BankCalendar.adjust(month.atDay(8))
-            if (due == null) {
-                if (next != null && month <= YearMonth.from(next)) warnings += "Confirme o vencimento da fatura de ${AppDates.month(month)}."
-            } else if (next != null && due < next && (!projecting || due >= checkNotNull(cycle).start)) {
+            val due = InvoiceDueCalendar.due(month, p.invoiceDates[month.toString()])
+            if (next != null && due < next && (!projecting || due >= checkNotNull(cycle).start)) {
                 if (due in cycle && imported.any { it.row.cents > 0 && it.id !in ledger.usedMovementIds }) warnings += "Confirme os responsáveis das compras de ${AppDates.month(month)} para fechar o orçamento sem dupla contagem."
                 val charges = imported.filter { !PaymentMatching.isPayment(it.row) }.sumOf { it.row.cents } + projected.sumOf { it.second.cents }
                 val paid = imported.filter { it.status == "PAYMENT" && rows.any { account -> account.id == it.pairedMovementId && account.row.date <= today } }.sumOf { -it.row.cents }

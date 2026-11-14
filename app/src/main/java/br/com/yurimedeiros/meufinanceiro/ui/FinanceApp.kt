@@ -94,6 +94,7 @@ private val PlanIcon = symbol("Planejamento", "M6,2H8V4H16V2H18V4H21V22H3V4H6ZM5
 private val WealthIcon = symbol("Patrimônio", "M3,20V4H5V18H22V20ZM8,16V11H11V16ZM13,16V7H16V16ZM18,16V3H21V16Z")
 internal val AssetChevronIcon = symbol("Abrir", "M9,5L16,12L9,19L7.6,17.6L13.2,12L7.6,6.4Z")
 internal val AddAssetIcon = symbol("Adicionar patrimônio", "M11,5H13V11H19V13H13V19H11V13H5V11H11Z")
+internal val InvoiceNoticeIcon = symbol("Aviso", "M12,2L23,22H1ZM11,8V15H13V8ZM11,17V19H13V17Z")
 internal val RefreshIcon = symbol("Atualizar", "M20,7V2L18,4A9,9 0,1 0,21,14H19A7,7 0,1 1,16.5,5.5L14,8H20Z")
 private val SettingsIcon = symbol("Configurações", "M3,6H14V4H18V6H21V8H18V10H14V8H3ZM3,16H6V14H10V16H21V18H10V20H6V18H3Z")
 private val Sections = listOf(
@@ -273,7 +274,7 @@ internal fun FinanceApp(
                                         .verticalScroll(contentScroll)
                                         .padding(bottom = insets.calculateBottomPadding())
                                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(if (page == 1 && !settings) 8.dp else 14.dp),
                                 ) {
                                     if (settings) {
                                         TextButton(onClick = { settings = false; model.cancelRestore() }, contentPadding = PaddingValues(0.dp)) {
@@ -281,7 +282,7 @@ internal fun FinanceApp(
                                         }
                                         ScreenTitle("Configurações", "Um espaço só seu.")
                                         SecurityCard(state.createdAtMillis)
-                                        InfoCard("Google", "Use Atualizar pelo Gmail em Movimentações para autorizar a leitura dos extratos. O backup usa somente a área privada do aplicativo no Drive.")
+                                        InfoCard("Google", "Use Atualizar pelo Gmail em Extratos para autorizar a leitura dos extratos. O backup usa somente a área privada do aplicativo no Drive.")
                                         BackupSettings(state, model, onBackupAuthorize)
                                         OutlinedButton(onClick = { settings = false; model.lock() }, modifier = Modifier.fillMaxWidth()) {
                                             Text("Bloquear agora")
@@ -291,7 +292,7 @@ internal fun FinanceApp(
                                         val section = Sections[page]
                                         if (page != 4 && page != 1 && page != 2) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             if (page == 0 && movementsOpen) IconButton(onClick = { movementsOpen = false }) { Icon(AssetChevronIcon, "Voltar ao início", Modifier.graphicsLayer { rotationZ = 180f }) }
-                                            Text(if (page == 0 && movementsOpen) "Movimentações" else section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                            Text(if (page == 0 && movementsOpen) "Extratos" else section.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                             if (page == 0 && movementsOpen) {
                                                 IconButton(onClick = onRefresh, enabled = !state.syncing && state.statements.isEmpty()) {
                                                     Icon(RefreshIcon, contentDescription = "Atualizar pelo Gmail")

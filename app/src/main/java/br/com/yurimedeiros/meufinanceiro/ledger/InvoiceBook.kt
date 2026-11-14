@@ -1,7 +1,7 @@
 package br.com.yurimedeiros.meufinanceiro.ledger
 
 import br.com.yurimedeiros.meufinanceiro.importing.*
-import br.com.yurimedeiros.meufinanceiro.planning.BankCalendar
+import br.com.yurimedeiros.meufinanceiro.planning.InvoiceDueCalendar
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -60,12 +60,11 @@ internal object InvoiceBook {
                 InvoicePerson(id, owned.sumOf { it.cents }, debts.filter { it.personId == id }.sumOf { it.paidCents },
                     debts.filter { it.personId == id }.sumOf { it.remaining }, allocations.sumOf { it.allocations[id] ?: 0 }, owned)
             }
-            val due = ledger.planning.invoiceDates[m.toString()] ?: parts.map { it.second.due }.distinct().singleOrNull() ?: BankCalendar.adjust(m.atDay(8))
+            val due = InvoiceDueCalendar.due(m, ledger.planning.invoiceDates[m.toString()])
             val warnings = buildList {
-                if (imported.any { it.status == "CONFLICT" }) add("Há divergências de importação. Revise em Movimentações.")
+                if (imported.any { it.status == "CONFLICT" }) add("Há divergências de importação. Revise em Extratos.")
                 if (parts.any { it.second.movementId == 0L } && valid.any { it.row.cents > 0 && it.id !in linked }) add("Vincule as parcelas importadas para não contar previsão e compra duas vezes.")
                 if (valid.any { PaymentMatching.isPayment(it.row) && it !in payments }) add("Há pagamento aguardando conciliação com o extrato.")
-                if (due == null) add("Confirme o vencimento: calendário deste mês ainda não validado.")
             }
             Invoice(m, due, people.sumOf { it.cents }, payments.sumOf { -it.row.cents }, people, payments, imported.isNotEmpty(), warnings)
         }

@@ -3,6 +3,13 @@ package br.com.yurimedeiros.meufinanceiro.ui
 import br.com.yurimedeiros.meufinanceiro.formatting.AppDates
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -63,113 +70,136 @@ internal fun LedgerDialog(
 @Composable
 internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
     val parsed = remember(movement.id) { Regex("(\\d{1,3})\\s*/\\s*(\\d{1,3})").find(movement.row.description) }
-    var mode by remember { mutableIntStateOf(0) }
     var count by remember { mutableStateOf(parsed?.groupValues?.get(2) ?: "1") }
     var current by remember { mutableStateOf(parsed?.groupValues?.get(1) ?: "1") }
     var title by remember { mutableStateOf(movement.friendlyName.ifBlank { movement.row.description }) }
     var category by remember { mutableStateOf(movement.category) }
-    var firstDue by remember { mutableStateOf(AppDates.date((movement.row.statement ?: movement.row.date).minusMonths((current.toLongOrNull() ?: 1) - 1))) }
-    var familyStart by remember { mutableStateOf(state.ledger.purchases.lastOrNull { it.familyStart != null }?.familyStart?.let(AppDates::date).orEmpty()) }
+    val invoiceDue = runCatching { InvoiceSchedule.due(movement.row, state.ledger.planning.invoiceDates) }.getOrNull()
     var participants by remember { mutableStateOf(listOf(0L)) }
     var split by remember { mutableIntStateOf(0) }
     val values = remember { mutableStateMapOf<Long, String>() }
-    var futureDatesConfirmed by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf<PurchasePlan?>(null) }
     var chosenLink by remember { mutableStateOf<Pair<PurchasePlan, SchedulePart>?>(null) }
-    val linkAmounts = remember { mutableStateMapOf<Long, String>() }
-    var linkDue by remember { mutableStateOf("") }
+    var chooseLink by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
     val id = remember { UUID.randomUUID().toString() }
     val invalidInputs = remember { mutableStateMapOf<String, Boolean>() }
-    fun prepare() {
-        try {
-            val n = count.toInt(); val number = current.toInt()
-            require(n in 1..120 && number in 1..n) { "Revise o número da parcela e a quantidade (até 120)." }
-            require(category.isNotBlank() && title.isNotBlank()) { "Informe categoria e descrição." }
-            val date = AppDates.parse(firstDue)
-            val cutoff = if (participants.any { it > 0 }) AppDates.parse(familyStart) else null
-            val shares = when (split) {
-                0 -> PurchaseSplit.equally(movement.row.cents, participants.size)
-                1 -> PurchaseSplit.byPercentages(movement.row.cents, participants.map { BigDecimal(values[it].orEmpty().replace(',', '.')) })
-                else -> participants.map { FinanceLedger.money(values[it].orEmpty()) }.also { require(it.sum() == movement.row.cents) { "Os valores precisam somar a parcela importada." } }
-            }
-            draft = PurchasePlan(id, title.trim(), category.trim(), (1..n).map {
-                SchedulePart(it, BankCalendar.propose(date.plusMonths(it - 1L)), movement.row.cents, if (it == number) movement.id else 0)
-            }, participants.mapIndexed { i, person -> person to List(n) { shares[i] } }.toMap(),
-                if (cutoff == null) emptySet() else (1..n).filter { date.plusMonths(it - 1L) >= cutoff }.toSet(), cutoff)
-            invalidInputs.clear()
-            futureDatesConfirmed = false
-            localError = null
-        } catch (_: Exception) { localError = "Revise quantidade, datas, categoria e divisão. Percentuais somam 100; valores somam a parcela." }
+    fun amounts(): List<Long> = when (split) {
+        0 -> PurchaseSplit.equally(movement.row.cents, participants.size)
+        1 -> PurchaseSplit.byPercentages(movement.row.cents, participants.map { BigDecimal(values[it].orEmpty().replace(',', '.')) })
+        else -> participants.map { FinanceLedger.money(values[it].orEmpty()) }.also {
+            require(it.fold(0L, Math::addExact) == movement.row.cents) { "A divisão precisa somar ${ledgerMoney(movement.row.cents)}." }
+        }
     }
-    LedgerDialog("Responsáveis e parcelas", state, close,
-        confirmLabel = if (draft == null) "Revisar valores" else "Salvar compra",
-        confirm = if (mode == 0) ({ if (draft == null) prepare() else {
-            try { require(invalidInputs.values.none { it }) { "Corrija os campos inválidos da prévia." }; require(futureDatesConfirmed || draft!!.parts.all { BankCalendar.adjust(it.due) != null }) { "Confirme as datas dos anos ainda não validados." }; require(draft!!.parts.all { it.due.dayOfWeek !in setOf(java.time.DayOfWeek.SATURDAY, java.time.DayOfWeek.SUNDAY) && BankCalendar.adjust(it.due)?.let { adjusted -> adjusted == it.due } != false }) { "Revise vencimentos em fins de semana ou feriados conhecidos." }; FinanceLedger.apply(state.ledger, LedgerAction.Purchase(draft!!)); model.saveLedger(LedgerAction.Purchase(draft!!), close) }
-            catch (e: Exception) { localError = e.message ?: "Revise a divisão de cada parcela." }
-        } }) else null,
-    ) {
-        if (draft == null) {
-            PillTabs(listOf("Nova compra", "Vincular parcela"), mode) { mode = it }
-            if (mode == 1) {
-                Text("Selecione a parcela já prevista. Nada será recriado.", style = MaterialTheme.typography.bodySmall)
-                val options = state.ledger.purchases.flatMap { p -> p.parts.filter { it.movementId == 0L }.map { p to it } }
-                if (options.isEmpty()) Text("Nenhuma parcela prevista para vincular.")
-                options.forEach { (p, part) -> OutlinedButton(onClick = {
-                    chosenLink = p to part; linkDue = AppDates.date(part.due); linkAmounts.clear()
-                    val people = p.shares.keys.toList()
-                    val suggested = PurchaseSplit.proportionally(movement.row.cents, people.map { p.shares.getValue(it)[part.number - 1] })
-                    people.forEachIndexed { i, person -> linkAmounts[person] = editMoney(suggested[i]) }
-                }, enabled = !state.syncing) {
-                    Text("${p.title} · ${part.number}/${p.parts.size} · previsto ${ledgerMoney(part.cents)}")
-                } }
-                chosenLink?.let { (p, part) ->
-                    Text("Importado ${ledgerMoney(movement.row.cents)} · confirme diferenças e divisão.")
-                    LedgerField("Vencimento", linkDue) { linkDue = it }
-                    p.shares.keys.forEach { person -> LedgerField(personLabel(state, person), linkAmounts[person].orEmpty(), monetary = true) { linkAmounts[person] = it } }
-                    Button(onClick = {
-                        try {
-                            val amounts = p.shares.keys.associateWith { FinanceLedger.money(linkAmounts[it].orEmpty()) }
-                            val due = AppDates.parse(linkDue)
-                            val unchanged = movement.row.cents == part.cents && due == part.due && amounts.all { (person, cents) -> p.shares.getValue(person)[part.number - 1] == cents }
-                            val action = if (unchanged) LedgerAction.Link(p.id, part.number, movement.id) else LedgerAction.AdjustLink(p.id, part.number, movement.id, movement.row.cents, due, amounts)
-                            model.saveLedger(action, close)
-                        } catch (_: Exception) { localError = "Revise os valores e o vencimento da parcela." }
-                    }, enabled = !state.syncing) { Text("Confirmar vínculo") }
-                }
+    fun changeSplit(next: Int) {
+        val prior = runCatching { amounts() }.getOrElse { PurchaseSplit.equally(movement.row.cents, participants.size) }
+        val seeded = if (next == 1) PurchaseSplit.proportionally(10000, prior) else prior
+        values.clear()
+        participants.forEachIndexed { i, person -> values[person] = editMoney(seeded[i]) }
+        split = next
+        localError = null
+    }
+    fun save() {
+        try {
+            localError = null
+            val link = chosenLink
+            if (link != null) {
+                val shares = participants.zip(amounts()).toMap()
+                val action = InvoiceSchedule.linkAction(state.ledger, link.first.id, link.second.number, movement, shares)
+                FinanceLedger.apply(state.ledger, action)
+                model.saveLedger(action, close)
+            } else if (draft == null) {
+                require(title.isNotBlank()) { "Informe o título." }
+                if (category.isBlank()) { details = true; error("Escolha uma categoria.") }
+                val parts = InvoiceSchedule.parts(movement.row, current.toInt(), count.toInt(), movement.id, state.ledger.planning.invoiceDates)
+                val shares = participants.zip(amounts()).associate { (person, cents) -> person to List(parts.size) { cents } }
+                val plan = PersonReconciliation.purchase(state.ledger, id, title.trim(), category.trim(), parts, shares)
+                FinanceLedger.apply(state.ledger, LedgerAction.Purchase(plan))
+                if (parts.size == 1 && participants.none { it > 0 }) model.saveLedger(LedgerAction.Purchase(plan), close)
+                else { draft = plan; invalidInputs.clear() }
             } else {
-                if (state.ledger.purchases.any { p -> p.parts.any { it.movementId == 0L && it.cents == movement.row.cents } }) Text("Há parcelas previstas com este valor. Confira Vincular parcela antes de criar outra compra.", style = MaterialTheme.typography.bodySmall)
-                LedgerField("Descrição", title) { title = it }
-                CategoryDropdown(category, { category = it }, !state.syncing)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(current, { current = it }, label = { Text("Parcela atual") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
-                    OutlinedTextField(count, { count = it }, label = { Text("Total de parcelas") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
+                require(invalidInputs.values.none { it }) { "Corrija os campos inválidos da prévia." }
+                FinanceLedger.apply(state.ledger, LedgerAction.Purchase(draft!!))
+                model.saveLedger(LedgerAction.Purchase(draft!!), close)
+            }
+        } catch (e: Exception) { localError = e.message ?: "Revise os valores e a divisão." }
+    }
+    AssetDialog(if (draft == null) "Lançamento" else "Revisar parcelas", state, close,
+        confirmLabel = when { chosenLink != null -> "Vincular"; draft != null -> "Salvar"; (count.toIntOrNull() ?: 1) > 1 || participants.any { it > 0 } -> "Revisar valores"; else -> "Salvar" },
+        confirm = ::save) {
+        if (draft == null) {
+            OutlinedTextField(title, { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth(),
+                shape = FinanceInputShape, enabled = !state.syncing && chosenLink == null)
+            Text(ledgerMoney(movement.row.cents), style = MaterialTheme.typography.headlineMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Data de movimentação", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(AppDates.date(movement.row.date), style = MaterialTheme.typography.bodyMedium)
+            }
+            Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f)) {
+                Row(Modifier.fillMaxWidth().toggleable(chosenLink != null, enabled = !state.syncing, role = Role.Checkbox, onValueChange = { checked ->
+                    if (checked) chooseLink = true
+                    else { chosenLink = null; participants = listOf(0L); split = 0; values.clear() }
+                    localError = null
+                }).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(chosenLink != null, null)
+                    Column(Modifier.weight(1f)) {
+                        Text("Vincular parcela", style = MaterialTheme.typography.bodyMedium)
+                        chosenLink?.let { (plan, part) -> Text("${plan.title} · ${part.number}/${plan.parts.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
                 }
-                LedgerField("Primeiro vencimento", firstDue) { firstDue = it }
-                Text("Dias úteis são ajustados pelo calendário validado. Confirme os vencimentos na prévia, especialmente os anos ainda não validados.", style = MaterialTheme.typography.bodySmall)
-                LedgerChoice("Adicionar responsável", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in participants }.map { person ->
-                    personLabel(state, person) to { participants = participants + person }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Vencimento", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(invoiceDue?.let(AppDates::date) ?: "Referência ausente", style = MaterialTheme.typography.bodyMedium)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Pessoas", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                listOf("=" to "Dividir igualmente", "%" to "Dividir por percentual", "R$" to "Informar valores").forEachIndexed { index, option ->
+                    FilledTonalIconToggleButton(checked = split == index, onCheckedChange = { if (it) changeSplit(index) }, enabled = !state.syncing,
+                        modifier = Modifier.size(44.dp).semantics { contentDescription = option.second }) {
+                        Text(option.first, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+            val displayed = runCatching { amounts() }.getOrNull()
+            participants.forEachIndexed { index, person ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(personLabel(state, person), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    if (split == 0) Text(ledgerMoney(displayed?.get(index) ?: 0), style = MaterialTheme.typography.bodyMedium)
+                    else Column(Modifier.width(132.dp), horizontalAlignment = Alignment.End) {
+                        OutlinedTextField(values[person].orEmpty(), { input ->
+                            if (split == 2) normalizeMoneyInput(input)?.let { values[person] = it }
+                            else values[person] = input
+                        }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = FinanceInputShape, enabled = !state.syncing,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            suffix = if (split == 1) ({ Text("%") }) else null,
+                            visualTransformation = if (split == 2) MoneyInputVisualTransformation else VisualTransformation.None)
+                        if (split == 1) Text(displayed?.get(index)?.let(::ledgerMoney) ?: "—", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (chosenLink == null) IconButton(onClick = { participants = participants - person; split = 0; values.clear() },
+                        enabled = !state.syncing && participants.size > 1, modifier = Modifier.size(32.dp).semantics { contentDescription = "Remover ${personLabel(state, person)}" }) { Text("×", style = MaterialTheme.typography.titleLarge) }
+                }
+            }
+            if (chosenLink == null) {
+                LedgerChoice("Adicionar pessoa", "Escolher", (listOf(0L) + state.people.map { it.id }).filter { it !in participants }.map { person ->
+                    personLabel(state, person) to { participants = participants + person; split = 0; values.clear() }
                 })
-                participants.forEach { person -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(personLabel(state, person)); TextButton(onClick = { if (participants.size > 1) participants = participants - person }) { Text("Remover") }
-                } }
-                if (participants.any { it > 0 }) {
-                    LedgerField("Início da conciliação", familyStart) { familyStart = it }
-                    Text("Compras anteriores ficam como histórico a conciliar. A data não presume recebimentos nem quitação; revise as parcelas em aberto na prévia.", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp)) { Text("Categoria e parcelas") }
+                if (details) {
+                    CategoryDropdown(category, { category = it }, !state.syncing)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(current, { current = it }, label = { Text("Parcela atual") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
+                        OutlinedTextField(count, { count = it }, label = { Text("Total de parcelas") }, modifier = Modifier.weight(1f), shape = FinanceInputShape)
+                    }
                 }
-                LedgerChoice("Divisão", listOf("Igual", "Percentuais", "Valores por parcela")[split], listOf("Igual", "Percentuais", "Valores por parcela").mapIndexed { i, label -> label to { split = i } })
-                if (split != 0) participants.forEach { person -> LedgerField(personLabel(state, person), values[person].orEmpty(), monetary = split == 2) { values[person] = it } }
-                Text("Parcela importada: ${ledgerMoney(movement.row.cents)}", style = MaterialTheme.typography.bodySmall)
             }
         } else {
             val p = draft!!
             Text("Prévia · ${p.title}")
             Text("A fatura integral continua sua obrigação. Confirme o saldo em aberto de cada responsável; pagamentos anteriores à conciliação não serão inventados.", style = MaterialTheme.typography.bodySmall)
-            val unknownYears = p.parts.filter { BankCalendar.adjust(it.due) == null }.map { it.due.year }.distinct()
-            if (unknownYears.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Confirmo os vencimentos de ${unknownYears.joinToString()}; calendário ainda não validado.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                Checkbox(futureDatesConfirmed, { futureDatesConfirmed = it })
-            }
             p.parts.forEachIndexed { i, part ->
                 Text("Parcela ${part.number}/${p.parts.size} · ${ledgerMoney(part.cents)}")
                 if (p.shares.keys.any { it > 0 }) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -182,13 +212,7 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
                         )
                     })
                 }
-                var dueText by remember(i) { mutableStateOf(AppDates.date(part.due)) }
-                LedgerField("Vencimento", dueText) { text ->
-                    dueText = text
-                    val date = runCatching { AppDates.parse(text) }.getOrNull()
-                    invalidInputs["due:$i"] = date == null
-                    if (date != null) draft = draft!!.copy(parts = draft!!.parts.mapIndexed { j, value -> if (j == i) value.copy(due = date) else value })
-                }
+                Text("Vencimento · ${AppDates.date(part.due)}", style = MaterialTheme.typography.bodySmall)
                 var totalText by remember(i) { mutableStateOf(editMoney(part.cents)) }
                 LedgerField("Valor da parcela", totalText, monetary = true) { text ->
                     totalText = text
@@ -223,6 +247,31 @@ internal fun PurchaseDialog(movement: ReviewMovement, state: FinanceUiState, mod
         }
         localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
+    if (chooseLink && LocalFinanceInteractive.current) AlertDialog(onDismissRequest = { chooseLink = false },
+        title = { Text("Escolher parcela") }, shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        containerColor = androidx.compose.ui.graphics.Color(0xFF0C162B),
+        text = {
+            Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val options = state.ledger.purchases.flatMap { plan -> plan.parts.filter { it.movementId == 0L }.map { plan to it } }
+                if (options.isEmpty()) Text("Nenhuma parcela prevista disponível.")
+                options.forEach { (plan, part) ->
+                    Surface(shape = FinanceInputShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .06f),
+                        onClick = {
+                            chosenLink = plan to part
+                            participants = plan.shares.keys.toList()
+                            val suggested = PurchaseSplit.proportionally(movement.row.cents, participants.map { plan.shares.getValue(it)[part.number - 1] })
+                            values.clear(); participants.forEachIndexed { i, person -> values[person] = editMoney(suggested[i]) }
+                            split = 2; chooseLink = false; localError = null
+                        }) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(plan.title, style = MaterialTheme.typography.titleSmall)
+                            Text("${part.number}/${plan.parts.size} · ${ledgerMoney(part.cents)}", style = MaterialTheme.typography.bodyMedium)
+                            Text(AppDates.date(part.due), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseLink = false }) { Text("Cancelar") } })
 }
 
 @Composable

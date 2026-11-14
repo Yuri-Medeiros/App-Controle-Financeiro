@@ -111,6 +111,7 @@ internal object BackupPayload {
             }
         }
         actions.forEach { a -> when (a) {
+            is LedgerAction.PersonReconciliation -> require(a.personId in personIds)
             is LedgerAction.ResetInvoices -> require(a.movementIds.all { sourceRows.getValue(it).kind == DocumentKind.NUBANK_CARD })
             is LedgerAction.CardCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.NUBANK_CARD && source.cents < 0 && !PaymentMatching.isPayment(source)) }
             is LedgerAction.FlashCredit -> { val source = sourceRows.getValue(a.movementId); require(source.kind == DocumentKind.FLASH && source.cents == 15000L && source.date == a.sunday) }

@@ -17,6 +17,7 @@ internal sealed interface LedgerAction {
     data class CardCredit(val movementId: Long, val reason: String) : LedgerAction
     data class FlashCredit(val movementId: Long, val sunday: LocalDate) : LedgerAction
     data class Asset(val change: AssetChange) : LedgerAction
+    data class PersonReconciliation(val personId: Long, val start: LocalDate) : LedgerAction
     data class Planning(val settings: PlanningState) : LedgerAction
     data class ForecastMatch(val expenseId: String, val nominal: LocalDate, val movementId: Long) : LedgerAction
     data class ResolveConflict(val movementId: Long, val keepDistinct: Boolean) : LedgerAction
@@ -42,6 +43,7 @@ internal data class LedgerSnapshot(
     val purchases: List<PurchasePlan> = emptyList(), val debts: List<DebtBalance> = emptyList(),
     val actions: List<LedgerAction> = emptyList(), val planning: PlanningState = PlanningState(), val assets: AssetBook = AssetBook(),
 ) {
+    val reconciliationStarts: Map<Long, LocalDate> get() = actions.filterIsInstance<LedgerAction.PersonReconciliation>().associate { it.personId to it.start }
     val usedMovementIds: Set<Long> get() = buildSet {
         purchases.forEach { p -> p.parts.forEach { if (it.movementId > 0) add(it.movementId) } }
         actions.forEach { a -> when (a) {
@@ -101,6 +103,7 @@ internal object FinanceLedger {
                 (a.change as? AssetChange.Transfer)?.let { require(it.movementId !in s.usedMovementIds) }
                 assets = AssetRules.apply(assets, a.change)
             }
+            is LedgerAction.PersonReconciliation -> require(a.personId > 0 && a.start.year in 1900..9999)
             is LedgerAction.Planning -> { PlanningRules.validate(a.settings, planning); planning = a.settings }
             is LedgerAction.ForecastMatch -> {
                 require(a.movementId > 0 && a.movementId !in s.usedMovementIds)

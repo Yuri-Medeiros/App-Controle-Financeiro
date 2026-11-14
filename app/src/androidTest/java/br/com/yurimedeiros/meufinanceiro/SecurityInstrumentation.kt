@@ -76,17 +76,19 @@ class SecurityInstrumentation : Instrumentation() {
             check(repo.all().size == before)
             check(first.database.movements().document("example@test.invalid:invalid") == null)
             val personId = people.all().single { it.name == "Pessoa de teste" }.id
-            val card = MailDocument("example@test.invalid:card", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
-                "date,title,amount\n2026-11-01,Loja - 1/2,\"200,00\"\n2026-11-02,Estorno da loja,\"-40,00\"\n".toByteArray())
+            val opening = MailDocument("example@test.invalid:opening", "Nubank_2026-12-08.csv", DocumentKind.NUBANK_CARD, "date,title,amount\n".toByteArray())
+            repo.import(opening)
+            val card = MailDocument("example@test.invalid:card", "Nubank_2027-01-08.csv", DocumentKind.NUBANK_CARD,
+                "date,title,amount\n2027-01-01,Loja - 1/2,\"200,00\"\n2027-01-02,Estorno da loja,\"-40,00\"\n".toByteArray())
             check(repo.import(card) == null)
             val cardRow = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.row.cents > 0 }
-            check(cardRow.row.statement == LocalDate.of(2026, 11, 8))
+            check(cardRow.row.statement == LocalDate.of(2027, 1, 8))
             val credit = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.row.cents < 0 }
-            repo.import(source("transfer", "Data,Valor,Identificador,Descrição\n03/11/2026,100.00,00000000-0000-4000-8000-000000000002,Transferência recebida - Pessoa de teste\n"))
+            repo.import(source("transfer", "Data,Valor,Identificador,Descrição\n03/01/2027,100.00,00000000-0000-4000-8000-000000000002,Transferência recebida - Pessoa de teste\n"))
             val transfer = repo.all().single { it.row.cents == 10000L }
             val ledger = LedgerRepository(first.database)
-            val due = LocalDate.of(2026, 11, 9)
-            val plan = PurchasePlan("test-plan", "Loja", "Casa", listOf(SchedulePart(1, due, 20000, cardRow.id), SchedulePart(2, due.plusMonths(1), 20000)), linkedMapOf(personId to listOf(10000L, 10000L), 0L to listOf(10000L, 10000L)), familyStart = LocalDate.of(2026, 11, 1))
+            val due = LocalDate.of(2027, 1, 9)
+            val plan = PurchasePlan("test-plan", "Loja", "Casa", listOf(SchedulePart(1, due, 20000, cardRow.id), SchedulePart(2, due.plusMonths(1), 20000)), linkedMapOf(personId to listOf(10000L, 10000L), 0L to listOf(10000L, 10000L)), familyStart = LocalDate.of(2027, 1, 1))
             ledger.append(LedgerAction.Purchase(plan))
             check(ledger.snapshot().purchases.single().shares.keys.toList() == listOf(personId, 0L))
             val historySize = first.database.financialEvents().all().size
@@ -96,11 +98,11 @@ class SecurityInstrumentation : Instrumentation() {
             ledger.append(LedgerAction.Refund(plan.id, credit.id, credit.row.date, mapOf("test-plan:1:$personId" to 4000)))
             check(ledger.snapshot().debts.single { it.direction == DebtDirection.PAY }.remaining == 4000L)
             check(ledger.snapshot().debts.single { it.number == 2 }.remaining == 10000L)
-            repo.import(source("bank-payment", "Data,Valor,Identificador,Descrição\n05/11/2026,-160.00,00000000-0000-4000-8000-000000000003,Pagamento de fatura\n"))
-            repo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
-                "date,title,amount\n2026-11-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2026, 11, 8))
+            repo.import(source("bank-payment", "Data,Valor,Identificador,Descrição\n05/01/2027,-160.00,00000000-0000-4000-8000-000000000003,Pagamento de fatura\n"))
+            repo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2027-01-08.csv", DocumentKind.NUBANK_CARD,
+                "date,title,amount\n2027-01-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2027, 1, 8))
             val cardPayment = repo.all().single { it.row.kind == DocumentKind.NUBANK_CARD && it.status == "PAYMENT" }
-            val attribution = LedgerAction.InvoiceAllocation(LocalDate.of(2026, 11, 8), cardPayment.pairedMovementId, cardPayment.id, linkedMapOf(0L to 10000L, personId to 6000L))
+            val attribution = LedgerAction.InvoiceAllocation(LocalDate.of(2027, 1, 8), cardPayment.pairedMovementId, cardPayment.id, linkedMapOf(0L to 10000L, personId to 6000L))
             ledger.append(attribution)
             check(runCatching { ledger.append(attribution) }.isFailure)
             check(ledger.snapshot().debts.single { it.direction == DebtDirection.PAY }.remaining == 4000L)
@@ -150,7 +152,7 @@ class SecurityInstrumentation : Instrumentation() {
                     restoredLedger.append(LedgerAction.Debt("outside-reset", personId, DebtDirection.RECEIVE, "Avulsa", 1000, due))
                     restoredLedger.append(LedgerAction.Asset(br.com.yurimedeiros.meufinanceiro.assets.AssetChange.Register(
                         br.com.yurimedeiros.meufinanceiro.assets.AssetPosition("reset-fgts", "FGTS", br.com.yurimedeiros.meufinanceiro.assets.AssetKind.FGTS, 12345, 0, due))))
-                    restoredRepo.import(source("mixed-receipt", "Data,Valor,Identificador,Descrição\n06/11/2026,50.00,00000000-0000-4000-8000-000000000004,Transferência recebida - Pessoa de teste\n"))
+                    restoredRepo.import(source("mixed-receipt", "Data,Valor,Identificador,Descrição\n06/01/2027,50.00,00000000-0000-4000-8000-000000000004,Transferência recebida - Pessoa de teste\n"))
                     val mixed = restoredRepo.all().single { row -> row.row.cents == 5000L }
                     restoredLedger.append(LedgerAction.Payment(personId, DebtDirection.RECEIVE, mixed.id, mixed.row.date,
                         linkedMapOf("test-plan:2:$personId" to 4000L, "outside-reset" to 1000L)))
@@ -170,9 +172,10 @@ class SecurityInstrumentation : Instrumentation() {
                     check(it.database.movements().all().count { row -> row.status == "ARCHIVED" } == 3)
                     check(it.database.movements().document(card.source) == null)
                     check(PeopleRepository(it.database).all().size == 12)
+                    restoredRepo.import(opening)
                     check(restoredRepo.import(card) == null)
-                    restoredRepo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2026-11-08.csv", DocumentKind.NUBANK_CARD,
-                        "date,title,amount\n2026-11-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2026, 11, 8))
+                    restoredRepo.import(MailDocument("example@test.invalid:card-payment", "Nubank_2027-01-08.csv", DocumentKind.NUBANK_CARD,
+                        "date,title,amount\n2027-01-05,Pagamento recebido,\"-160,00\"\n".toByteArray()), LocalDate.of(2027, 1, 8))
                     check(restoredRepo.all().count { row -> row.row.kind == DocumentKind.NUBANK_CARD } == 3)
                     check(restoredRepo.all().single { row -> row.row.kind == DocumentKind.NUBANK_CARD && row.status == "PAYMENT" }.pairedMovementId == cardPayment.pairedMovementId)
                     check(restoredRepo.import(card) == null)
@@ -189,6 +192,49 @@ class SecurityInstrumentation : Instrumentation() {
                     afterResetBackup.fill(0)
                 }
             } finally { context.deleteDatabase(freshName) }
+            val windowName = "$name-window"
+            try {
+                context.deleteDatabase(windowName)
+                SecureDatabaseSession.open(context, originalKey.copyOf(), windowName).use { window ->
+                    val repository = MovementRepository(window.database)
+                    fun statement(key: String, month: String, content: String) = MailDocument("window@test.invalid:$key", "Nubank_${month}-08.csv", DocumentKind.NUBANK_CARD, ("date,title,amount\n" + content).toByteArray())
+                    val rejected = statement("old", "2026-11", "2026-10-01,Compra,\"10,00\"\n")
+                    check(repository.importWithCount(rejected).importedCount == 0)
+                    check(window.database.movements().all().isEmpty())
+                    val later = statement("jan", "2027-01", "2026-12-20,Pagamento recebido,\"-100,00\"\n2026-12-20,Estorno,\"-5,00\"\n2026-12-20,Reembolso,\"-2,00\"\n2026-12-20,Compra,\"120,00\"\n")
+                    check(repository.importWithCount(later).importedCount == 3)
+                    check(repository.all().none { it.row.description == "Pagamento recebido" })
+                    val rawCount = window.database.movements().all().size
+                    check(repository.importWithCount(later.copy(source = "window@test.invalid:jan-copy")).importedCount == 0)
+                    check(window.database.movements().all().size == rawCount)
+                    val firstInvoice = statement("dec", "2026-12", "2026-11-20,Pagamento recebido,\"-90,00\"\n2026-11-20,Compra,\"110,00\"\n")
+                    check(repository.importWithCount(firstInvoice).importedCount == 1)
+                    check(repository.all().count { it.row.description == "Pagamento recebido" } == 1)
+                    check(repository.all().single { it.row.description == "Pagamento recebido" }.row.statement == LocalDate.of(2027, 1, 8))
+                    val profileLedger = LedgerRepository(window.database)
+                    val reconciliationPerson = PeopleRepository(window.database).all().first().id
+                    profileLedger.append(LedgerAction.PersonReconciliation(reconciliationPerson, LocalDate.of(2026, 12, 8)))
+                    val visible = repository.all()
+                    val backup = BackupPayload.export(window.database)
+                    BackupPayload.restore(window.database, backup)
+                    check(repository.all() == visible)
+                    check(profileLedger.snapshot().reconciliationStarts[reconciliationPerson] == LocalDate.of(2026, 12, 8))
+                    backup.fill(0)
+                    val windowLedger = LedgerRepository(window.database)
+                    val reset = windowLedger.invoiceResetPreview().action
+                    check(reset.movementIds.size == 6) // Includes the hidden opening payment.
+                    windowLedger.append(reset)
+                    check(repository.all().isEmpty())
+                    check(profileLedger.snapshot().reconciliationStarts[reconciliationPerson] == LocalDate.of(2026, 12, 8))
+                    repository.import(firstInvoice)
+                    repository.import(later)
+                    check(repository.all().count { it.row.description == "Pagamento recebido" } == 1)
+                    val afterReset = BackupPayload.export(window.database)
+                    BackupPayload.restore(window.database, afterReset)
+                    check(repository.all().count { it.row.description == "Pagamento recebido" } == 1)
+                    afterReset.fill(0)
+                }
+            } finally { context.deleteDatabase(windowName) }
             recoveryData.fill(0)
             result.putString("result", "PASS: backup restore and malformed backup rejection; financial history and shares order; people seed, uniqueness and persistence; encrypted schema 1 migration, imports, deduplication, atomic rejection, review persistence, wrong-key rejection")
             resultCode = Activity.RESULT_OK

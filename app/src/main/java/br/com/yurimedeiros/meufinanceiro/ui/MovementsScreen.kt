@@ -46,7 +46,7 @@ internal fun MovementsScreen(
     if (installmentsOpen) InstallmentsDialog(state) { installmentsOpen = false }
     var query by remember { mutableStateOf("") }
     val currentPeriod = YearMonth.now()
-    var selectedPeriod by remember { mutableStateOf(YearMonth.now()) }
+    var selectedPeriod by remember { mutableStateOf(state.movements.maxOfOrNull { YearMonth.from(it.row.date) } ?: currentPeriod) }
     val friendlyDescriptions = remember(state.movements) { MovementFilters.friendlyNames(state.movements) }
     val years = (state.movements.map { it.row.date.year } + currentPeriod.year + selectedPeriod.year)
         .distinct().sortedDescending()

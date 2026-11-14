@@ -15,6 +15,7 @@ internal object LedgerCodec {
             is LedgerAction.CardCredit -> { put("type", "card-credit"); put("movement", a.movementId); put("reason", a.reason) }
             is LedgerAction.FlashCredit -> { put("type", "flash-credit"); put("movement", a.movementId); put("sunday", a.sunday) }
             is LedgerAction.Asset -> { put("type", "asset"); put("change", AssetCodec.encode(a.change)) }
+            is LedgerAction.PersonReconciliation -> { put("type", "person-reconciliation"); put("person", a.personId); put("start", a.start) }
             is LedgerAction.Planning -> { put("type", "planning"); put("settings", PlanningCodec.encode(a.settings)) }
             is LedgerAction.ForecastMatch -> { put("type", "forecast-match"); put("expense", a.expenseId); put("nominal", a.nominal); put("movement", a.movementId) }
             is LedgerAction.ResolveConflict -> { put("type", "resolve-conflict"); put("movement", a.movementId); put("distinct", a.keepDistinct) }
@@ -47,6 +48,7 @@ internal object LedgerCodec {
             "card-credit" -> LedgerAction.CardCredit(o.getLong("movement"), o.getString("reason"))
             "flash-credit" -> LedgerAction.FlashCredit(o.getLong("movement"), date("sunday"))
             "asset" -> LedgerAction.Asset(AssetCodec.decode(o.getJSONObject("change")))
+            "person-reconciliation" -> LedgerAction.PersonReconciliation(o.getLong("person"), date("start"))
             "planning" -> LedgerAction.Planning(PlanningCodec.decode(o.getJSONObject("settings")))
             "forecast-match" -> LedgerAction.ForecastMatch(o.getString("expense"), date("nominal"), o.getLong("movement"))
             "resolve-conflict" -> LedgerAction.ResolveConflict(o.getLong("movement"), o.getBoolean("distinct"))

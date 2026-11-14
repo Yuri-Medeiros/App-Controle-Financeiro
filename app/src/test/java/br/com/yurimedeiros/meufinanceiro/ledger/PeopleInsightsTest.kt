@@ -32,7 +32,7 @@ class PeopleInsightsTest {
         assertEquals(10000L, view.futureInstallments)
         val person = view.people.single { it.id == 7L }
         assertEquals(11200L, person.futureReceivable)
-        assertEquals(due.plusMonths(1), person.nextDue)
+        assertEquals(LocalDate.of(2026, 12, 8), person.nextDue)
         assertFalse(person.clear)
         assertTrue(view.people.single { it.id == 8L }.clear)
         assertTrue(view.people.none { it.id == 0L })

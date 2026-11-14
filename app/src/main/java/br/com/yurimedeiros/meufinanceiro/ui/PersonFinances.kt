@@ -69,6 +69,13 @@ internal fun PersonFinances(
         OutlinedButton(onClick = { action = "pay" }, enabled = !state.syncing && (person.payable > 0 || person.futurePayable > 0), modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = FinanceInputShape, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Pagar") }
         OutlinedButton(onClick = { action = "statement" }, modifier = Modifier.weight(1.4f).heightIn(min = 48.dp), shape = FinanceInputShape, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Demonstrativo", style = MaterialTheme.typography.labelMedium) }
     }
+    val reconciliationStart = PersonReconciliation.start(state.ledger, personId)
+    OutlinedButton(onClick = { action = "reconciliation" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Conciliação", Modifier.weight(1f))
+            Text(reconciliationStart?.let(AppDates::date) ?: "Definir data", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
     val current = person.invoices.filter { it.invoice.month <= overview.reference }
     GlassPanel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -131,6 +138,7 @@ internal fun PersonFinances(
     OutlinedButton(onClick = { historyLimit = 30; action = "history" }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = FinanceInputShape) { Text("Histórico") }
     state.error?.takeIf { action.isBlank() }?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     when (action) {
+        "reconciliation" -> PersonReconciliationDialog(personId, state, model) { action = "" }
         "receive" -> PersonTransferDialog(personId, state, model, { action = "" })
         "pay" -> PersonTransferDialog(personId, state, model, { action = "" }, DebtDirection.PAY)
         "debt" -> ManualDebtDialog(personId, state, model) { action = "" }
@@ -183,5 +191,22 @@ internal fun PersonFinances(
                 Text(text, style = MaterialTheme.typography.bodyMedium)
             }
         }
+    }
+}
+
+@Composable
+private fun PersonReconciliationDialog(personId: Long, state: FinanceUiState, model: FinanceViewModel, close: () -> Unit) {
+    var date by remember(personId) { mutableStateOf(PersonReconciliation.start(state.ledger, personId)?.let(AppDates::date).orEmpty()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AssetDialog("Conciliação", state, close, subtitle = personLabel(state, personId), confirm = {
+        try {
+            val action = LedgerAction.PersonReconciliation(personId, AppDates.parse(date))
+            FinanceLedger.apply(state.ledger, action)
+            model.saveLedger(action, close)
+        } catch (e: Exception) { error = e.message ?: "Informe uma data válida." }
+    }) {
+        LedgerField("Acompanhar valores a partir de", date) { date = it }
+        Text("Usada nas novas divisões. Valores anteriores ficam como histórico; dívidas e recebimentos já registrados são preservados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }

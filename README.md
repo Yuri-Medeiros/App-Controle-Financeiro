@@ -69,3 +69,9 @@ A camada de domínio já calcula a divisão de uma compra única por partes igua
 ## Desenvolvimento de Movimentações
 
 O fluxo Gmail/importação inclui busca paginada de anexos, validação dos CSVs, confirmação de referência de fatura, revisão individual/em lote, sugestões de categoria, persistência no Room/SQLCipher com migração aditiva e conciliação única de pagamentos de fatura. Estornos, resolução manual de conflitos e fluxos completos de pessoas/parcelas seguem pendentes. Regras aprovadas em [ESPECIFICACAO_IMPORTACAO.md](ESPECIFICACAO_IMPORTACAO.md), configuração OAuth em [CONFIGURACAO_GOOGLE.md](CONFIGURACAO_GOOGLE.md), etapas e evidências em [DESENVOLVIMENTO_MOVIMENTACOES.md](DESENVOLVIMENTO_MOVIMENTACOES.md). O APK anterior não contém automaticamente estas mudanças; candidato e teste no aparelho continuam necessários.
+
+A versão 0.23.0 calcula o vencimento das faturas pela referência importada: dia 8, avançando para o próximo dia útil. Cada parcela usa seu próprio mês, com feriados recorrentes bancários, de SP e de Ribeirão Preto. Roteiro em [VALIDACAO_VENCIMENTOS_AUTOMATICOS.md](VALIDACAO_VENCIMENTOS_AUTOMATICOS.md).
+
+A versão 0.24.0 limita novas importações de fatura a dezembro/2026 em diante e retira dos cálculos os pagamentos da fatura anterior presentes na referência inicial de cada conta. Estornos e reembolsos são preservados. A interface recebe ajustes no seletor e nos avisos, e o acesso a movimentações passa a Extratos. Veja [VALIDACAO_INICIO_FATURAS.md](VALIDACAO_INICIO_FATURAS.md).
+
+A versão 0.25.0 transfere a data de conciliação para o perfil individual em Pessoas e redesenha o modal de lançamento importado com valores por pessoa, divisão por ícones e seleção de parcela em modal separado. Datas individuais valem para novas divisões e preservam o histórico existente. Veja [VALIDACAO_MODAL_LANCAMENTO.md](VALIDACAO_MODAL_LANCAMENTO.md).

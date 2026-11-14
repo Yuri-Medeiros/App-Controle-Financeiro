@@ -13,7 +13,18 @@ internal data class MovementImportResult(val review: StatementReview?, val impor
 internal data class StatementReview(val source: MailDocument, val document: ParsedDocument)
 
 internal class MovementRepository(private val db: FinanceDatabase) {
-    fun all(): List<ReviewMovement> = db.movements().all().filter { it.status != "ARCHIVED" }.map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
+    private fun raw(): List<ReviewMovement> = db.movements().all().filter { it.status != "ARCHIVED" }.map { ReviewMovement(it.id, decode(it.payload), it.origin, it.status, it.category, it.friendlyName, it.confirmedAt, it.pairedMovementId) }
+
+    private fun excludedPayments(rows: List<ReviewMovement>): Set<Long> = InvoiceImportPolicy.excludedPayments(rows,
+        db.movements().documents().mapNotNull { document ->
+            runCatching { document.source.substringBefore(':') to LocalDate.parse(document.reference) }.getOrNull()
+        })
+
+    fun all(): List<ReviewMovement> {
+        val rows = raw()
+        val excluded = excludedPayments(rows)
+        return rows.filter { it.id !in excluded }
+    }
 
     fun import(source: MailDocument, confirmed: LocalDate? = null): StatementReview? =
         importWithCount(source, confirmed).review
@@ -30,13 +41,18 @@ internal class MovementRepository(private val db: FinanceDatabase) {
                 review = StatementReview(source, document)
                 return@runInTransaction
             }
+            if (source.kind == DocumentKind.NUBANK_CARD && statement != null && !InvoiceImportPolicy.accepts(statement)) {
+                dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = statement.toString() })
+                return@runInTransaction
+            }
             val rows = if (statement != null) ImportComparison.withStatement(document, statement) else document.rows
             val account = source.source.substringBefore(':')
-            val accountMovements = all().filter { it.origin.startsWith("$account · ") }
+            val accountMovements = raw().filter { it.origin.startsWith("$account · ") }
             val existing = accountMovements.map { it.row }
             val friendlyNames = accountMovements.filter { it.friendlyName.isNotBlank() }
                 .sortedWith(compareBy<ReviewMovement> { it.confirmedAt }.thenBy { it.id })
                 .associate { FriendlyDescriptions.key(it.row) to it.friendlyName }
+            val insertedIds = mutableSetOf<Long>()
             ImportComparison.compare(rows, existing).filter { it.disposition != ImportDisposition.ALREADY_PRESENT }.forEach { compared ->
                 val movement = Movement().apply {
                     payload = encode(compared.row)
@@ -44,18 +60,20 @@ internal class MovementRepository(private val db: FinanceDatabase) {
                     friendlyName = friendlyNames[FriendlyDescriptions.key(compared.row)].orEmpty()
                     status = if (compared.disposition == ImportDisposition.CONFLICT_FOR_REVIEW) "CONFLICT" else "PENDING"
                 }
-                dao.insert(movement)
+                insertedIds += dao.insert(movement)
                 importedCount++
             }
-            reconcilePayments()
             dao.insertDocument(ImportDocument().apply { this.source = source.source; reference = statement?.toString().orEmpty() })
+            reconcilePayments()
+            importedCount -= excludedPayments(raw()).count { id -> insertedIds.contains(id) }
         }
         return MovementImportResult(review, importedCount)
     }
 
     private fun reconcilePayments() {
         val dao = db.movements()
-        val payments = dao.all().filter { it.status !in setOf("CONFLICT", "IGNORED", "ARCHIVED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
+        val excluded = excludedPayments(raw())
+        val payments = dao.all().filter { it.id !in excluded && it.status !in setOf("CONFLICT", "IGNORED", "ARCHIVED") && !(it.status == "PAYMENT" && it.pairedMovementId > 0) }.map { it to decode(it.payload) }
             .filter { PaymentMatching.isPayment(it.second) }
         val pairs = PaymentMatching.pairs(payments.map { (item, row) -> PaymentCandidate(item.id, item.origin.substringBefore(" · "), row) })
         payments.forEach { (item, _) ->

@@ -128,7 +128,7 @@ internal fun OverviewScreen(state: FinanceUiState, onMovements: () -> Unit) {
         Metric("Confirmadas", confirmed.size.toString(), Modifier.weight(1f))
         Metric("Para revisar", pending.toString(), Modifier.weight(1f))
     }
-    OutlinedButton(onClick = onMovements, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Ver movimentações") }
+    OutlinedButton(onClick = onMovements, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Extratos") }
 }
 
 @Composable

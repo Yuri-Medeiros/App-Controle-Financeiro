@@ -11,7 +11,8 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
 
     fun invoiceResetPreview(): InvoiceResetPreview {
         val snapshot = snapshot()
-        val ids = MovementRepository(db).all().filter { it.row.kind == DocumentKind.NUBANK_CARD }.map { it.id }.toSet()
+        // Reset also archives opening payments hidden from the active projection.
+        val ids = db.movements().all().filter { it.status != "ARCHIVED" && MovementRepository.decode(it.payload).kind == DocumentKind.NUBANK_CARD }.map { it.id }.toSet()
         val documents = db.movements().documents().filter { it.reference.isNotBlank() }.associate { it.source to it.reference }
         val affected = InvoiceReset.affectedDebts(snapshot)
         val mixed = snapshot.actions.filterIsInstance<LedgerAction.Payment>().count { payment -> payment.allocations.keys.any { it in affected } && payment.allocations.keys.any { it !in affected } }
@@ -48,6 +49,7 @@ internal class LedgerRepository(private val db: FinanceDatabase) {
                 require(if (transfer.kind == AssetTransferKind.CONTRIBUTION) m.row.cents < 0 else m.row.cents > 0)
                 require(abs(m.row.cents) == transfer.bankCents && m.row.date == transfer.date)
             }
+            is LedgerAction.PersonReconciliation -> person(action.personId)
             is LedgerAction.Planning -> Unit
             is LedgerAction.ResolveConflict -> require(movements.getValue(action.movementId).status == "CONFLICT")
             is LedgerAction.ForecastMatch -> {

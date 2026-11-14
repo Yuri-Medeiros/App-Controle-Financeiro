@@ -134,14 +134,14 @@ class InvoiceBookTest {
         assertEquals(linkedMapOf("a" to 30000L, "b" to 15000L, "c" to 5000L), InvoiceBook.suggestReceipt(debts, 50000))
         assertEquals(mapOf("a" to 1L), InvoiceBook.suggestReceipt(debts, 1))
     }
-    @Test fun calendarsOutsideValidatedYearRequireConfirmationAndCanBeOverridden() {
+    @Test fun recurringCalendarAdjustsFutureYearsAndPreservesExplicitExceptions() {
         val future = plan().plan.copy(parts = listOf(SchedulePart(1, LocalDate.of(2027, 1, 8), 20000, 1)), shares = mapOf(0L to listOf(20000L)), familyOpening = setOf(1))
         val ledger = FinanceLedger.replay(listOf(LedgerAction.Purchase(future)))
         // Known explicitly registered installment dates are retained.
         assertEquals(future.parts.single().due, InvoiceBook.invoices(ledger, emptyList()).single().due)
         val rows = listOf(row(1, 20000, reference = LocalDate.of(2027, 2, 8)))
         val unknown = InvoiceBook.invoices(LedgerSnapshot(), rows).single()
-        assertNull(unknown.due)
+        assertEquals(LocalDate.of(2027, 2, 10), unknown.due)
         val settings = LedgerAction.Planning(LedgerSnapshot().planning.copy(invoiceDates = mapOf("2027-02" to LocalDate.of(2027, 2, 10))))
         assertEquals(LocalDate.of(2027, 2, 10), InvoiceBook.invoices(FinanceLedger.replay(listOf(settings)), rows).single().due)
     }
